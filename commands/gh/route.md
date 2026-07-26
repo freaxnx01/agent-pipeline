@@ -47,7 +47,7 @@ Judge the issue on:
 | Needs local secrets, live DB, manual/visual verify, or design iteration | **`/gh:work <N>`** (local, in-session) | only you have the env; you drive it, subagent-driven |
 | Ready · small/mechanical · well-trodden | **`/gh:assign <N> copilot`** | fast, reliable trigger; cheap |
 | Ready · complex reasoning / architecture / subtle correctness / security | **`/gh:assign <N> claude`** *or* **`/gh:implement <N>`** | stronger reasoning where it matters |
-| Want the label-pipeline (`claude.yml`) rather than a direct assignee | **`/gh:implement <N>`** | pipeline path; Claude opens a draft PR |
+| Want the label-pipeline (`agent.yml`) rather than a direct assignee | **`/gh:implement <N>`** | pipeline path; Claude opens a draft PR |
 
 **How the routes differ (say this when relevant):**
 
@@ -55,7 +55,7 @@ Judge the issue on:
   Prefer **copilot** (the reliable trigger here); **claude** only when confirmed
   responsive in this repo.
 - **`/gh:implement`** → applies the `ai-implement` label, which fires the repo's
-  **agent-workflow** (`claude.yml`) → Claude implements and opens a draft PR.
+  **agent-workflow** (`agent.yml`) → Claude implements and opens a draft PR.
 - **`/gh:work`** → **local, in this session**: brainstorm → plan → worktree →
   subagent-driven. Best when you want to stay in the loop or the work isn't
   cloud-friendly.
@@ -65,7 +65,7 @@ A rough rule of thumb: **mechanical → Copilot**, **needs real judgement → Cl
 
 ## Step 4b — If the route is the agent-workflow, also pick the model
 
-Only when the chosen route is **`/gh:implement`** (the `claude.yml` agent-workflow).
+Only when the chosen route is **`/gh:implement`** (the `agent.yml` agent-workflow).
 That pipeline can run either **Claude Code** or **OpenCode → OpenRouter**, selected by
 `agent:*` + `model:*` labels (label beats the repo's `default-model`). Pick from the
 policy below by the **shape** of the work, derived from the OpenCode×OpenRouter model
