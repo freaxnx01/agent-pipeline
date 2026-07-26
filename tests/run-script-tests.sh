@@ -520,7 +520,7 @@ assert_contains "$prompt_body" 'Fixture realignment to broken behavior' "rule 3:
 # per language family the ADR enumerates. Future contributors who add
 # language coverage extend this list; future contributors who quietly
 # drop language coverage trip the assertion.
-for marker in 'xit(' '@pytest.mark.skip' '@Ignore' '[Fact(Skip = ' 't.Skip(' '@Skip('; do
+for marker in 'xit(' '@pytest.mark.skip' '@Ignore' '[Fact(Skip =' 't.Skip(' '@Skip('; do
   assert_contains "$prompt_body" "$marker" "rule 2: matcher example '$marker' present"
 done
 
