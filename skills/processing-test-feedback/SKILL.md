@@ -110,7 +110,7 @@ right channel, and mark each entry `done` in the worklog as you go:
 - **TODO.md** → append `- [ ]` under the matching `## <Topic>` section (create the section
   if none fits), in the existing prose style. Link any attachment by its committed path.
   Add an indented sub-line under the bullet quoting the entry's verbatim Source note, e.g.
-  `  - Source: "<verbatim original note>"` — required, same traceability as Issues.
+  `- Source: "<verbatim original note>"` — required, same traceability as Issues.
 - **Immediate** → implement now, surgically (see the base clean-code / surgical-edit rules),
   then record what you changed. The attachment is the repro evidence — keep it in the worklog.
 - **No action** → nothing to create; the rationale (issue link / "already fixed") is the
