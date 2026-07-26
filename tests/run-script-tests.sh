@@ -430,6 +430,51 @@ assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
 ec="$(run_capture_ec env ISSUE_NUMBER=1 bash "$CLASSIFY_AGENT")"
 assert_equals "$ec" "2" "missing REPO → exit 2"
 
+section "check-opencode-auth — OpenRouter key preflight (#164)"
+
+OC_AUTH="$ROOT/scripts/check-opencode-auth.sh"
+OC_AUTH_OUT="$(mktemp)"
+
+# Key present → exit 0, nothing synthesized
+: > "$OC_AUTH_OUT"
+ec="$(run_capture_ec env OUTPUT_FILE="$OC_AUTH_OUT" OPENROUTER_API_KEY=sk-test \
+      MODEL=openai/gpt-oss-120b bash "$OC_AUTH")"
+assert_equals "$ec" "0" "key present → exit 0"
+assert_equals "$(wc -c < "$OC_AUTH_OUT" | tr -d ' ')" "0" "key present → OUTPUT_FILE untouched"
+
+# Key empty → exit 64
+: > "$OC_AUTH_OUT"
+ec="$(run_capture_ec env OUTPUT_FILE="$OC_AUTH_OUT" OPENROUTER_API_KEY= \
+      MODEL=openai/gpt-oss-120b bash "$OC_AUTH")"
+assert_equals "$ec" "64" "key empty → exit 64"
+
+# ...and the synthesized event is a valid opencode `error` event
+out="$(cat "$OC_AUTH_OUT")"
+assert_equals "$(printf '%s' "$out" | jq -r '.type')"            "error"     "missing key → type=error"
+assert_equals "$(printf '%s' "$out" | jq -r '.error.name')"      "AuthError" "missing key → error.name=AuthError"
+assert_contains "$(printf '%s' "$out" | jq -r '.error.data.message')" \
+  'OPENROUTER_API_KEY is not set' "missing key → message names the secret"
+assert_contains "$(printf '%s' "$out" | jq -r '.error.data.message')" \
+  'openai/gpt-oss-120b' "missing key → message carries the model for provenance"
+assert_contains "$(printf '%s' "$out" | jq -r '.error.data.message')" \
+  'docs/CONSUMER-SETUP.md' "missing key → message points at the setup doc"
+
+# Key unset entirely (not just empty) → exit 64
+: > "$OC_AUTH_OUT"
+ec="$(run_capture_ec env OUTPUT_FILE="$OC_AUTH_OUT" MODEL=openai/gpt-oss-120b bash "$OC_AUTH")"
+assert_equals "$ec" "64" "key unset → exit 64"
+
+# The secret value is never echoed
+out="$(OUTPUT_FILE="$OC_AUTH_OUT" OPENROUTER_API_KEY=sk-supersecret \
+       MODEL=openai/gpt-oss-120b bash "$OC_AUTH" 2>&1)"
+assert_not_contains "$out" 'sk-supersecret' "key value never printed"
+
+# Missing OUTPUT_FILE → exit 2
+ec="$(run_capture_ec env OPENROUTER_API_KEY= bash "$OC_AUTH")"
+assert_equals "$ec" "2" "missing OUTPUT_FILE → exit 2"
+
+rm -f "$OC_AUTH_OUT"
+
 section "check-auto-review-gate — input + label combinations"
 
 GATE="$ROOT/scripts/check-auto-review-gate.sh"
