@@ -86,7 +86,7 @@ ensure_opencode() {
       printf 'opencode already at pinned version %s\n' "$OPENCODE_VERSION"
       return 0
     fi
-    printf 'opencode present but at %s; installing pinned %s\n' \
+    printf 'opencode present but at %s; installing pinned version %s\n' \
       "${current:-unknown}" "$OPENCODE_VERSION"
   else
     printf 'opencode not present; installing pinned version %s\n' "$OPENCODE_VERSION"
