@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **OpenCode runs now fail fast on a missing `OPENROUTER_API_KEY`** (#164).
+  Previously the run reached `opencode run`, which silently skipped registering the
+  `openrouter` provider and died with a misleading `ProviderModelNotFoundError`
+  that looked like a model-id bug. `scripts/check-opencode-auth.sh` now preflights
+  the secret and emits an actionable `AuthError`, classified `api_auth` (no retry).
+  The `openrouter/` model prefix is unchanged — it was never the cause.
+
 ## [1.9.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.9.0) - 2026-07-22
 
 ### Added
