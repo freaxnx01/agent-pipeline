@@ -366,6 +366,16 @@ Claude-path labels (`model:opus` / `model:sonnet` / `model:haiku`) are documente
 
 - The secret is declared `required: false` at the workflow boundary; consumers that never set `agent: opencode` don't need to provide it.
 - Inside the runner, the OpenCode step (added in #10) reads it via `${{ secrets.OPENROUTER_API_KEY }}`. The value is never logged: `set +x` is applied around any line that interpolates it, and the GitHub Actions runtime auto-masks secret values in log output by default.
+
+> **Troubleshooting — `ProviderModelNotFoundError` / "Model not found: openrouter/…".**
+> This is almost always a **missing `OPENROUTER_API_KEY`**, not a bad model id.
+> Without a credential, opencode never registers the `openrouter` provider, so
+> every model under it looks unknown. The `openrouter/<model-id>` form is
+> correct even when the id already contains a slash — `openrouter/openai/gpt-oss-120b`
+> is what opencode documents. Since #164 the pipeline preflights the secret and
+> fails with an explicit `OPENROUTER_API_KEY is not set` message instead.
+> Verify with `gh secret list -R <owner>/<repo>`.
+
 - The same `ai-auto-review` opt-in (§2) and chain semantics (§4 — below) apply regardless of which agent ran the implementation.
 
 ### What's left (multi-agent epic)
