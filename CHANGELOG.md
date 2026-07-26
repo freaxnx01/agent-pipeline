@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.10.0) - 2026-07-26
+
+### Added
+
+- **partials:** `response-formatting` partial, plus a tightened `task-checklist` (#159)
+- **partials:** `scope-boundary` rule separating discovery from action
+- **commands:** `/git-sync` slash command
+- **processing-test-feedback:** `Source` traceability on generated entries
+- **docs:** glossary with a scope-creep entry, and a partials overview table in the root README
+
 ### Fixed
 
 - **OpenCode runs now fail fast on a missing `OPENROUTER_API_KEY`** (#164).
@@ -15,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that looked like a model-id bug. `scripts/check-opencode-auth.sh` now preflights
   the secret and emits an actionable `AuthError`, classified `api_auth` (no retry).
   The `openrouter/` model prefix is unchanged — it was never the cause.
+- **ensure-toolchain:** surface the pinned version in the
+  `opencode-present-different-version` message
+- **test:** stale `[Fact(Skip =` marker whitespace mismatch in the Layer-1 suite
+
+### Changed
+
+- **commands:** stale `claude.yml` references updated to `agent.yml` (#163)
+- **commands:** implementation plans are now inlined into the issue body
+- **commands:** handoff artifacts are committed and pushed by default
+- **chore:** AI instruction files refreshed from `ai-instructions` (base + ci overlay)
 
 ## [1.9.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.9.0) - 2026-07-22
 
