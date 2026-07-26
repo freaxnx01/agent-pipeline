@@ -125,6 +125,20 @@ Left open by design, tracked elsewhere (not closed by this):
 - `link-hooks.sh` / `link-commands.sh` source-dir resolution — the ADR-007 follow-up above.
 - `config`'s remaining content (`oh-my-posh/`, `windows/`) still has no clear home — see Deferred.
 
+## Model evaluation — open
+
+- [ ] **Run a model comparison for GLM 5.2.** Never evaluated. `docs/model-comparison.md`
+  only covers `glm-flash` (`z-ai/glm-4.7-flash`), which failed Round 2 with the same
+  signature `gpt-oss-120b` showed on 2026-07-26 — resolved the model, printed an intro,
+  produced no edits, no PR (see #167). Worth checking whether the current GLM line
+  actually drives opencode's agent loop before it gets recommended anywhere.
+
+  Needs: a `model:glm-5` entry in `scripts/classify-task.sh` (label → OpenRouter id),
+  the matching label on the consumer repo, and a bounded single-file issue to run it
+  against — the `/`-shortcut task used for #10 works well as a fixed yardstick, since
+  `minimax-m2.5` (13 turns, $0.01, correct PR) and `gpt-oss-120b` (2 turns, zero output)
+  now have scores on it.
+
 ## Deferred — decide with the user before starting
 
 - [ ] **`config`'s remaining content has no clear home.** ADR-007 removed all
