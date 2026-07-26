@@ -6,7 +6,7 @@ argument-hint: <issue number>
 Hand issue #$ARGUMENTS to the **agent-workflow** by applying the `ai-implement` label.
 Strip any leading `#` from the argument.
 
-The pipeline trigger: `issues: labeled` → `claude.yml` in the current repo fires →
+The pipeline trigger: `issues: labeled` → `agent.yml` in the current repo fires →
 Claude Code implements the issue on a new branch and opens a draft PR.
 
 ## Preconditions — check before labeling
@@ -15,9 +15,15 @@ Claude Code implements the issue on a new branch and opens a draft PR.
    closed or carrying `🧊 parked`.
 2. **Not already queued** — if `ai-implement` is already on the issue, say so and stop
    (avoid double-triggering).
-3. **Pipeline is wired up** — `.github/workflows/claude.yml` must exist in the repo;
-   if it doesn't, tell the user to run `/sync-ai-instructions` or wire up the pipeline
-   first, then stop.
+3. **Pipeline is wired up** — `.github/workflows/agent.yml` must exist in the repo;
+   if it doesn't, tell the user to wire up the consumer stub first (see
+   `docs/CONSUMER-SETUP.md` §1 in `agent-workflow`), then stop. Note
+   `/sync-ai-instructions` does **not** create this file — it syncs instruction
+   files only, and carries no workflow template.
+   A legacy `claude.yml` stub also counts as wired up, but warn that it should be
+   renamed: retry-on-rate-limit and chain-dispatch redispatch `agent.yml` by
+   default and the retry target is not consumer-overridable, so the initial run
+   works while retries silently 404.
 4. **Issue is ready for an agent** — read the full issue body and comments with
    `gh issue view <N> --comments`, then judge whether an AI agent has enough to
    implement it without guessing. A ready issue has **all three**:
