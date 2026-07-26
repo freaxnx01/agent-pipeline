@@ -1417,6 +1417,13 @@ out="$(EXECUTION_FILE="$FIXTURES/opencode-auth-fail.json" bash "$ADAPT_OC")"
 assert_contains "$out" '"is_error":true'                  "auth-fail → is_error=true"
 assert_contains "$out" '403'                              "auth-fail result text mentions 403"
 
+# Preflight missing-key event → canonical error result (#164)
+out="$(EXECUTION_FILE="$FIXTURES/opencode-missing-key.json" MODEL=openai/gpt-oss-120b bash "$ADAPT_OC")"
+assert_equals "$(printf '%s' "$out" | jq -r '.is_error')" "true" \
+  "missing-key preflight → is_error true"
+assert_contains "$(printf '%s' "$out" | jq -r '.result')" 'OPENROUTER_API_KEY is not set' \
+  "missing-key preflight → result carries the actionable message"
+
 # Unparseable input → bug-bucket result
 TMP_BAD="$(mktemp)"
 printf 'this is not json {{ bad' > "$TMP_BAD"
@@ -1444,6 +1451,10 @@ out="$(adapter_to_classifier opencode-rate-limit.json)"
 assert_contains "$out" 'class=rate_limit' "opencode rate-limit → class=rate_limit"
 out="$(adapter_to_classifier opencode-auth-fail.json)"
 assert_contains "$out" 'class=api_auth'   "opencode 403 / forbidden → class=api_auth"
+
+# Missing OPENROUTER_API_KEY is an operator problem, not a retryable one (#164)
+out="$(adapter_to_classifier opencode-missing-key.json)"
+assert_contains "$out" 'class=api_auth' "missing OPENROUTER_API_KEY → api_auth (no retry)"
 
 # Error paths
 ec="$(run_capture_ec env bash "$ADAPT_OC")"
