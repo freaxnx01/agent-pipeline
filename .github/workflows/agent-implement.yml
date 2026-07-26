@@ -461,13 +461,25 @@ jobs:
           set +x
           out_file="${RUNNER_TEMP:-/tmp}/opencode-output.json"
           log_file="${RUNNER_TEMP:-/tmp}/opencode-output.log"
+          # Preflight (#164): with OPENROUTER_API_KEY empty, opencode registers
+          # no `openrouter` provider and dies with a ProviderModelNotFoundError
+          # that reads like a bad model id. Short-circuit into the normal
+          # degradation path with an actionable AuthError instead.
+          if ! OUTPUT_FILE="$out_file" bash .claude-pipeline/scripts/check-opencode-auth.sh; then
+            printf 'execution_file=%s\n' "$out_file" >> "$GITHUB_OUTPUT"
+            printf 'exit_code=64\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # opencode 1.x CLI (verified against opencode-ai@1.15.13 --help):
           #   opencode run [message..] -m <provider/model> --format json
           # The message is a POSITIONAL arg (no --prompt-file); --format json
           # writes raw JSON events to stdout; --print-logs sends logs to stderr.
           # Triage emits OpenRouter model ids (e.g. mistralai/mistral-large-latest,
           # google/gemma-4-31b-it); opencode needs the `openrouter/` provider
-          # prefix, so prepend it unless already present.
+          # prefix, so prepend it unless already present. Ids that already carry
+          # a provider slug are prefixed too — `openrouter/openai/gpt-oss-120b`
+          # is the documented form (opencode.ai/docs/providers), NOT a
+          # double-prefix bug. See #164 before "fixing" this.
           #
           # EXPERIMENTAL (see #58): the OpenRouter auth mechanism (OPENROUTER_API_KEY
           # env vs. `opencode auth login`) and the exact --format json event shape
