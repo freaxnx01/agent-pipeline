@@ -53,9 +53,11 @@ Then dispatch to the matching phase below.
 1. Replace the issue body (`gh issue edit <issue> --body-file …`) with:
    - the original description (keep it for humans),
    - an `## Acceptance Criteria` section as a `- [ ]` checklist,
-   - a `## Spec & Implementation Plan` section linking the **relative paths** to
-     `spec=` and `plan=`, plus the line: *"Read the plan before writing any code — it
-     contains the full task breakdown, file structure, TDD steps, and exact code."*
+   - an `## Implementation Plan` section with the **full plan content inlined
+     verbatim** (not a link) — read `plan=` and paste its contents in, so the
+     implementing agent can work from the issue body alone with no extra file reads,
+   - a `## Spec` section with just the relative path to `spec=` (linked as
+     markdown) — human/reviewer reference only, not needed by the implementing agent.
 2. Push if anything else is pending.
 3. **Done:** delete `.claude/enrich-phased.state` and `.claude/handoff.md`. Print the
    issue URL, the spec and plan paths, and: *"Issue is ready — run

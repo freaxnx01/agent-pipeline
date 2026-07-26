@@ -52,14 +52,18 @@ Verify the push succeeded before proceeding.
 
 ## Step 6 — Update the issue body
 
-Replace the issue body with:
+The implementing agent should be able to work from the issue body alone — no
+extra file reads to orient itself. Replace the issue body with:
 
 1. The original description (keep it — context for humans)
 2. An `## Acceptance Criteria` section with the approved AC as a `- [ ]` checklist
-3. A `## Spec & Implementation Plan` section with:
-   - Relative path to spec file (linked as markdown)
-   - Relative path to plan file (linked as markdown)
-   - A one-line instruction: _"Read the plan before writing any code — it contains the full task breakdown, file structure, TDD steps, and exact code to produce."_
+3. An `## Implementation Plan` section containing the **full plan content
+   inlined verbatim** (not a link) — the task breakdown, file structure, TDD
+   steps, and exact code to produce, exactly as written to the plan file in
+   Step 4
+4. A `## Spec` section with just the relative path to the spec file (linked as
+   markdown) — for human/reviewer reference only; the implementing agent
+   should not need it
 
 ```bash
 gh issue edit $ARGUMENTS --body "..."
