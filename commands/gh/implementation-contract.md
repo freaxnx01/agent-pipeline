@@ -68,7 +68,7 @@ Your PR description must include:
 
 - The before/after output of the verification command
 - An explicit list of every file changed, and confirmation that the files marked
-  **do NOT touch** in the issue are unmodified (`git diff --name-only` output is
+  **do NOT touch** in the issue are unmodified (\`git diff --name-only\` output is
   enough)
 
 Do not \"improve\" adjacent documentation that the Acceptance Criteria does not name."
