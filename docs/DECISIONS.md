@@ -839,7 +839,7 @@ partials and the bootstrap together eliminates the dependency.
 ### Context
 
 Issue #160 asked whether the "advisor strategy"
-(https://claude.com/blog/the-advisor-strategy) can be used with the `ai-implement`
+(<https://claude.com/blog/the-advisor-strategy>) can be used with the `ai-implement`
 pipeline's headless Claude runs. The pattern lets a cheap executor model
 (Sonnet/Haiku) call a stronger "advisor" model (Opus) mid-task, within the same
 request, only at decision points it can't resolve on its own — near-Opus judgement
@@ -857,7 +857,7 @@ research (this session's local `claude --help` on CLI v2.1.218 — the exact ver
 `2d6abe4aa8adacaa322e24a040787cf155cf1d09` — the public `anthropics/claude-code`
 `CHANGELOG.md`, and the blog post) found:
 
-- **Confirmed:** the advisor tool is a real, shipped Anthropic feature. At the API
++ **Confirmed:** the advisor tool is a real, shipped Anthropic feature. At the API
   level it's a beta tool (`anthropic-beta: advisor-tool-2026-03-01` header, `"type":
   "advisor_20260301"` tool block, per the blog post). The Claude Code CLI has its
   own integration, first appearing in the public changelog at v2.1.117 ("Advisor
@@ -865,7 +865,7 @@ research (this session's local `claude --help` on CLI v2.1.218 — the exact ver
   in the v2.1.218 binary the pipeline installs. The action exposes a `claude_args`
   passthrough input, not currently used by `agent-implement.yml`, that in principle
   could carry flags beyond `allowed_tools`.
-- **Not confirmed:** no changelog entry, `--help` output, or reachable docs page
++ **Not confirmed:** no changelog entry, `--help` output, or reachable docs page
   describes a headless (`-p`/`--print`) or `settings.json` path to enable/configure
   the advisor tool. Every changelog mention describes interactive-session UI
   ("`/advisor` dialog", "advisor picker", "startup notification when enabled") — a
