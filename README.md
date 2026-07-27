@@ -35,11 +35,11 @@ namespaces, so `commands/fj/work.md` is invoked as `/fj:work`.
 
 ```text
 commands/
-  fj/    → /fj:new  /fj:issues  /fj:triage  /fj:enrich  /fj:work  /fj:prs  …
-  gh/    → /gh:new  /gh:issues  /gh:assign  /gh:implement  /gh:review  …
+  fj/    → /fj:new  /fj:issues  /fj:triage  /fj:enrich  /fj:work  /fj:prs  /fj:milestone  …
+  gh/    → /gh:new  /gh:issues  /gh:assign  /gh:implement  /gh:review  /gh:milestone  …
   wt/    → /wt:status  /wt:finish
   *.md   → /handoff  /pickup  /todo  /wrap-up  /loose-ends  /clear-check
-           /issues  /prs  /triage  /route  /work  (forge routers)
+           /issues  /prs  /triage  /route  /work  /milestone  (forge routers)
            /capture-idea  /commands  /update-commands
 ```
 
