@@ -24,6 +24,21 @@
   agent-workflow in CI, which has no `tea` login and no access to the private
   BI-ArchiveUploader repo. Running `/gh:issues` against a real repo lives in the
   **Manual verification** section at the end.
+- **The Forgejo flag is `--labels` (plural), verified — not guessed.** #172 shipped
+  an entirely unverified `/fj:milestone` surface because `tea` wasn't installed;
+  `commands/fj/issues.md:27` carries an older scar from the same class of mistake
+  (`--description`, not `--body`). `tea` 0.14.1 was installed while writing this
+  plan and `tea issues list --help` confirms `--labels string, -L string` —
+  comma-separated, plural. Do not "correct" it to `--label`.
+- **Every verification check must print on both paths.** A bare
+  `grep -q … && echo OK` is silent when it fails, and a `grep -c` returning `0`
+  *exits* `1` — both read as an ambiguous or falsely-failed step in CI. Write every
+  check as `… && echo "… OK" || echo "FAIL: …"`. (#172's plan was amended for
+  exactly this — see `a6f7c75`.)
+- **Do not use `git diff … main` in a verification step.** In an `actions/checkout`
+  CI clone `main` is frequently not a local ref, so the command errors with
+  *unknown revision* instead of failing the assertion. Scope violations are checked
+  by asserting on **file content**, which works in any checkout.
 - **Do not create the `roadmap` label in this repo.** Both filters are
   label-*absence* checks and are inert no-ops where the label doesn't exist. That
   inertness is an acceptance criterion, not a bug.
@@ -44,6 +59,18 @@
   section (lines 11–28) untouched.
 - Reference `#173` in every commit message; use Conventional Commits
   (`feat(commands): …`, `docs: …`).
+
+## Verification checks are pre-validated
+
+Every check below was dry-run against sandbox copies of the two command files —
+once **before** the edits (to confirm each check fails loudly rather than going
+silent) and once **after** (to confirm it passes), plus deliberately corrupted
+copies to confirm it still catches a capitalised label, an emoji-prefixed label,
+and a dropped footer. Two checks were wrong on the first pass and are fixed here:
+a bare `Roadmap` regex that hit the legitimate sentence-initial "Roadmap issues
+are planned for…", and a `tail -4` footer grep that missed because the footer
+sentence wraps across lines. **If a check fails, suspect the edit before you
+suspect the check.**
 
 ## File Structure
 
@@ -127,22 +154,26 @@ The GraphQL query above it is unchanged.
 - [ ] **Step 5: Verify**
 
 ```bash
+f=commands/gh/issues.md
+
 # the new filter line exists, with the exact bare label
-grep -Fq 'index("roadmap") | not' commands/gh/issues.md && echo "jq filter OK"
+grep -Fq 'index("roadmap") | not' "$f" && echo "jq filter OK" || echo "FAIL: jq filter missing"
 
 # it sits after the parked filter, not before
-awk '/index\("🧊 parked"\)/{p=NR} /index\("roadmap"\)/{r=NR} END{ if (p && r && r > p) print "filter order OK"; else print "FAIL: order " p " " r }' commands/gh/issues.md
+awk '/index\("🧊 parked"\)/{p=NR} /index\("roadmap"\)/{r=NR} END{ if (p && r && r > p) print "filter order OK"; else print "FAIL: order parked=" p+0 " roadmap=" r+0 }' "$f"
 
-# no emoji-prefixed or capitalised variant crept in
-! grep -Eq '📍 ?roadmap|"Roadmap"' commands/gh/issues.md && echo "label string OK"
+# no emoji-prefixed or capitalised variant crept in.
+# Match quoted/backticked label positions only — bare `Roadmap` would also hit the
+# legitimate sentence-initial "Roadmap issues are planned for…" added in Step 2.
+grep -Eq '📍 ?roadmap|"Roadmap"|`Roadmap`' "$f" && echo "FAIL: wrong label variant" || echo "label string OK"
 
 # all three prose surfaces mention roadmap
-sed -n '2p' commands/gh/issues.md | grep -q 'roadmap' && echo "front-matter OK"
-grep -q 'gh issue list --label roadmap' commands/gh/issues.md && echo "escape hatch OK"
-! grep -q '/gh:roadmap' commands/gh/issues.md && echo "no phantom command OK"
+sed -n '2p' "$f" | grep -q 'roadmap' && echo "front-matter OK" || echo "FAIL: front-matter"
+grep -Fq 'gh issue list --label roadmap' "$f" && echo "escape hatch OK" || echo "FAIL: no escape hatch"
+grep -q '/gh:roadmap' "$f" && echo "FAIL: references a command that does not exist" || echo "no phantom command OK"
 
 # the GraphQL query is untouched
-grep -Fq 'timelineItems(itemTypes:[CROSS_REFERENCED_EVENT,CONNECTED_EVENT], first:50)' commands/gh/issues.md && echo "query intact OK"
+grep -Fq 'timelineItems(itemTypes:[CROSS_REFERENCED_EVENT,CONNECTED_EVENT], first:50)' "$f" && echo "query intact OK" || echo "FAIL: query altered"
 ```
 
 Expected: seven `OK` lines, no `FAIL`.
@@ -201,8 +232,12 @@ roadmap** (no `roadmap` label) — **newest first**. Issues whose only linked PR
 already merged/closed still count as not-WIP and are shown. Parked issues are
 deliberately deferred; list them with `/fj:parked`. Roadmap issues are planned for
 a future milestone rather than current work; find them with
-`tea issues list --labels roadmap`.
+`tea issues list --login git-home --labels roadmap`.
 ```
+
+**`--labels` is plural** — verified against `tea issues list --help` (tea 0.14.1):
+`--labels string, -L string   Comma-separated list of labels to match issues
+against.` `--login git-home` matches this file's existing convention.
 
 - [ ] **Step 3: Approach sentence (line 35) and step-2 comment (line 51)**
 
@@ -241,34 +276,42 @@ the line above — is unchanged.
 - [ ] **Step 5: Verify**
 
 ```bash
-# the guard now covers roadmap, on the same line as the parked check
-grep -Fq 'if i["number"] in wip or "🧊 parked" in labels or "roadmap" in labels: continue' commands/fj/issues.md \
-  && echo "python guard OK"
+f=commands/fj/issues.md
 
-# exact bare label, no variants
-! grep -Eq '📍 ?roadmap|"Roadmap"' commands/fj/issues.md && echo "label string OK"
+# the guard now covers roadmap, on the same line as the parked check
+grep -Fq 'if i["number"] in wip or "🧊 parked" in labels or "roadmap" in labels: continue' "$f" \
+  && echo "python guard OK" || echo "FAIL: guard not extended"
+
+# exact bare label, no variants (quoted/backticked positions only — see Task 1)
+grep -Eq '📍 ?roadmap|"Roadmap"|`Roadmap`' "$f" && echo "FAIL: wrong label variant" || echo "label string OK"
 
 # prose surfaces
-sed -n '2p' commands/fj/issues.md | grep -q 'roadmap' && echo "front-matter OK"
-grep -q 'tea issues list --labels roadmap' commands/fj/issues.md && echo "escape hatch OK"
-! grep -q '/fj:roadmap' commands/fj/issues.md && echo "no phantom command OK"
+sed -n '2p' "$f" | grep -q 'roadmap' && echo "front-matter OK" || echo "FAIL: front-matter"
+grep -Fq 'tea issues list --login git-home --labels roadmap' "$f" && echo "escape hatch OK" || echo "FAIL: no escape hatch"
+grep -q '/fj:roadmap' "$f" && echo "FAIL: references a command that does not exist" || echo "no phantom command OK"
+
+# the plural flag survived — --label singular does not exist in tea 0.14.1
+grep -Eq '\-\-label[^s]' "$f" && echo "FAIL: singular --label, must be --labels" || echo "plural flag OK"
 
 # untouched regions: Forgejo access section and the self-improving footer
-grep -Fq 'tea api --login git-home' commands/fj/issues.md && echo "tea access intact OK"
-tail -4 commands/fj/issues.md | grep -q 'update this command for the future' && echo "footer intact OK"
+grep -Fq 'tea api --login git-home' "$f" && echo "tea access intact OK" || echo "FAIL: tea access section"
+# `tail -5`, and match without the trailing word — the footer sentence wraps, so
+# "update this command for the future" never appears on a single line.
+tail -5 "$f" | grep -q 'update this command for the' && echo "footer intact OK" || echo "FAIL: footer lost"
 
-# the python still parses
-sed -n '/^import sys,json$/,/^print(i\["number"\]/p' commands/fj/issues.md >/dev/null
-python3 -c 'compile(open("/dev/stdin").read(), "x", "exec")' <<'PY' && echo "python parses OK"
-import sys,json
+# the edited guard is still valid python
+python3 - <<'PY' && echo "python parses OK" || echo "FAIL: python syntax"
+src = '''
 wip=set()
 for i in []:
     labels=[l["name"] for l in i.get("labels") or []]
-    if i["number"] in wip or "🧊 parked" in labels or "roadmap" in labels: continue
+    if i["number"] in wip or "\U0001f9ca parked" in labels or "roadmap" in labels: continue
+'''
+compile(src, "guard", "exec")
 PY
 ```
 
-Expected: eight `OK` lines.
+Expected: nine `OK` lines, no `FAIL`.
 
 - [ ] **Step 6: Commit**
 
@@ -324,9 +367,9 @@ Under `## [Unreleased]`, add a `### Changed` section immediately after the exist
 
 ```bash
 # router description updated, logic untouched
-sed -n '2p' commands/issues.md | grep -q 'not roadmap' && echo "router description OK"
-grep -Fq 'This command holds no query logic of its own' commands/issues.md && echo "router logic intact OK"
-! grep -q 'index("roadmap")' commands/issues.md && echo "no logic leaked into router OK"
+sed -n '2p' commands/issues.md | grep -q 'not roadmap' && echo "router description OK" || echo "FAIL: router description"
+grep -Fq 'This command holds no query logic of its own' commands/issues.md && echo "router logic intact OK" || echo "FAIL: router prose"
+grep -q 'index("roadmap")' commands/issues.md && echo "FAIL: query logic leaked into router" || echo "no logic leaked into router OK"
 
 # changelog entry under Unreleased → Changed, referencing #173.
 # Track the two markers separately — the entry wraps, so `roadmap` and `#173`
@@ -334,25 +377,19 @@ grep -Fq 'This command holds no query logic of its own' commands/issues.md && ec
 awk '/^## \[Unreleased\]/{u=1} /^## \[1\./{u=0} u && /^### Changed/{c=1} u && c && /roadmap/{r=1} u && c && /#173/{n=1} END{ if (r && n) print "changelog OK"; else print "FAIL: changelog roadmap=" (r?1:0) " ref173=" (n?1:0) }' CHANGELOG.md
 
 # #172 entries survived
-grep -Fq '/milestone` (+ `/gh:milestone`, `/fj:milestone`)' CHANGELOG.md && echo "prior entries intact OK"
+grep -Fq '/milestone` (+ `/gh:milestone`, `/fj:milestone`)' CHANGELOG.md \
+  && echo "prior entries intact OK" || echo "FAIL: clobbered #172 entries"
 
-# out-of-scope files untouched across the whole change
-git diff --name-only main -- commands/gh/triage.md commands/gh/parked.md commands/fj/parked.md .github/ | \
-  { read -r x && { echo "FAIL: out-of-scope file $x"; false; } || echo "scope clean OK"; }
-
-# the full set of changed files is exactly four
-git diff --name-only main | sort
+# out-of-scope files carry no roadmap logic (AC 6).
+# Asserted on CONTENT, not `git diff … main` — in an actions/checkout clone `main`
+# is often not a local ref, so a diff-based check errors out instead of failing.
+for x in commands/gh/triage.md commands/gh/parked.md commands/fj/parked.md; do
+  grep -q 'roadmap' "$x" && echo "FAIL: roadmap leaked into $x" || echo "untouched OK: $x"
+done
+grep -rq 'roadmap' .github/ && echo "FAIL: roadmap reached .github/" || echo "workflows untouched OK"
 ```
 
-Expected: six `OK` lines, no `FAIL`, and exactly these four paths from the last
-command:
-
-```
-CHANGELOG.md
-commands/fj/issues.md
-commands/gh/issues.md
-commands/issues.md
-```
+Expected: nine `OK` lines, no `FAIL`.
 
 - [ ] **Step 4: Commit**
 

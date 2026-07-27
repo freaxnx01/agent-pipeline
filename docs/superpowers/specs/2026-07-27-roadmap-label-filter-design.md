@@ -2,7 +2,9 @@
 
 **Issue:** [#173](https://github.com/freaxnx01/agent-workflow/issues/173)
 **Date:** 2026-07-27
-**Status:** approved
+**Status:** approved — scope (both forges) confirmed by the user at the
+brainstorming gate; the acceptance criteria below were authored after that gate and
+have not been separately signed off.
 
 ---
 
@@ -139,9 +141,11 @@ When #175 lands it can replace that sentence with `/gh:roadmap`.
    `commands/fj/issues.md`, and `commands/issues.md` states that roadmap issues are
    excluded.
 4. The body prose in `commands/gh/issues.md` and `commands/fj/issues.md` states that
-   roadmap-labeled issues are excluded and tells the reader how to find them
-   (`gh issue list --label roadmap` / the Forgejo equivalent) — without referring to
-   a `/gh:roadmap` or `/fj:roadmap` command, which does not exist.
+   roadmap-labeled issues are excluded and tells the reader how to find them —
+   `gh issue list --label roadmap` and
+   `tea issues list --login git-home --labels roadmap` (**plural** `--labels`,
+   verified against `tea issues list --help`, tea 0.14.1) — without referring to a
+   `/gh:roadmap` or `/fj:roadmap` command, which does not exist.
 5. The label is matched as bare lowercase `roadmap` — no emoji prefix, in any file.
 6. `commands/gh/triage.md`, `commands/gh/parked.md`, `commands/fj/parked.md`, and
    every file under `.github/workflows/` are unmodified.
@@ -167,7 +171,9 @@ task steps:
    output must be unchanged from before (proving the filter is inert, not
    over-matching).
 3. Run `/fj:issues` against a Forgejo repo to confirm the python change did not
-   break the existing pipeline.
+   break the existing pipeline. (`tea` 0.14.1 was installed locally while writing
+   this spec, so unlike #172's `/fj:milestone` work the Forgejo flags here are
+   verified rather than read from source — but no live Forgejo call has been made.)
 
 ## Risks
 
