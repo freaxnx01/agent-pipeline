@@ -1,12 +1,14 @@
 ---
-description: List open Forgejo issues that are not WIP (no open PR) and not parked, newest first
+description: List open Forgejo issues that are not WIP (no open PR), not parked, and not roadmap, newest first
 ---
 
 List open issues in the current Forgejo repo that are **not work-in-progress** —
-i.e. have no **open** linked PR — and **not parked** (no `🧊 parked` label) —
-**newest first**. Issues whose only linked PR is already merged/closed still count
-as not-WIP and are shown. Parked issues are deliberately deferred; list them with
-`/fj:parked`.
+i.e. have no **open** linked PR — **not parked** (no `🧊 parked` label), and **not
+roadmap** (no `roadmap` label) — **newest first**. Issues whose only linked PR is
+already merged/closed still count as not-WIP and are shown. Parked issues are
+deliberately deferred; list them with `/fj:parked`. Roadmap issues are planned for
+a future milestone rather than current work; find them with
+`tea issues list --login git-home --labels roadmap`.
 
 ## Forgejo access
 
@@ -32,7 +34,7 @@ repo=$(echo "$url" | sed -E 's#.*[:/]([^/]+/[^/]+)$#\1#')   # e.g. freax/hello-f
 `tea issues list` can't tell you which issues have an open PR. Forgejo has no
 GraphQL timeline, so derive WIP from the open PRs themselves: an issue is WIP if an
 **open** PR closes it (`closes/fixes/resolves #N` in the PR title or body, or a
-same-named `issue-N-*` branch). Then drop parked issues.
+same-named `issue-N-*` branch). Then drop parked and roadmap issues.
 
 ```bash
 # repo resolved as above
@@ -48,14 +50,14 @@ for p in prs:
     m=re.match(r"issue-(\d+)", p.get("head",{}).get("ref","") or "")
     if m: wip.add(int(m.group(1)))
 print(" ".join(map(str,sorted(wip))))' > /tmp/fj_wip.txt
-# 2) open issues, newest first, minus WIP, minus parked
+# 2) open issues, newest first, minus WIP, minus parked, minus roadmap
 tea api --login git-home "repos/$repo/issues?state=open&type=issues&limit=100&sort=created&order=desc" \
   | python3 -c '
 import sys,json
 wip=set(int(x) for x in open("/tmp/fj_wip.txt").read().split())
 for i in json.load(sys.stdin):
     labels=[l["name"] for l in i.get("labels") or []]
-    if i["number"] in wip or "🧊 parked" in labels: continue
+    if i["number"] in wip or "🧊 parked" in labels or "roadmap" in labels: continue
     print(i["number"], "|", i["title"], "|", ",".join(labels) or "-", "|", i["created_at"], "|", (i.get("user") or {}).get("login","?"))'
 ```
 

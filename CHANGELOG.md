@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **commands:** `/gh:issues` and `/fj:issues` now also exclude issues labeled
+  `roadmap` (planned for a future milestone, not current work), alongside the
+  existing `🧊 parked` exclusion (#173)
 - **commands:** `/gh:assign` and `/gh:implement` now pick an implementation
   contract by issue shape — the TDD contract for code changes, a before/after
   verification contract for docs-only issues — from the new shared
