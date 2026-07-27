@@ -28,15 +28,33 @@ If the issue is already complete, tell the user and suggest running `/gh:impleme
 ## Step 3 — Brainstorm spec
 
 Invoke **superpowers:brainstorming** with the issue as context. The goal is a
-validated spec saved to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
-and committed. Follow the brainstorming skill end-to-end (clarifying questions,
-approaches, design sections, spec self-review, user approval gate).
+validated spec saved to `<specs-dir>/YYYY-MM-DD-<topic>-design.md` and committed.
+Follow the brainstorming skill end-to-end (clarifying questions, approaches,
+design sections, spec self-review, user approval gate).
 
 ## Step 4 — Write implementation plan
 
 After brainstorming exits, invoke **superpowers:writing-plans** to produce the
-full task-by-task plan at `docs/superpowers/plans/YYYY-MM-DD-<topic>.md` and
-commit it.
+full task-by-task plan at `<plans-dir>/YYYY-MM-DD-<topic>.md` and commit it.
+
+### Picking `<specs-dir>` / `<plans-dir>` — check gitignore first
+
+Both superpowers skills default to `docs/superpowers/{specs,plans}/`. **Many repos
+gitignore `docs/superpowers/`**, so those defaults commit nothing and the paths you
+then write into the issue body resolve to nothing for the implementing agent — a
+silent failure. Resolve the directories before writing either file:
+
+```bash
+for d in docs/ai-notes/specs docs/superpowers/specs; do
+  git check-ignore -q "$d/probe.md" && echo "$d IGNORED" || echo "$d ok"
+done
+```
+
+Prefer whichever sibling convention the repo already uses — look for existing dated
+`*-design.md` and plan files and follow them.
+
+Tell the brainstorming and writing-plans skills the resolved path explicitly —
+both honour "user preferences for spec/plan location override this default".
 
 ## Step 5 — Push to remote
 
@@ -46,6 +64,17 @@ able to check them out:
 
 ```bash
 git push
+```
+
+**Push to the branch the implementing agent will start from — normally `main`.**
+A plain `git push` from a local-only scratch branch (e.g. a long-lived
+`.worktrees/<name>` checkout) publishes nothing the agent can see, and the body's
+paths dangle. From such a worktree, push the branch *at* main explicitly:
+
+```bash
+git fetch origin && git rebase origin/main   # main often moved while you were writing
+git push origin <local-branch>:main
+git ls-tree -r --name-only origin/main -- docs | grep <today>   # prove the files landed
 ```
 
 Verify the push succeeded before proceeding.
