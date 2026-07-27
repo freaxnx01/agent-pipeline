@@ -1,5 +1,5 @@
 ---
-description: List open issues (not WIP, not parked) — auto-routes to GitHub or Forgejo by remote
+description: List open issues (not WIP, not parked, not roadmap) — auto-routes to GitHub or Forgejo by remote
 ---
 
 Route to the forge-specific **issues** command based on the `origin` remote host,
