@@ -52,7 +52,7 @@ vocabulary (MudBlazor, shadcn/ui, Flutter widgets, …) comes from the project's
 **Forge routers** (auto-detect GitHub vs Forgejo from the `origin` remote, then
 delegate to the matching `gh:`/`fj:` command):
 `/issues` · `/prs` · `/parked` · `/triage` · `/done` · `/new` · `/enrich` ·
-`/enrich-phased` · `/route` · `/work`
+`/enrich-phased` · `/route` · `/work` · `/milestone`
 
 **Idea capture** (forge-agnostic, local — precedes the issue funnel):
 `/capture-idea <idea>` — jot an idea into the current repo's `docs/ideas.md`.
@@ -64,9 +64,10 @@ delegate to the matching `gh:`/`fj:` command):
 
 **GitHub** (`gh/`): `/gh:new` · `/gh:issues` · `/gh:parked` · `/gh:triage` ·
 `/gh:enrich` · `/gh:enrich-phased` · `/gh:route` · `/gh:work` · `/gh:assign` ·
-`/gh:implement` · `/gh:prs` · `/gh:review` · `/gh:done`
+`/gh:implement` · `/gh:prs` · `/gh:review` · `/gh:done` · `/gh:milestone`
 
 **Forgejo** (`fj/`): `/fj:new` · `/fj:issues` · `/fj:parked` · `/fj:triage` ·
-`/fj:enrich` · `/fj:enrich-phased` · `/fj:route` · `/fj:work` · `/fj:prs` · `/fj:done`
+`/fj:enrich` · `/fj:enrich-phased` · `/fj:route` · `/fj:work` · `/fj:prs` ·
+`/fj:done` · `/fj:milestone`
 
 Each `.md` file's `description:` front-matter shows in the `/` autocomplete menu.

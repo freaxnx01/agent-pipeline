@@ -46,6 +46,8 @@ Use these as the baseline set:
   _Hand a well-specced issue to @copilot/@claude or the agent-workflow instead of building it locally._
 - **Forgejo pipeline:** `/fj:new` → `/fj:triage` → `/fj:route` → `/fj:enrich` → `/fj:work` → `/fj:prs` → `/fj:done`
   _Same flow as GitHub, on the self-hosted Forgejo instance._
+- **Release-scoped work:** `/milestone new <name> due <date>` → `/new` → `/milestone assign <issue> to <name>` → `/milestone list`
+  _Open a milestone, file work into it, then see everything still open for that ship date._
 - **Session continuity (clear & resume):** `/loose-ends` → `/clear-check` → `/handoff` → `/clear` → `/pickup`
   _Wrap up mid-task, confirm it's safe to clear, save state, then resume in a fresh context._
 - **Session wrap / next day:** `/wrap-up` → (`/clear` or new session) → `/todo`

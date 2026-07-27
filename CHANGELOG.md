@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **commands:** `/milestone` (+ `/gh:milestone`, `/fj:milestone`) — `list`, `new`,
+  and `assign` verbs across both forges, with every write confirmed by read-back (#172)
+- **commands:** `/gh:new` and `/fj:new` accept a milestone when the notes name one (#172)
+
 ## [1.10.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.10.0) - 2026-07-26
 
 ### Added
