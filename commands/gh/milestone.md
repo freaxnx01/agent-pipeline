@@ -1,6 +1,6 @@
 ---
-description: List, create, or assign GitHub milestones — list | new <name> [due <date>] | assign <issue> to <name>
-argument-hint: list | new <name> [due <date>] | assign <issue> to <name>
+description: List, create, assign, or triage GitHub milestones — list | new <name> [due <date>] | assign <issue> to <name> | triage
+argument-hint: list | new <name> [due <date>] | assign <issue> to <name> | triage
 ---
 
 Manage milestones in the current GitHub repo with **`gh`**.
@@ -11,16 +11,17 @@ label (*a filter tag*) — see `docs/glossary.md` in agent-workflow.
 
 ## Parse the verb
 
-**Three verbs only** — `list`, `new`, `assign`.
+**Four verbs only** — `list`, `new`, `assign`, `triage`.
 
 - No arguments at all → treat it as `list`.
-- A first word that isn't one of the three → print the three usage forms below and
+- A first word that isn't one of the four → print the four usage forms below and
   **stop**. Don't guess the intent, don't fuzzy-match.
 
 ```text
 /milestone list
 /milestone new <name> [due <date>]
 /milestone assign <issue> to <name>
+/milestone triage
 ```
 
 ## Two rules that apply to every verb
@@ -106,6 +107,58 @@ gh issue view <issue> --json number,milestone --jq '[.number, (.milestone.title 
 
 If the milestone name doesn't exist, `gh` rejects it — print the open milestones
 (the `list` call above) and stop. **No fuzzy matching, no silent creation.**
+
+## triage
+
+Open issues with **no milestone** — the gap `list` deliberately doesn't show.
+Two phases: show the whole gap first, then walk it one issue at a time.
+
+Excludes `🧊 parked` (paused on purpose) and `roadmap` (*planned for future work,
+not yet scheduled to a milestone* — being un-milestoned is its whole meaning, so
+nagging about it is noise). Pull requests are excluded by `gh issue list`.
+
+**Phase 1 — show the gap.** Newest first:
+
+```bash
+gh issue list --state open --limit 200 --json number,title,labels,milestone,createdAt \
+  --jq 'map(select(.milestone == null))
+    | map(select([.labels[].name] | index("🧊 parked") | not))
+    | map(select([.labels[].name] | index("roadmap") | not))
+    | sort_by(.createdAt) | reverse
+    | .[] | [.number, .title, (([.labels[].name] | join(",")) | if . == "" then "-" else . end)] | @tsv'
+```
+
+Print the count with the list. **Truncation guard:** the query caps at 200 — if that
+many came back, say the list may be incomplete rather than implying it's the whole
+gap. If nothing came back, say the gap is empty and **stop — do not enter the walk.**
+
+**Phase 2 — walk it.** Fetch the open milestones **once**, before the walk:
+
+```bash
+gh api "repos/$repo/milestones?state=open&sort=due_on&direction=asc&per_page=100" \
+  --jq '.[] | [.title, (.due_on // "-")] | @tsv'
+```
+
+Then, for each issue newest first: show number, title, labels; offer the milestone
+titles plus `skip`; on an answer, assign and **read back**:
+
+```bash
+gh issue edit <issue> --milestone "<name>"
+gh issue view <issue> --json number,milestone --jq '[.number, (.milestone.title // "-")] | @tsv'
+```
+
+Report from the read-back, never from the exit code.
+
+Rules for the walk:
+
+- **One issue at a time.** No bulk-assign, no "apply to the rest".
+- **`skip` is always offered**, and skipping is silent — don't re-prompt.
+- **Never assign without an explicit answer.** No default milestone, no inferring
+  from labels or title. Unanswered means skipped.
+- **Never create a milestone.** An unknown name → print the open milestones and
+  stop; point at `/milestone new`. No fuzzy matching, no silent creation.
+- **Stop cleanly** when told to, and report how many were assigned and how many
+  remain.
 
 ## No forge context
 

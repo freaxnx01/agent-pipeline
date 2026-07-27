@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **commands:** `/milestone` (+ `/gh:milestone`, `/fj:milestone`) — `list`, `new`,
   and `assign` verbs across both forges, with every write confirmed by read-back (#172)
 - **commands:** `/gh:new` and `/fj:new` accept a milestone when the notes name one (#172)
+- **commands:** `/milestone triage` (+ `/gh:milestone`, `/fj:milestone`) — lists
+  open issues with no milestone, excluding `🧊 parked` and `roadmap`, then walks
+  them one at a time to assign one, every write confirmed by read-back (#178)
 
 ### Changed
 

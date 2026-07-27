@@ -1,6 +1,6 @@
 ---
-description: List, create, or assign milestones — auto-routes to GitHub or Forgejo by remote
-argument-hint: list | new <name> [due <date>] | assign <issue> to <name>
+description: List, create, assign, or triage milestones — auto-routes to GitHub or Forgejo by remote
+argument-hint: list | new <name> [due <date>] | assign <issue> to <name> | triage
 ---
 
 Route to the forge-specific **milestone** command based on the `origin` remote host,
@@ -30,7 +30,7 @@ fi
 - **unknown** → report the detected host and that no authed GitHub or Forgejo login
   matched it; point at `gh auth login` / `tea login add`. Don't guess a forge.
 
-The target command takes a verb — `list`, `new`, or `assign`. Pass it these
+The target command takes a verb — `list`, `new`, `assign`, or `triage`. Pass it these
 arguments unchanged; the forge file owns the parsing, including "no arguments →
 `list`" and "unrecognized verb → print the usage forms and stop":
 
