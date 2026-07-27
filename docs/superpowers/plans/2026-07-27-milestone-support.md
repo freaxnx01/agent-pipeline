@@ -14,8 +14,8 @@
 
 Every task's requirements implicitly include this section.
 
-- **There is no automated validation of command `.md` files in this repo.** `just lint` runs `actionlint` + `shellcheck` over `.github/workflows/`, `scripts/`, and `tests/` only; nothing parses command front-matter and nothing executes the bash inside `commands/**/*.md`. **Do not add a test framework, a fixture, or a `tests/` entry for these files.** Each task's verification is the concrete shell check written into its steps (file exists, front-matter present, expected strings present, installer copies the file).
-- **The two live-forge smoke tests from the spec are deliberately NOT part of any task.** They make real writes (create a milestone, assign #172, create two throwaway issues) and this plan is executed by the agent-workflow in CI. They live in the **Manual verification** section at the end, to be run locally by a human after merge.
+- **There is no automated validation of command `.md` files in this repo.** `just lint` runs `actionlint` + `shellcheck` over `.github/workflows/`, `scripts/`, and `tests/` only; nothing parses command front-matter and nothing executes the bash inside `commands/**/*.md`. **Do not add a test framework, a fixture, or a `tests/` entry for these files.** Each task's verification is the concrete shell check written into its steps (file exists, front-matter present, expected strings present).
+- **Anything needing the real local environment is deliberately NOT part of any task**, because this plan is executed by the agent-workflow in CI. That means the spec's two live-forge smoke tests (create a milestone, assign #172, create two throwaway issues) *and* the `setup/link-commands.sh` install check — the installer sources from a hardcoded `$HOME/repos/github/freaxnx01/public/agent-workflow`, which doesn't exist in a CI checkout. All three live in the **Manual verification** section at the end, to be run by a human after merge. **Don't run the installer, and don't make forge writes, from a task step.**
 - **Three verbs only** — `list`, `new`, `assign`. Do **not** add `unassign`, `close`, `reopen`, `delete`, or `edit`, even though both CLIs expose them.
 - **Verb-parsing contract, identical in all three files:** no arguments at all → treat as `list`; a first word that is not `list`/`new`/`assign` → print the three usage forms and stop without guessing.
 - **Every write is reported from a read-back, never from the exit code.** Verbatim rationale to carry into the files: while filing #172, `gh issue create --label needs-enrichment` printed the URL and exited `0` while the label was silently dropped (the token lacked label-write). `new` and `assign` must confirm from a follow-up read.
@@ -462,22 +462,28 @@ diff <(extract commands/new.md) <(extract commands/milestone.md) && echo "snippe
 
 Expected: no diff output, then `snippet identical: OK`.
 
-- [ ] **Step 3: Verify all three files install**
+- [ ] **Step 3: Verify all three files would be installed**
 
-Run:
+**Do not run `setup/link-commands.sh` here.** It sources from a hardcoded
+`REPO_DIR="$HOME/repos/github/freaxnx01/public/agent-workflow"`, which does not
+exist in a CI checkout — even with `--no-sync` it goes straight to
+`find "$SRC_DIR"`, which then errors out under `set -euo pipefail`. Running the
+installer is **manual verification item 1**, not a task step.
+
+Instead, run the installer's own discovery mechanism against the repo — this is
+exactly the `find` on line 75 of `setup/link-commands.sh`, so it proves the three
+files would be picked up:
 
 ```bash
-setup/link-commands.sh --no-sync
-ls -l ~/.claude/commands/milestone.md ~/.claude/commands/gh/milestone.md ~/.claude/commands/fj/milestone.md
-for f in ~/.claude/commands/milestone.md ~/.claude/commands/gh/milestone.md ~/.claude/commands/fj/milestone.md; do
+find commands -type f -name '*.md' | grep -E '(^|/)milestone\.md$' | sort
+
+for f in commands/milestone.md commands/gh/milestone.md commands/fj/milestone.md; do
   sed -n '1,4p' "$f" | grep -q '^description: ' && sed -n '1,4p' "$f" | grep -q '^argument-hint: ' \
     && echo "front-matter OK: $f"
 done
 ```
 
-Expected: all three files listed by `ls`, and three `front-matter OK:` lines. `--no-sync` is required — without it the installer pulls `main` and would install the pre-change files.
-
-If the CI environment has no `$HOME/.claude`, the installer creates it; if `setup/link-commands.sh` cannot run at all there, record that in the commit message and leave this check for the manual verification section.
+Expected: exactly three paths — `commands/fj/milestone.md`, `commands/gh/milestone.md`, `commands/milestone.md` — and three `front-matter OK:` lines.
 
 - [ ] **Step 4: Commit**
 
@@ -499,6 +505,8 @@ git commit -m "feat(commands): add /milestone forge router (#172)"
 - Produces: nothing later tasks depend on.
 
 The existing "unless I said so" clause **stays**. Milestone simply joins what counts as *said so*, so `/new` remains a single round trip with no added question in the common case.
+
+**Match on the quoted text, not on the line numbers.** The line numbers above are as-of the start of this task; Step 1's first edit replaces one line with a five-line block, so every number after it shifts. The quoted strings are unambiguous — use them.
 
 - [ ] **Step 1: Edit `commands/gh/new.md`**
 
@@ -572,11 +580,12 @@ Run:
 
 ```bash
 grep -n 'Milestone' commands/gh/new.md commands/fj/new.md
-grep -c 'Don.t assign, milestone' commands/gh/new.md commands/fj/new.md
+grep -q 'Don.t assign, milestone' commands/gh/new.md commands/fj/new.md \
+  && echo "FAIL: old combined clause still present" || echo "old clause removed: OK"
 grep -n -- '-m "<milestone>"' commands/gh/new.md commands/fj/new.md
 ```
 
-Expected: a `**Milestone**:` bullet in each file; the old combined clause count is `0` in both; the `-m` flag present in both example blocks.
+Expected: a `**Milestone**:` bullet in each file; `old clause removed: OK`; the `-m` flag present in both example blocks. (The check is written as `grep -q … && FAIL || OK` on purpose — a bare `grep -c` returning `0` also *exits* `1`, which reads as a failed verification step when the work is actually correct.)
 
 - [ ] **Step 4: Commit**
 
@@ -692,20 +701,22 @@ git commit -m "docs(commands): document /milestone across the command lists (#17
 
 ## Manual verification (local, after merge)
 
-These make **real writes to a real forge** and are deliberately excluded from the
-tasks above, because this plan is executed by the agent-workflow in CI. Run them by
-hand on a machine with the credentials, after the PR merges and
-`setup/link-commands.sh` has been re-run.
+These need the **real local environment** — a checkout at the installer's hardcoded
+path, or credentials that make **real writes to a real forge**. Both are excluded
+from the tasks above, because this plan is executed by the agent-workflow in CI. Run
+them by hand after the PR merges.
 
 Route every GitHub write through direnv — the ambient token has been observed
 lacking write scopes and failing *silently*:
 `direnv exec /home/admin/repos/github/freaxnx01 gh …`.
 
-[ ] **1.** **GitHub smoke test** on `freaxnx01/agent-workflow`: `/milestone new test-milestone due 2026-08-31`, then `/milestone assign 172 to test-milestone`, then `/milestone list`. Confirm each from the read-back — in particular that `due_on` came back as `2026-08-31T12:00:00Z` and renders as **Aug 31**, not Aug 30. Delete the test milestone in the web UI afterwards.
+[ ] **1.** **Installer check (AC 10)** — from the canonical checkout, run `setup/link-commands.sh --no-sync`, then confirm `~/.claude/commands/milestone.md`, `~/.claude/commands/gh/milestone.md`, and `~/.claude/commands/fj/milestone.md` all exist. `--no-sync` is required: without it the installer pulls `main` first. This can't run in CI — the script sources from a hardcoded `$HOME/repos/github/freaxnx01/public/agent-workflow`.
 
-[ ] **2.** **`/gh:new` regression**: create one throwaway issue whose notes name a milestone and one whose notes don't. Confirm the first gets the milestone and the second asks nothing and sets nothing. Close both.
+[ ] **2.** **GitHub smoke test** on `freaxnx01/agent-workflow`: `/milestone new test-milestone due 2026-08-31`, then `/milestone assign 172 to test-milestone`, then `/milestone list`. Confirm each from the read-back — in particular that `due_on` came back as `2026-08-31T12:00:00Z` and renders as **Aug 31**, not Aug 30. Delete the test milestone in the web UI afterwards.
 
-[ ] **3.** **Forgejo**: `tea` was not installed on the machine where these commands were written, so the entire `/fj:milestone` surface is unverified against a live run — its flags come from reading tea's source. The first real invocation is the test; if a flag is wrong, fix it and update `commands/fj/milestone.md` per its own footer.
+[ ] **3.** **`/gh:new` regression**: create one throwaway issue whose notes name a milestone and one whose notes don't. Confirm the first gets the milestone and the second asks nothing and sets nothing. Close both.
+
+[ ] **4.** **Forgejo**: `tea` was not installed on the machine where these commands were written, so the entire `/fj:milestone` surface is unverified against a live run — its flags come from reading tea's source. The first real invocation is the test; if a flag is wrong, fix it and update `commands/fj/milestone.md` per its own footer.
 
 ## Out of scope (do not implement)
 
