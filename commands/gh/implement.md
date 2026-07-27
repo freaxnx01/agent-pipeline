@@ -40,27 +40,18 @@ Claude Code implements the issue on a new branch and opens a draft PR.
    If it carries `needs-enrichment` or `❓ to-be-defined`, treat that as a hard stop
    (don't just warn — the label signals the issue is not ready).
 
-## Post TDD contract
+## Post the implementation contract
 
-Post a TDD requirement comment on the issue so the pipeline agent reads it as part
-of the issue context:
+Read `~/.claude/commands/gh/implementation-contract.md` and follow it: apply its
+ordered detection rule to this issue, pick **one** variant, and post that variant
+as an issue comment with `<N>` replaced by the actual issue number.
 
-```bash
-gh issue comment <N> --body "## TDD Required — Non-Negotiable
+That file is the single source of truth for both the rule and the two contract
+bodies — do not restate either here.
 
-Implement using Test-Driven Development:
-- **RED:** Write a failing test first. Run it. Confirm it fails for the right reason.
-- **GREEN:** Write the minimal code to make it pass. No more.
-- **REFACTOR:** Clean up while keeping tests green.
-
-No production code without a failing test first.
-
-Your PR description must include TDD evidence:
-- RED: command run + relevant failing output
-- GREEN: command run + passing output"
-```
-
-Replace `<N>` with the actual issue number.
+Before posting, print one line naming the variant chosen and the rule that selected
+it, e.g. `contract: docs-only (rule 1 — AC says "no test is added or changed")`, so
+the operator can correct it before the agent picks the issue up.
 
 ## Apply the label
 

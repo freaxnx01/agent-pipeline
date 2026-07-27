@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `assign` verbs across both forges, with every write confirmed by read-back (#172)
 - **commands:** `/gh:new` and `/fj:new` accept a milestone when the notes name one (#172)
 
+### Changed
+
+- **commands:** `/gh:assign` and `/gh:implement` now pick an implementation
+  contract by issue shape — the TDD contract for code changes, a before/after
+  verification contract for docs-only issues — from the new shared
+  `/gh:implementation-contract` (#177)
+
 ## [1.10.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.10.0) - 2026-07-26
 
 ### Added
