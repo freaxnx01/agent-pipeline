@@ -50,7 +50,7 @@ Two calls, grouped locally — cost is fixed regardless of milestone count, and 
 milestone call returns the API's own issue counts to cross-check against:
 
 ```bash
-tea api --login git-home "repos/$repo/milestones?state=open" | python3 -c '
+tea api --login git-home "repos/$repo/milestones?state=open&limit=50" | python3 -c '
 import sys, json
 for m in sorted(json.load(sys.stdin), key=lambda x: x.get("due_on") or "9999"):
     print(m["title"], m.get("due_on") or "-", m.get("open_issues", 0), m.get("closed_issues", 0), sep="\t")'
@@ -74,6 +74,22 @@ passes `type=issues`). Don't claim truncation when it might be PRs.
 
 ## new
 
+Creation has no built-in duplicate guard (unlike GitHub's `422 already_exists`), so
+check first:
+
+```bash
+tea api --login git-home "repos/$repo/milestones?state=open&limit=50" | python3 -c '
+import sys, json
+want = "<name>"
+for m in json.load(sys.stdin):
+    if m["title"] == want:
+        print(m["id"], m["title"], m.get("due_on") or "-", sep="\t")
+        sys.exit(1)'
+```
+
+If that prints a match, report the existing milestone and **stop**; don't retry
+with a variant name and don't create it.
+
 ```bash
 # with a due date — tea parses loose date strings, so a bare YYYY-MM-DD is fine
 tea milestones create --login git-home --title "<name>" --deadline "<YYYY-MM-DD>"
@@ -85,7 +101,7 @@ tea milestones create --login git-home --title "<name>"
 Then **read back** and report from the read-back:
 
 ```bash
-tea api --login git-home "repos/$repo/milestones?state=open" | python3 -c '
+tea api --login git-home "repos/$repo/milestones?state=open&limit=50" | python3 -c '
 import sys, json
 want = "<name>"
 for m in json.load(sys.stdin):
@@ -93,8 +109,7 @@ for m in json.load(sys.stdin):
         print(m["id"], m["title"], m.get("due_on") or "-", sep="\t")'
 ```
 
-Confirm the deadline that came back is the date I asked for. If the title already
-exists, report the existing milestone and **stop**; don't retry with a variant name.
+Confirm the deadline that came back is the date I asked for.
 
 ## assign
 

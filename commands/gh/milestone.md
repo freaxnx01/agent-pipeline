@@ -51,7 +51,7 @@ Two calls, grouped locally — cost is fixed regardless of milestone count, and 
 milestone call returns the API's own issue counts to cross-check against:
 
 ```bash
-gh api "repos/$repo/milestones?state=open&sort=due_on&direction=asc" \
+gh api "repos/$repo/milestones?state=open&sort=due_on&direction=asc&per_page=100" \
   --jq '.[] | [.title, (.due_on // "-"), .open_issues, .closed_issues] | @tsv'
 
 gh issue list --state open --limit 200 --json number,title,milestone \
@@ -84,7 +84,7 @@ gh api "repos/$repo/milestones" -f title="<name>"
 Then **read back** and report from the read-back:
 
 ```bash
-gh api "repos/$repo/milestones?state=open" \
+gh api "repos/$repo/milestones?state=open&per_page=100" \
   --jq '.[] | select(.title == "<name>") | [.number, .title, (.due_on // "-")] | @tsv'
 ```
 

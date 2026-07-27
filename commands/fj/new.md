@@ -13,7 +13,8 @@ Create an issue in the current Forgejo repo with **`tea`** (login `git-home`).
 - **Milestone**: only if my notes name one — then pass it as `-m "<name>"`. If that
   milestone doesn't exist yet, **ask** me before creating it (and ask for a due
   date, via `tea milestones create --login git-home --title … --deadline …`); never
-  create one silently. If my notes don't name a milestone, don't set one and don't
+  create one silently. If I give no due date, omit `--deadline` entirely — never
+  pass an empty value. If my notes don't name a milestone, don't set one and don't
   ask.
 - Don't assign or add other labels unless I said so.
 
@@ -49,7 +50,7 @@ import sys, json
 i = json.load(sys.stdin)
 labels = [l["name"] for l in i.get("labels", [])]
 m = i.get("milestone") or {}
-print(i["number"], labels, m.get("title") or "-", sep="\t")'
+print(i["number"], i["title"], i.get("html_url") or "-", labels, m.get("title") or "-", sep="\t")'
 ```
 
 If there's no `tea` login or repo context (not inside a Forgejo clone, or remote
@@ -61,4 +62,7 @@ $ARGUMENTS
 ---
 
 If you hit a blocker (label create rejects the color format, repo not resolvable),
-find a fix and update this command for the future.
+find a fix and update this command for the future. The `-m "<milestone>"` flag on
+`tea issues create` above is likewise unverified against a live run — same
+epistemic status as `/fj:milestone`'s flags — so check it against tea's own source
+if it misbehaves, and update this command.
