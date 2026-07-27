@@ -368,7 +368,9 @@ head -4 commands/fj/milestone.md
 grep -q 'login git-home' commands/fj/milestone.md && echo "tea login: OK"
 grep -q 'read-back' commands/fj/milestone.md && echo "read-back rule: OK"
 grep -q '\$ARGUMENTS' commands/fj/milestone.md && echo "arguments passthrough: OK"
-grep -q -- '--body' commands/fj/milestone.md && echo "FAIL: --body must not appear" || echo "no --body: OK"
+# Anchor on an actual invocation: the footer legitimately mentions `--body` in
+# prose to warn against it, so a bare substring match can never pass.
+grep -qE '^\s*tea .*--body' commands/fj/milestone.md && echo "FAIL: --body must not appear" || echo "no --body: OK"
 python3 - <<'PY'
 import re, sys
 src = open("commands/fj/milestone.md").read()
