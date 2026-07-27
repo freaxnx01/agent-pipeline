@@ -12,12 +12,18 @@ Create a GitHub issue in the current repo with `gh issue create`.
   it first (`gh label create needs-enrichment` with a sensible color), then retry.
 - **Milestone**: only if my notes name one — then pass it as `-m "<name>"`. If that
   milestone doesn't exist yet, **ask** me before creating it (and ask for a due
-  date); never create one silently. If my notes don't name a milestone, don't set
-  one and don't ask.
+  date); never create one silently. `gh milestone` doesn't exist — create it with
+  `gh api "repos/$repo/milestones" -f title="<name>" -f due_on="<date>T12:00:00Z"`
+  (`$repo` = `gh repo view --json nameWithOwner -q .nameWithOwner`), normalizing
+  the due date to **midday UTC** so a viewer's timezone can't roll it back a day.
+  If my notes don't name a milestone, don't set one and don't ask.
 - Don't assign or add other labels unless I said so.
 
+Write the cleaned-up notes to a temp file first (`mktemp`) — `--body-file` needs a
+path, not inline text — then pass it as `<notes-file>`:
+
 ```bash
-gh issue create --title "<concise title>" --body-file <notes> \
+gh issue create --title "<concise title>" --body-file <notes-file> \
   --label needs-enrichment [-m "<milestone>"]
 ```
 

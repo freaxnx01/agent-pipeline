@@ -30,9 +30,30 @@ tea issues create --login git-home \
   -m "<milestone>"            # only when my notes named one
 ```
 
-After creating, print the issue number, title, and URL. If there's no `tea` login
-or repo context (not inside a Forgejo clone, or remote isn't
-`git.home.freaxnx01.ch`), say so and stop.
+`tea api` needs the explicit `owner/name` path (plain `tea` subcommands infer it
+from cwd):
+
+```bash
+url=$(git remote get-url origin); url=${url%.git}
+repo=$(echo "$url" | sed -E 's#.*[:/]([^/]+/[^/]+)$#\1#')
+```
+
+After creating, print the issue number, title, and URL — **read back** rather than
+trusting the exit code (a forge CLI can exit `0` while silently dropping a field
+the token lacked permission for, same as `gh issue create` has with a label).
+Report the label and the milestone from the read-back, not from the write:
+
+```bash
+tea api --login git-home "repos/$repo/issues/<number>" | python3 -c '
+import sys, json
+i = json.load(sys.stdin)
+labels = [l["name"] for l in i.get("labels", [])]
+m = i.get("milestone") or {}
+print(i["number"], labels, m.get("title") or "-", sep="\t")'
+```
+
+If there's no `tea` login or repo context (not inside a Forgejo clone, or remote
+isn't `git.home.freaxnx01.ch`), say so and stop.
 
 My notes:
 $ARGUMENTS
