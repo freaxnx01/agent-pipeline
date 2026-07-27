@@ -27,7 +27,7 @@ label (*a filter tag*) — see `docs/glossary.md` in agent-workflow.
 
 > **`gh milestone` does not exist** (`unknown command "milestone" for "gh"`). Only
 > assignment has a first-class flag; creation and listing go through `gh api`.
-
+>
 > **Report every write from a read-back — never from the exit code.** This is not
 > hypothetical: `gh issue create --label needs-enrichment` has been observed printing
 > the issue URL and exiting `0` while silently dropping the label, because the token

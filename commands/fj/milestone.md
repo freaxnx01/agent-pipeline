@@ -29,7 +29,7 @@ label (*a filter tag*) — see `docs/glossary.md` in agent-workflow.
 > can exit `0` while silently dropping a field the token lacked permission for —
 > that has already happened in this workflow with a label on issue creation. After
 > `new` and `assign`, re-read and report what the read-back says.
-
+>
 > **`tea api` has no `--jq`** — pipe into `python3 -c`, same idiom as
 > `/fj:issues` and `/fj:prs`. `tea` subcommands infer the repo from the cwd, but
 > `tea api` needs the explicit `owner/name` path below.
