@@ -48,7 +48,7 @@ query($owner:String!,$name:String!){
     | .[] | [ .number, .title,
               ([.labels.nodes[].name] | join(",")),
               .createdAt, .author.login,
-              ( [ .comments.nodes[].body | select(startswith("🧊 parked:")) ]
+              ( [ .comments.nodes[] | (.body // "") | select(startswith("🧊 parked:")) ]
                 | last // "—" | split("\n")[0] ) ] | @tsv'
 ```
 
