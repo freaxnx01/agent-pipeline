@@ -30,10 +30,14 @@ on:
         default: 30
       max-turns:
         description: |
-          Hard cap on Claude Code tool-use turns for the implement step.
-          Raise this for issues whose implementation plan needs more than
-          the default 30 turns (e.g. multiple files, or several edit
-          locations in one file) to fully implement, test, commit, and
+          Default hard cap on Claude Code tool-use turns for the implement
+          step, used when the issue carries no `turns:<N>` label. A
+          `turns:30|60|90|120` label on the issue always overrides this
+          (classify-turns.sh); absent an override label, the same script
+          also sizes up automatically from the issue body's Implementation
+          Plan task count. Raise this repo-wide default for consumers whose
+          issues routinely need more than 30 turns (multiple files, several
+          edit locations in one file) to fully implement, test, commit, and
           open a PR in one run.
         type: number
         default: 30
@@ -382,6 +386,16 @@ jobs:
           AGENT: ${{ steps.classify_agent.outputs.agent }}
         run: bash .claude-pipeline/scripts/classify-task.sh
 
+      - name: Triage turns
+        if: ${{ !inputs.stub-claude }}
+        id: triage_turns
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          DEFAULT_MAX_TURNS: ${{ inputs.max-turns }}
+        run: bash .claude-pipeline/scripts/classify-turns.sh
+
       - name: Check auto-review gate
         if: ${{ !inputs.stub-claude }}
         id: auto_review_gate
@@ -439,7 +453,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt_file: ${{ steps.issue.outputs.prompt-file }}
           model: ${{ steps.triage.outputs.model }}
-          max_turns: ${{ inputs.max-turns }}
+          max_turns: ${{ steps.triage_turns.outputs.turns }}
           # Headless mode has no human in the loop to approve tool use, so
           # everything Claude needs to implement an issue must be allowlisted
           # up front: code changes, search, repo operations, branch + PR.
@@ -672,6 +686,7 @@ jobs:
           RENDER_ONLY: ${{ inputs.dry-run && '1' || '0' }}
           MODEL: ${{ steps.triage.outputs.model }}
           AGENT: ${{ steps.classify_agent.outputs.agent }}
+          MAX_TURNS: ${{ steps.triage_turns.outputs.turns }}
           PR_PRESENT: ${{ steps.verify_pr.outputs.pr-present }}
         run: bash .claude-pipeline/scripts/post-run-report.sh
 
