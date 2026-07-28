@@ -37,16 +37,27 @@ the bypass skipped it.
 
 ### When a direct push is acceptable
 
-Only for trivial non-code edits — docs, comments, typos — per the exception in
-`.ai/base-instructions.md` ("trivial non-code edits may skip review and push
-directly; CI must still pass"). Anything touching `.github/workflows/`, `scripts/`,
-`gate-tests/` or `commands/` goes through a PR, exemption or not: those are the
-pipeline itself, and the gates exist to catch exactly those changes.
+**Never. Every change goes through a PR, including docs-only ones.** The
+trivial-edit exception that used to live in `.ai/base-instructions.md` is being
+removed upstream (freaxnx01/ai-instructions#22); this repo's vendored copy still
+shows the old wording until someone re-runs `/sync-ai-instructions`. Follow this
+section, not that sentence.
 
-The protection is a guardrail against automation mistakes, not against the owner.
-Treat the bypass as deliberate and rare; if bypass messages start appearing on
-source changes, that's a signal to reconsider — either raise the discipline or set
-`enforce_admins: true`.
+The reason is the ordering above: the push lands *first* and the required check
+reports afterwards. That makes `gate-selftest` a postmortem rather than a gate — it
+can tell you `main` is broken, but it cannot stop it from getting there. A PR
+inverts that for the price of one extra command.
+
+A direct push also breaks any open PR whose branch is now behind, since the
+required check is `strict` (branch must be up to date before merge). On 2026-07-28
+commit `0b81dfd` did exactly this to PR #184, which then needed
+`gh pr update-branch` plus a full re-run of CI before it could merge — more work
+than the PR it avoided.
+
+The protection is a guardrail against automation mistakes, not against the owner —
+so the bypass stays *available* for a genuine emergency (a broken `main` that needs
+an immediate revert). Outside that, if bypass messages start appearing at all,
+treat it as a signal to set `enforce_admins: true`.
 
 ---
 
