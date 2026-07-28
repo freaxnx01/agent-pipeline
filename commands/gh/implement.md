@@ -53,7 +53,7 @@ Before posting, print one line naming the variant chosen and the rule that selec
 it, e.g. `contract: docs-only (rule 1 — AC says "no test is added or changed")`, so
 the operator can correct it before the agent picks the issue up.
 
-## Apply the label
+## Apply the label(s)
 
 Ensure the `ai-implement` label exists in the repo (create it if absent — color `#0075ca`,
 description "Trigger: agent-workflow Claude implementation"):
@@ -62,7 +62,21 @@ description "Trigger: agent-workflow Claude implementation"):
 gh label create ai-implement --color "0075ca" --description "Trigger: agent-workflow Claude implementation" --force
 ```
 
-Then add it to the issue:
+**Check whether the repo's `agent.yml` has `pre-preview: true` wired**
+(`grep -q "pre-preview: true" .github/workflows/agent.yml` if checked out locally, or
+`gh api repos/<owner>/<repo>/contents/.github/workflows/agent.yml --jq '.content' | base64 -d`
+otherwise). If it does, also apply `ai-pre-preview` (created by
+`ensure-issue-labels.sh` during onboarding — assume it already exists rather than
+re-creating it) so the pipeline's own agent review (ADR-004) runs automatically
+after the draft PR opens:
+
+```bash
+gh issue edit <N> --add-label ai-implement --add-label ai-pre-preview
+```
+
+If the repo does **not** have `pre-preview: true` wired, apply just `ai-implement`
+(the extra label would be an inert no-op, but don't apply labels a repo's pipeline
+doesn't act on):
 
 ```bash
 gh issue edit <N> --add-label ai-implement
@@ -74,4 +88,8 @@ Print:
 
 - Issue number, title, and URL
 - "agent-workflow triggered — Claude will open a draft PR shortly"
-- Remind the user to watch for a new PR and review it with `/gh:review` when it appears
+- If pre-preview is wired: "the pipeline will review its own PR automatically and
+  promote it from draft to ready on approve — no `/gh:review` needed unless it
+  gets blocked (`ai:review-blocked` label) or you want a second opinion"
+- If not: remind the user to watch for a new PR and review it with `/gh:review`
+  when it appears
