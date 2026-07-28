@@ -7,9 +7,17 @@
 30 non-game candidate repos via `scripts/onboard-consumer.sh`. Zero failures.
 All 30 now have a live `ai-implement` pipeline.
 
-**Deferred:** the `sync-ai-instructions` half (CLAUDE.md + a stack overlay from
-`freaxnx01/ai-instructions`) has **not** been run for any of them. No scope
-decision has been made yet — see below.
+**Done (partial):** the `sync-ai-instructions` half has been run for the 2
+clean matches — `quotes` (`dotnet-webapi`) and `flowhub` (`dotnet-blazor`),
+2026-07-28. Both were already-initialized refreshes (files existed from
+2026-07-26); base-instructions.md and both stack overlays picked up upstream
+edits (more reference-doc-linking, less inline detail; base gained a
+PowerShell 5.1 scripting section). Changes are written to disk in both repos
+but **not committed** — that's left to the user per the skill's rules.
+
+**Parked (scope decision, explicit):** the remaining 28 repos are *not* being
+onboarded for this half right now. See buckets 1–3 below for why each one is
+blocked or ambiguous.
 
 Full context: this followed onboarding all 37 `game-*` repos (same two-part
 flow, `browser-game` stack, no ambiguity there since they're homogeneous).
