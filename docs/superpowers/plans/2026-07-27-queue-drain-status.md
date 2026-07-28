@@ -1,132 +1,133 @@
 # Queue drain status — milestone `next` (#177, #173, #178, #174, #175)
 
-**Phase:** executing five enriched issues one at a time via Copilot dispatch.
-**Date:** 2026-07-27, 18:05
+**Phase:** ✅ **COMPLETE.** All five issues are merged and closed; the loop is stopped.
+**Started:** 2026-07-27 · **Finished:** 2026-07-28 09:43
 **Resume artifact for:** `/handoff` → `/clear` → `/pickup`
+
+> Nothing here is in flight. This document is now a record plus a short list of
+> parked follow-ups. Read "What's left" and stop — do not restart the drain loop.
 
 ---
 
-## Where things stand
+## Final state
 
-| # | State | PR | Notes |
+| # | State | PR | Merge commit |
 |---|---|---|---|
-| **177** | ✅ closed | #180 merged `62ca19e` | Conditional implementation contract |
-| **173** | ✅ closed | #181 merged `29a5b98` | `roadmap` filter in `/gh:issues` + `/fj:issues` |
-| **178** | 🟡 in flight | **#182 — green, awaiting the user's merge** | `/milestone triage` |
-| **174** | ⏳ queued | — | `/parked` gains `unpark` / `repark` / `review` |
-| **175** | ⏳ queued **last** | — | new `/roadmap` command |
-| **179** | ⚪ parked | — | epics — needs its own brainstorm session, not in this queue |
+| **177** | ✅ closed | #180 | `62ca19e` — conditional implementation contract |
+| **173** | ✅ closed | #181 | `29a5b98` — `roadmap` filter in `/gh:issues` + `/fj:issues` |
+| **178** | ✅ closed | #182 | `5b89ca2` — `/milestone triage` |
+| **174** | ✅ closed | #183 | `91206d7` — `/parked` gains `unpark` / `repark` / `review` |
+| **175** | ✅ closed | #184 | `b93340c` — new `/roadmap` command |
+| **179** | ⚪ still parked | — | epics — needs its own brainstorm session, never part of this queue |
 
-**Immediate next step:** the user merges **PR #182**. Once #178 closes, dispatch
-**#174**. Then **#175 last**.
+Follow-on work merged in the same session:
 
-**Why #175 is last:** its Task 4 retires the placeholder sentence *"find them with
-`gh issue list --label roadmap`"* that #173 deliberately introduced. That task opens
-with a precondition check reporting SKIP if #173 isn't merged. #173 *is* merged now,
-so the gate has cleared — but #175 still goes last so its diff doesn't race #174.
+| Commit | What |
+|---|---|
+| `0b81dfd` | Corrected the parked-triage plan's broken `tea api -X PATCH` label edit |
+| `afc2d40` | Fixed a false-passing verification check in the roadmap plan (Task 4) |
+| `c7ea4da` | #185 — `AGENT-NOTES.md`: never direct-push, always PR |
+| `279cc7f` | #186 — synced AI instructions from `ai-instructions@218874d` |
+| `218874d` | `freaxnx01/ai-instructions` #22 — removed the direct-push exception at source |
+
+## What's left
+
+Nothing blocking. Three observations were raised during the run and deliberately
+**not** acted on — each needs its own decision, none is urgent:
+
+1. **`CHANGELOG.md` `[Unreleased]` duplicates the #172 entries** that also appear in
+   the `[1.11.0]` section — a git-cliff release-cut artifact on `main`. Two `#172`
+   refs currently sit inside `[Unreleased]`. Also note `[Unreleased]` now carries
+   #174, #175 and #178 with no release cut for them yet.
+
+2. **The `sync-ai-instructions` plugin fetches four `ui-*` skill files that 404.**
+   Upstream `.ai/skills/` holds only `commit.md` and `push.md`; the UI commands ship
+   from the global operator console and are deliberately not synced per-project. The
+   plugin's Step 2 file list is stale. It lives in the plugin cache
+   (`freax-agent-skills/sync-ai-instructions/0.2.0`), so it must be fixed at its
+   source — editing the cached copy would be overwritten on update.
+
+3. **A new PowerShell 5.1 "Scripting" section** arrived via #186 and is now in every
+   agent's context here. Inert for a bash/Actions repo, but it costs context budget;
+   worth deciding whether to trim it upstream or leave it.
+
+Pre-existing and untouched all session: open PRs **#170** and **#115**, plus stale
+local branches `chore/rename-to-agent-workflow`, `enrich/114-qwen3-27b-benchmark`,
+`worktree-div`.
 
 ## Per-issue specs and plans
 
 Each issue body links its own spec + plan by pinned SHA. On disk:
 
-- `docs/superpowers/specs/2026-07-27-conditional-implementation-contract-design.md` · `docs/superpowers/plans/2026-07-27-conditional-implementation-contract.md` (#177, done)
-- `docs/superpowers/specs/2026-07-27-roadmap-label-filter-design.md` · `docs/superpowers/plans/2026-07-27-roadmap-label-filter.md` (#173, done)
-- `docs/superpowers/specs/2026-07-27-milestone-triage-design.md` · `docs/superpowers/plans/2026-07-27-milestone-triage.md` (#178, in flight)
-- `docs/superpowers/specs/2026-07-27-parked-triage-design.md` · `docs/superpowers/plans/2026-07-27-parked-triage.md` (#174, queued)
-- `docs/superpowers/specs/2026-07-27-roadmap-command-design.md` · `docs/superpowers/plans/2026-07-27-roadmap-command.md` (#175, queued)
+- `docs/superpowers/specs/2026-07-27-conditional-implementation-contract-design.md` · `docs/superpowers/plans/2026-07-27-conditional-implementation-contract.md` (#177)
+- `docs/superpowers/specs/2026-07-27-roadmap-label-filter-design.md` · `docs/superpowers/plans/2026-07-27-roadmap-label-filter.md` (#173)
+- `docs/superpowers/specs/2026-07-27-milestone-triage-design.md` · `docs/superpowers/plans/2026-07-27-milestone-triage.md` (#178)
+- `docs/superpowers/specs/2026-07-27-parked-triage-design.md` · `docs/superpowers/plans/2026-07-27-parked-triage.md` (#174) — **corrected** by `0b81dfd`
+- `docs/superpowers/specs/2026-07-27-roadmap-command-design.md` · `docs/superpowers/plans/2026-07-27-roadmap-command.md` (#175) — **corrected** by `afc2d40`
 
-## The loop contract
+---
 
-One issue in flight at a time — **all five edit `CHANGELOG.md` under
-`[Unreleased]`**, so parallel dispatch conflicts by construction. Serializing also
-enforces the ordering rules for free.
+## Lessons worth keeping
 
-Each tick does exactly one of:
+These cost real time to learn and generalise beyond this queue.
 
-1. **PR open + Copilot finished + not yet reviewed** → review against the issue's
-   ACs, then stop at *"ready for your merge"*. **Never merge.**
-2. **PR open + already reviewed** → report what it waits on. Don't dispatch.
-3. **Nothing in flight** → dispatch the next issue.
-4. **All closed** → report drained, stop the loop.
+### Plan verification blocks are greps, and greps pass on broken logic
 
-The user chose the *dispatch + review, they merge* boundary deliberately. Do not
-switch to autopilot merging unless they explicitly say so.
+Every per-task "verification" in these plans is a `grep -Fq` string-presence check.
+It proves a string was written, never that the command works. **Two defects reached
+a fully green verification block:**
 
-## How to review (this is what caught the real bugs)
+- **PR #183** — `commands/fj/parked.md` justified a hand-rolled `tea api -X PATCH`
+  of the labels array with *"`tea` has no remove-label flag"*. False: `tea issues
+  edit` has `--remove-labels`. The PATCH would also have silently no-opped, because
+  Forgejo's `PATCH /repos/{owner}/{repo}/issues/{index}` has no `labels` field —
+  label replacement lives on `PUT .../issues/{index}/labels`.
+- **PR #184** — `commands/fj/roadmap.md` used `split("\\n")` inside a
+  single-quoted shell string, so Python received the two-character string `\n` and
+  never truncated multi-line comments. The identical grep passed.
 
-Grep checks alone were **not** sufficient — they passed a PR that shipped a live
-command-substitution bug. Do all three:
+Both were Forgejo/`tea` shell one-liners — the least-exercised path, because
+`tea logins list` is empty on this machine so nothing can be run end-to-end.
 
-1. **Run the plan's per-task verification blocks** against the PR head. Fetch with
-   `git fetch origin refs/pull/<n>/head` then `git show <sha>:<path>` into a scratch
-   dir — don't touch the working tree.
-2. **Read the changed sections in full** for the ACs greps can't cover.
-3. **Execute the changed logic against real data.** Extract the PR's own jq/python
-   and run it.
+**So, on top of the plan's own blocks:** verify CLI flags against `--help` on the
+installed binary (including flag order vs the declared USAGE line); check the API
+endpoint actually accepts the field being sent; and execute embedded python/jq
+one-liners on realistic input — multi-line bodies, zero matches, several matches.
+Diffing a new file against its already-reviewed sibling (`fj/roadmap.md` vs
+`fj/parked.md`) is the cheapest tell: divergence in a shared idiom is the bug.
 
-Behavioural checks already used, and the ones still pending:
+### A verification that cannot fail is not a verification
 
-- **#173 (done):** the PR's jq excluded roadmap issue #164 in
-  `anim-bossinfo-ch/BI-ArchiveUploader`, and left `agent-workflow` at 26 issues
-  before == 26 after, proving it's inert where the label doesn't exist.
-- **#178 (done):** the gap query returned 25 rows, excluded all four milestoned
-  issues and parked #116, rendered `-` for unlabelled #166, newest-first.
-- **#174 (pending):** this repo has exactly **one** parked issue, **#116**, with no
-  reason comment → `/parked` must list it with an em-dash. Also check the
-  reason-extraction jq on multiple matching comments (most recent, first line only)
-  and on none.
-- **#175 (pending):** `agent-workflow` has **no** `roadmap` label → list must report
-  empty **without creating it**. `BI-ArchiveUploader` has the label with **#164**
-  carrying it.
+The roadmap plan's Task 4 checked **both** `issues.md` files against the gh-worded
+placeholder, but `commands/fj/issues.md` never contained that string — so it
+reported "retired OK" for Forgejo before any edit existed. Fixed in `afc2d40` by
+giving each file its own expected string plus a wording-independent backstop. When
+writing a check, run it against the **pre-change** tree and confirm it fails.
 
-## Operational gotchas — hard-won, don't re-derive
+### Copilot's completion signal
 
-- **Writes need the freaxnx01 token.** The ambient `gh` login is
-  `anim-bossinfo-ch`, READ-only here; writes fail with a bare **404**, not a
-  permission error. Use
-  `direnv exec /home/admin/repos/github/freaxnx01 gh …`. For `git push`, git's
-  credential helper reads `GITHUB_TOKEN`, not `GH_TOKEN`:
-  `direnv exec … bash -c 'GITHUB_TOKEN="$GH_TOKEN" git push'`.
-- **Copilot's completion signal is `copilot_work_finished`** in
-  `gh api repos/freaxnx01/agent-workflow/issues/<pr>/timeline`. The **draft flag and
-  `[WIP]` title both lie** — #182 flipped its title and grew to +130/−11 while still
-  having no finish event.
-- **Copilot opens PRs as drafts** and they cannot be merged until
-  `gh pr ready <n>` (undo: `--undo`). The user authorized this for #180/#181/#182.
-- **Copilot-triggered CI sits at `conclusion=action_required`.** The REST
-  `/approve` endpoint returns **403 — fork-PRs only**. The fix that works is
-  `gh run rerun <run-id>` under the freaxnx01 token. Confirm the PR touches no
-  `.github/` or `scripts/` first, since `pull_request` runs the head branch's YAML.
-- **Never take a claimed merge at face value.** Verify with
-  `gh pr view <n> --json state,mergedAt`. The user reported "merged" twice while
-  #180 was still open (it was a draft), and said "merge" once while #182 was an
-  empty `+0/-0` WIP draft — declining and explaining was correct.
-- **`~/.claude/commands/gh/` holds stale COPIES from Jul 24**, not symlinks, and has
-  no `implementation-contract.md`. So `/gh:assign` still posts the **old
-  unconditional TDD contract**. Keep posting the docs-only variant **by hand** until
-  the user re-runs `setup/link-commands.sh` (manual verification item 1 of #177).
-- **Extracting the contract** (do not retype it):
-  split `commands/gh/implementation-contract.md` on `## Docs-only variant`, regex out
-  the `--body "…"` string, unescape `` \` `` and `\"`, write to a file, post with
-  `--body-file`. Then verify the read-back still contains the literal
-  `` `git diff --name-only` `` backticks.
-- **Monitors are session-scoped** and die on session end. After resuming, re-arm one
-  for whatever is in flight.
+Only a `copilot_work_finished` timeline event means done — the draft flag and
+`[WIP]` title both lie, in both directions. When a PR has had several cycles,
+compare the **count**, not mere presence. A head move alone is not new agent work:
+an "Update branch" merge of `main` moves the head with no Copilot cycle, so check
+the merge commit's parents and diff the PR's own files between heads — byte-identical
+means the earlier review still holds. Copilot-triggered CI sits at
+`conclusion=action_required` and needs `gh run rerun <run-id>`; the REST `/approve`
+endpoint 403s (it is fork-only).
 
-## Housekeeping done along the way
+### Never push to `main`
 
-- Milestone **`next`** was created (#4) and holds all six issues.
-- Stale `needs-enrichment` was removed from **#178**; **#179** keeps it deliberately.
-- **#170** and **#115** are pre-existing PRs of the user's, untouched by this work.
+Established this session and now enforced in the instructions themselves
+(`ai-instructions` #22, `AGENT-NOTES.md` via #185, synced via #186). Because
+`enforce_admins` is false, a direct push **lands first** and the required check
+reports afterwards — a postmortem, not a gate. It also leaves open PRs' branches
+stale: `0b81dfd` did exactly that to PR #184, costing a `gh pr update-branch` plus a
+full CI re-run. One correction worth recording: CI *does* run on bypassed commits
+(both went green) — the problem is the ordering, not that checks are skipped.
 
-## Known follow-ups, captured not acted on
+### Operational
 
-- `commands/gh/enrich.md` lines 26 and 107 unconditionally recommend
-  `/gh:implement`, but this repo has **no `.github/workflows/claude.yml`**, so that
-  path is dead here. Should be conditional on `claude.yml` existing. **User was
-  asked and hasn't answered.**
-- `commands/gh/parked.md` has **no self-improving footer**, unlike its `fj`
-  counterpart. Pre-existing, out of scope for #174.
-- #177's open question — whether the conditional contract belongs in other commands
-  (`gh/work.md`, `gh/route.md`, the `fj/*` equivalents) — was deliberately left out
-  of scope.
+All GitHub writes need `direnv exec /home/admin/repos/github/freaxnx01 gh …` — the
+ambient login is read-only and fails writes with a bare 404. Monitors do not survive
+`/loop` re-invocations; `TaskList` first and re-arm if empty. Never take a claimed
+merge at face value — verify with `gh pr view <n> --json state,mergedAt,mergeCommit`.
