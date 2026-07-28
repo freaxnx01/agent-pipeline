@@ -2,7 +2,7 @@
 description: List open issues that are not WIP (no open PR), not parked, and not roadmap, newest first
 ---
 
-List open issues in the current repo that are **not work-in-progress** — i.e. have no **open** PR — **not parked** (no `🧊 parked` label), and **not roadmap** (no `roadmap` label) — **newest first**. Issues whose only linked PR is already merged still count as not-WIP and are shown. Parked issues are deliberately deferred; list them with `/gh:parked`. Roadmap issues are planned for a future milestone rather than current work; find them with `gh issue list --label roadmap`.
+List open issues in the current repo that are **not work-in-progress** — i.e. have no **open** PR — **not parked** (no `🧊 parked` label), and **not roadmap** (no `roadmap` label) — **newest first**. Issues whose only linked PR is already merged still count as not-WIP and are shown. Parked issues are deliberately deferred; list them with `/gh:parked`. Roadmap issues are planned for a future milestone rather than current work; list them with `/gh:roadmap`.
 
 `gh issue list` can't see PR links, so query the timeline via GraphQL and drop any issue that has an open linked PR (a `Closes #`/cross-reference or a development-linked PR still in flight), then drop any issue carrying the `🧊 parked` label, then any carrying the `roadmap` label:
 
