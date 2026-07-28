@@ -38,7 +38,7 @@ query($owner:String!,$name:String!){
         number title createdAt
         author{login}
         labels(first:20){nodes{name}}
-        comments(last:20){nodes{body}}
+        comments(last:100){nodes{body}}
       }
     }
   }
@@ -82,7 +82,7 @@ gh issue comment <n> --body "🧊 parked: <reason>"
 Then confirm from read-back:
 
 ```bash
-gh issue view <n> --json comments --jq '.comments | last | .body | split("\n")[0]'
+gh issue view <n> --json comments --jq '.comments | last | .body // "—" | split("\n")[0]'
 ```
 
 If no reason argument was provided, ask for one and stop. Never edit the issue
@@ -98,6 +98,11 @@ parked?* with options `unpark` / `repark` / `skip`.
 - Never act without an explicit answer. Unanswered means skipped.
 - `skip` is silent and never re-prompts.
 - Stop cleanly when told to.
+- **`unpark` chosen mid-walk is deferred**, not run immediately — running
+  `/gh:route` per issue would derail the one-at-a-time walk with a heavy
+  interactive analysis. Record the issue number and continue the walk; after the
+  walk completes, run `/gh:route <n>` for each unparked issue number and list
+  those numbers in the tally.
 - Report a final tally: unparked, reparked, skipped, remaining.
 
 My arguments:

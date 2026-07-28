@@ -60,10 +60,10 @@ for i in json.load(sys.stdin):
     print(i["number"],"|",i["title"],"|",",".join(labels),"|",i["created_at"],"|",(i.get("user") or {}).get("login","?"),"|","WIP" if i["number"] in wip else "")'
 
 # then, per parked issue number, its most recent reason
-tea api --login git-home "repos/$repo/issues/<n>/comments" \
+tea api --login git-home "repos/$repo/issues/<n>/comments?limit=100" \
   | python3 -c '
 import sys,json
-reasons=[c["body"] for c in json.load(sys.stdin) if c.get("body","").startswith("🧊 parked:")]
+reasons=[c["body"] for c in json.load(sys.stdin) if (c.get("body") or "").startswith("🧊 parked:")]
 print(reasons[-1].split("\n")[0] if reasons else "—")'
 ```
 
@@ -101,13 +101,14 @@ read and follow `~/.claude/commands/fj/route.md` (i.e. run `/fj:route <n>`).
 tea comment <n> "🧊 parked: <reason>"
 ```
 
-Then confirm from read-back:
+Then read back the newest comment whose body starts with `🧊 parked:` and confirm
+from it, never from the exit code:
 
 ```bash
-tea api --login git-home "repos/$repo/issues/<n>/comments" | python3 -c '
+tea api --login git-home "repos/$repo/issues/<n>/comments?limit=100" | python3 -c '
 import sys,json
 comments=json.load(sys.stdin)
-reasons=[c.get("body","") for c in comments if c.get("body","").startswith("🧊 parked:")]
+reasons=[(c.get("body") or "") for c in comments if (c.get("body") or "").startswith("🧊 parked:")]
 print(reasons[-1].split("\n")[0] if reasons else "—")'
 ```
 
@@ -124,6 +125,11 @@ valid to stay parked?* with options `unpark` / `repark` / `skip`.
 - Never act without an explicit answer. Unanswered means skipped.
 - `skip` is silent and never re-prompts.
 - Stop cleanly when told to.
+- **`unpark` chosen mid-walk is deferred**, not run immediately — running
+  `/fj:route` per issue would derail the one-at-a-time walk with a heavy
+  interactive analysis. Record the issue number and continue the walk; after the
+  walk completes, run `/fj:route <n>` for each unparked issue number and list
+  those numbers in the tally.
 - Report a final tally: unparked, reparked, skipped, remaining.
 
 My arguments:
