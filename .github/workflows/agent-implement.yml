@@ -28,6 +28,15 @@ on:
         description: Hard cap on the implementation job runtime.
         type: number
         default: 30
+      max-turns:
+        description: |
+          Hard cap on Claude Code tool-use turns for the implement step.
+          Raise this for issues whose implementation plan needs more than
+          the default 30 turns (e.g. multiple files, or several edit
+          locations in one file) to fully implement, test, commit, and
+          open a PR in one run.
+        type: number
+        default: 30
       pipeline-repo:
         description: |
           Owner/repo for the agent-workflow checkout that supplies shared
@@ -430,7 +439,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt_file: ${{ steps.issue.outputs.prompt-file }}
           model: ${{ steps.triage.outputs.model }}
-          max_turns: '30'
+          max_turns: ${{ inputs.max-turns }}
           # Headless mode has no human in the loop to approve tool use, so
           # everything Claude needs to implement an issue must be allowlisted
           # up front: code changes, search, repo operations, branch + PR.

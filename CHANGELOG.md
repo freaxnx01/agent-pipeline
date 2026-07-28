@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.11.0) - 2026-07-27
+
+### Added
+
+- **commands:** Add /milestone across GitHub and Forgejo (#172)
+- **agent-implement:** Expose max_turns as a configurable input
+
+### Fixed
+
+- **gh:enrich:** Resolve spec/plan dirs against gitignore, push to main
+- **handoff:** Key handoff files by branch so worktrees don't collide
+- **claude-implement:** Forward max-turns input to keep shim in lockstep
+
+### Documentation
+
+- **todo:** Note the missing GLM 5.2 model comparison (#169)
+- **decisions:** Add ADR-008 — advisor tool not yet wired into ai-implement
+- **glossary:** Distinguish milestones, epics, and labels
+- **specs:** Add milestone support design for #172
+- **handoff:** Save phase for resume — #172 milestone support
+- **plans:** Add milestone support implementation plan for #172
+- **plans:** Make #172 plan verification CI-executable
+- Add spec and implementation plan for roadmap-label filter (#173)
+- **plans:** Make #173 verification CI-safe and dry-run validate it
+- Add spec and implementation plan for conditional contract (#177)
+- Add spec and implementation plan for /milestone triage (#178)
+- Add spec and implementation plans for #174 and #175
+- **commands:** Exclude `roadmap` issues from `/gh:issues` and `/fj:issues` (#181)
+- **handoff:** Save queue-drain phase for resume
+- **plans:** Add implementation plan for max-turns input (#166)
+
+### commands
+
+- **gh:** Make pre-dispatch implementation contract conditional (code vs docs-only) (#180)
+
 ## [Unreleased]
 
 ### Added

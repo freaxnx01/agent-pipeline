@@ -37,6 +37,9 @@ on:
       timeout-minutes:
         type: number
         default: 30
+      max-turns:
+        type: number
+        default: 30
       pipeline-repo:
         type: string
         # Transitional: freaxnx01/agent-workflow doesn't exist on GitHub until
@@ -121,6 +124,7 @@ jobs:
       default-model: ${{ inputs.default-model }}
       agent: ${{ inputs.agent }}
       timeout-minutes: ${{ inputs.timeout-minutes }}
+      max-turns: ${{ inputs.max-turns }}
       pipeline-repo: ${{ inputs.pipeline-repo }}
       pipeline-ref: ${{ inputs.pipeline-ref }}
       dry-run: ${{ inputs.dry-run }}
