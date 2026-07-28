@@ -75,20 +75,10 @@ note, reason. No preamble. If there are none, just say so.
 
 ## unpark
 
-`tea` has no remove-label flag, so patch labels after dropping only `🧊 parked`
-from the current label set:
+Remove only the `🧊 parked` label, then confirm from a read-back:
 
 ```bash
-labels_json=$(tea api --login git-home "repos/$repo/issues/<n>" | python3 -c '
-import sys,json
-i=json.load(sys.stdin)
-labels=[l["name"] for l in i.get("labels") or [] if l["name"] != "🧊 parked"]
-print(json.dumps(labels, ensure_ascii=False))')
-
-tea api --login git-home -X PATCH \
-  -H "Content-Type: application/json" \
-  -d "{\"labels\":$labels_json}" \
-  "repos/$repo/issues/<n>"
+tea issues edit <n> --login git-home --remove-labels "🧊 parked"
 
 tea api --login git-home "repos/$repo/issues/<n>" | python3 -c '
 import sys,json
