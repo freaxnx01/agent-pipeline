@@ -32,15 +32,22 @@ on:
         description: |
           Default hard cap on Claude Code tool-use turns for the implement
           step, used when the issue carries no `turns:<N>` label. A
-          `turns:30|60|90|120` label on the issue always overrides this
+          `turns:50|80|120|160` label on the issue always overrides this
           (classify-turns.sh); absent an override label, the same script
           also sizes up automatically from the issue body's Implementation
           Plan task count. Raise this repo-wide default for consumers whose
-          issues routinely need more than 30 turns (multiple files, several
+          issues routinely need more than 50 turns (multiple files, several
           edit locations in one file) to fully implement, test, commit, and
           open a PR in one run.
+
+          Tuned from one real run (game-tschau-sepp#9): a 4-task enriched
+          plan actually used 110 turns to succeed after failing outright at
+          a 30-turn cap (all edits done, nothing committed). Thin evidence
+          (n=1), but running out loses all uncommitted work while
+          overshooting just costs a bit more compute — the tiers below
+          intentionally err generous.
         type: number
-        default: 30
+        default: 50
       pipeline-repo:
         description: |
           Owner/repo for the agent-workflow checkout that supplies shared
