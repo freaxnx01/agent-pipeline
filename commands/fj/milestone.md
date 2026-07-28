@@ -1,6 +1,6 @@
 ---
-description: List, create, or assign Forgejo milestones — list | new <name> [due <date>] | assign <issue> to <name>
-argument-hint: list | new <name> [due <date>] | assign <issue> to <name>
+description: List, create, assign, or triage Forgejo milestones — list | new <name> [due <date>] | assign <issue> to <name> | triage
+argument-hint: list | new <name> [due <date>] | assign <issue> to <name> | triage
 ---
 
 Manage milestones in the current Forgejo repo with **`tea`** (login `git-home`).
@@ -11,16 +11,17 @@ label (*a filter tag*) — see `docs/glossary.md` in agent-workflow.
 
 ## Parse the verb
 
-**Three verbs only** — `list`, `new`, `assign`.
+**Four verbs only** — `list`, `new`, `assign`, `triage`.
 
 - No arguments at all → treat it as `list`.
-- A first word that isn't one of the three → print the three usage forms below and
+- A first word that isn't one of the four → print the four usage forms below and
   **stop**. Don't guess the intent, don't fuzzy-match.
 
 ```text
 /milestone list
 /milestone new <name> [due <date>]
 /milestone assign <issue> to <name>
+/milestone triage
 ```
 
 ## Two rules that apply to every verb
@@ -132,6 +133,68 @@ print(i["number"], m.get("title") or "-", sep="\t")'
 
 If the milestone name doesn't exist, print the open milestones (the `list` call
 above) and stop. **No fuzzy matching, no silent creation.**
+
+## triage
+
+Open issues with **no milestone** — the gap `list` deliberately doesn't show.
+Two phases: show the whole gap first, then walk it one issue at a time.
+
+Excludes `🧊 parked` (paused on purpose) and `roadmap` (*planned for future work,
+not yet scheduled to a milestone* — being un-milestoned is its whole meaning, so
+nagging about it is noise). Pull requests are excluded by `type=issues`.
+
+**Phase 1 — show the gap.** Newest first:
+
+```bash
+tea api --login git-home "repos/$repo/issues?state=open&type=issues&limit=100&sort=created&order=desc" \
+  | python3 -c '
+import sys,json
+rows=[]
+for i in json.load(sys.stdin):
+    if i.get("milestone"): continue
+    labels=[l["name"] for l in i.get("labels") or []]
+    if "🧊 parked" in labels or "roadmap" in labels: continue
+    rows.append((i["number"], i["title"], ",".join(labels) or "-"))
+print(len(rows), "un-milestoned")
+for n,t,l in rows: print(n, "|", t, "|", l)'
+```
+
+If nothing came back, say the gap is empty and **stop — do not enter the walk.**
+
+**Phase 2 — walk it.** Fetch the open milestones **once**, before the walk:
+
+```bash
+tea api --login git-home "repos/$repo/milestones?state=open&limit=50" | python3 -c '
+import sys, json
+for m in sorted(json.load(sys.stdin), key=lambda x: x.get("due_on") or "9999"):
+    print(m["title"], m.get("due_on") or "-", sep="\t")'
+```
+
+Then, for each issue newest first: show number, title, labels; offer the milestone
+titles plus `skip`; on an answer, assign and **read back** using the same mechanics
+as `## assign`:
+
+```bash
+tea milestones issues add --login git-home "<name>" <issue>
+tea api --login git-home "repos/$repo/issues/<issue>" | python3 -c '
+import sys, json
+i = json.load(sys.stdin)
+m = i.get("milestone") or {}
+print(i["number"], m.get("title") or "-", sep="\t")'
+```
+
+Report from the read-back, never from the exit code.
+
+Rules for the walk:
+
+- **One issue at a time.** No bulk-assign, no "apply to the rest".
+- **`skip` is always offered**, and skipping is silent — don't re-prompt.
+- **Never assign without an explicit answer.** No default milestone, no inferring
+  from labels or title. Unanswered means skipped.
+- **Never create a milestone.** An unknown name → print the open milestones and
+  stop; point at `/milestone new`. No fuzzy matching, no silent creation.
+- **Stop cleanly** when told to, and report how many were assigned and how many
+  remain.
 
 ## No forge context
 
