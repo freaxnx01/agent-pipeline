@@ -1,10 +1,14 @@
 ---
-description: List parked (🧊) issues — auto-routes to GitHub or Forgejo by remote
+description: List and triage parked (🧊) issues — list | unpark <n> | repark <n> "<reason>" | review — auto-routes to GitHub or Forgejo by remote
+argument-hint: list | unpark <n> | repark <n> "<reason>" | review
 ---
 
 Route to the forge-specific **parked** command based on the `origin` remote host,
 then follow it exactly. This command holds no query logic of its own — `/gh:parked`
 and `/fj:parked` remain the single source of truth.
+
+Pass `list` / `unpark` / `repark` / `review` arguments through to the selected
+forge-specific command unchanged.
 
 ## Detect the forge (generic host-matching)
 
