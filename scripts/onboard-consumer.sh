@@ -54,6 +54,17 @@
 #                               Default '["ubuntu-latest"]'.
 #       --auto-review           Wire auto-review: true and enable the repo
 #                               settings auto-merge needs (ADR-002 gate 7).
+#                               Mutually exclusive with --pre-preview at
+#                               the per-issue label level (pre-preview
+#                               wins if an issue carries both).
+#       --pre-preview           Wire pre-preview: true (ADR-004) — after the
+#                               pipeline opens a draft PR, an agent reviews
+#                               it (review-model input, default
+#                               claude-opus-5, independent of the
+#                               implementation model) and promotes draft
+#                               to ready on approve. No auto-merge, ever —
+#                               a human still merges. Per-issue opt-in via
+#                               the ai-pre-preview label (not applied here).
 #       --chain                 Also commit chain-dispatch.yml (ADR-003).
 #       --no-stub               Skip the stub commit entirely; do secret +
 #                               labels + settings only.
@@ -98,6 +109,7 @@ AGENT='claude'
 MODEL='claude-sonnet-5'
 RUNNER_LABELS='["ubuntu-latest"]'
 AUTO_REVIEW=false
+PRE_PREVIEW=false
 CHAIN=false
 NO_STUB=false
 DIRECT_TO_MAIN=true
@@ -148,6 +160,7 @@ while [[ $# -gt 0 ]]; do
     --model)              MODEL="${2:?}"; shift 2 ;;
     --runner-labels)      RUNNER_LABELS="${2:?}"; shift 2 ;;
     --auto-review)        AUTO_REVIEW=true; shift ;;
+    --pre-preview)        PRE_PREVIEW=true; shift ;;
     --chain)              CHAIN=true; shift ;;
     --no-stub)            NO_STUB=true; shift ;;
     --no-settings)        NO_SETTINGS=true; shift ;;
@@ -284,6 +297,7 @@ build_agent_yml() {
   with_block+=$'\n      pipeline-ref: '"$REF"
   [[ "$AGENT" == opencode ]] && with_block+=$'\n      agent: opencode'
   [[ "$AUTO_REVIEW" == true ]] && with_block+=$'\n      auto-review: true'
+  [[ "$PRE_PREVIEW" == true ]] && with_block+=$'\n      pre-preview: true'
 
   cat <<YAML
 name: Claude

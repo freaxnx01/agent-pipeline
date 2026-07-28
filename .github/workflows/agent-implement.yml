@@ -15,6 +15,19 @@ on:
         description: Model used when no `model:*` label is present on the issue.
         type: string
         default: claude-sonnet-5
+      review-model:
+        description: |
+          Model used for the agent review step in auto_review (ADR-002) and
+          pre_preview (ADR-004) — deliberately independent of the
+          implementation model. A stronger review model than the
+          implementation model is a reasonable default: reviewing an
+          existing diff for correctness/AC-coverage is a different task
+          than writing it, and catching a real bug (as happened reviewing
+          game-tschau-sepp#9 manually) benefits from the more careful model.
+          Empty string uses the `claude` CLI's own default instead of
+          passing --model.
+        type: string
+        default: claude-opus-5
       agent:
         description: |
           Which agent runs the implementation. One of `claude` or `opencode`.
@@ -839,6 +852,7 @@ jobs:
           HEAD_SHA: ${{ steps.find_pr.outputs.head-sha }}
           AGENT: claude
           AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
+          MODEL: ${{ inputs.review-model }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: bash .claude-pipeline/scripts/review-pr.sh
 
@@ -1040,6 +1054,7 @@ jobs:
           HEAD_SHA: ${{ steps.find_pr.outputs.head-sha }}
           AGENT: claude
           AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
+          MODEL: ${{ inputs.review-model }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: bash .claude-pipeline/scripts/review-pr.sh
 
