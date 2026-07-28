@@ -7,8 +7,7 @@ i.e. have no **open** linked PR — **not parked** (no `🧊 parked` label), and
 roadmap** (no `roadmap` label) — **newest first**. Issues whose only linked PR is
 already merged/closed still count as not-WIP and are shown. Parked issues are
 deliberately deferred; list them with `/fj:parked`. Roadmap issues are planned for
-a future milestone rather than current work; find them with
-`tea issues list --login git-home --labels roadmap`.
+a future milestone rather than current work; list them with `/fj:roadmap`.
 
 ## Forgejo access
 
