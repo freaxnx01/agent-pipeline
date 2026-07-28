@@ -50,6 +50,13 @@ approaches, design sections, spec self-review, user approval gate).
 After brainstorming exits, invoke **superpowers:writing-plans** to produce the full
 task-by-task plan in a tracked plans dir and commit it.
 
+**Do not stop at writing-plans' own handoff prompt.** That skill ends by asking
+"Subagent-Driven or Inline Execution?" — that is writing-plans' generic ending,
+not the end of `/fj:enrich`. Do not execute the plan and do not wait for an
+answer to that question here. Treat the plan as written the moment the skill
+exits, and continue straight to Step 5 — pushing the files and writing the plan
+into the issue body is still required, always.
+
 ## Step 5 — Push to remote
 
 Commit and push both the spec and plan before touching the issue body — the body

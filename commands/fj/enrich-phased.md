@@ -55,6 +55,10 @@ Then dispatch to the matching phase below.
 1. Re-open the spec at `spec=` to re-establish context.
 2. Invoke **superpowers:writing-plans** to produce the task-by-task plan in the
    repo's tracked plans dir. Commit it and record `plan=<path>`.
+   **Do not stop at writing-plans' own "Subagent-Driven or Inline Execution?"
+   handoff prompt** — that's the skill's generic ending, not this phase's. Do not
+   execute the plan; treat it as written the moment the skill exits and continue
+   to step 3.
 3. **Push** so both spec and plan are on the remote: `git push`. Verify it succeeded.
 4. **Phase boundary:** set `phase=issue`, hand off, stop.
 

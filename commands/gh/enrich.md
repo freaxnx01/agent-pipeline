@@ -37,6 +37,13 @@ design sections, spec self-review, user approval gate).
 After brainstorming exits, invoke **superpowers:writing-plans** to produce the
 full task-by-task plan at `<plans-dir>/YYYY-MM-DD-<topic>.md` and commit it.
 
+**Do not stop at writing-plans' own handoff prompt.** That skill ends by asking
+"Subagent-Driven or Inline Execution?" — that is writing-plans' generic ending,
+not the end of `/gh:enrich`. Do not execute the plan and do not wait for an
+answer to that question here. Treat the plan as written the moment the skill
+exits, and continue straight to Step 5 — pushing the files and writing the plan
+into the issue body is still required, always.
+
 ### Picking `<specs-dir>` / `<plans-dir>` — check gitignore first
 
 Both superpowers skills default to `docs/superpowers/{specs,plans}/`. **Many repos
