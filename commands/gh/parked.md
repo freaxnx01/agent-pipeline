@@ -79,10 +79,12 @@ read and follow `~/.claude/commands/gh/route.md` (i.e. run `/gh:route <n>`).
 gh issue comment <n> --body "🧊 parked: <reason>"
 ```
 
-Then confirm from read-back:
+Then read back the newest comment whose body starts with `🧊 parked:` and confirm
+from it, never from the exit code:
 
 ```bash
-gh issue view <n> --json comments --jq '.comments | last | .body // "—" | split("\n")[0]'
+gh issue view <n> --json comments \
+  --jq '[.comments[] | (.body // "") | select(startswith("🧊 parked:"))] | last // "—" | split("\n")[0]'
 ```
 
 If no reason argument was provided, ask for one and stop. Never edit the issue

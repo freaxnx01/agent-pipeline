@@ -60,7 +60,7 @@ for i in json.load(sys.stdin):
     print(i["number"],"|",i["title"],"|",",".join(labels),"|",i["created_at"],"|",(i.get("user") or {}).get("login","?"),"|","WIP" if i["number"] in wip else "")'
 
 # then, per parked issue number, its most recent reason
-tea api --login git-home "repos/$repo/issues/<n>/comments?limit=100" \
+tea api --login git-home "repos/$repo/issues/<n>/comments" \
   | python3 -c '
 import sys,json
 reasons=[c["body"] for c in json.load(sys.stdin) if (c.get("body") or "").startswith("🧊 parked:")]
@@ -105,7 +105,7 @@ Then read back the newest comment whose body starts with `🧊 parked:` and conf
 from it, never from the exit code:
 
 ```bash
-tea api --login git-home "repos/$repo/issues/<n>/comments?limit=100" | python3 -c '
+tea api --login git-home "repos/$repo/issues/<n>/comments" | python3 -c '
 import sys,json
 comments=json.load(sys.stdin)
 reasons=[(c.get("body") or "") for c in comments if (c.get("body") or "").startswith("🧊 parked:")]
