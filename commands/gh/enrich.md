@@ -105,6 +105,20 @@ extra file reads to orient itself. Replace the issue body with:
 gh issue edit $ARGUMENTS --body "..."
 ```
 
+**Also clear the readiness labels** — `needs-enrichment` and `❓ to-be-defined`
+mean "not ready yet," and the issue now is. Leaving either on is a silent trap:
+`/gh:implement` treats them as a hard stop regardless of what the body says.
+
+```bash
+gh issue edit $ARGUMENTS --remove-label needs-enrichment 2>/dev/null || true
+gh issue edit $ARGUMENTS --remove-label "❓ to-be-defined" 2>/dev/null || true
+```
+
+`--remove-label` on a label the issue doesn't carry is a no-op, but on a label
+that doesn't exist **anywhere in the repo** it errors — many repos only define
+one of the two conventions. Run each on its own line with `|| true` so a
+missing repo label doesn't abort the step.
+
 ## Step 7 — Confirm
 
 Print:

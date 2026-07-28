@@ -87,6 +87,22 @@ The new body has:
    contains the full task breakdown, file structure, TDD steps, and exact code to
    produce."*
 
+**Also clear the readiness labels** — `needs-enrichment` and `❓ to-be-defined` mean
+"not ready yet," and the issue now is. `tea` has no per-issue label add/remove
+subcommand (`tea labels` only manages repo-level label *definitions*), so read the
+issue's current labels and PUT back the set with those two names filtered out:
+
+```bash
+current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined")]')
+tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$kept" >/dev/null
+```
+
+(This is best-effort against Forgejo's labels API, which has had both name- and
+ID-keyed variants across versions — if the `PUT` errors, check `tea api
+--login git-home "repos/$repo/issues/$ARGUMENTS/labels"` for the shape this
+instance expects and fix this step for the future.)
+
 ## Step 7 — Confirm
 
 Print the issue URL, the spec and plan paths, and: *"Issue is ready — run
