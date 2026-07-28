@@ -235,19 +235,27 @@ print(reasons[-1].split("\n")[0] if reasons else "—")'
 Write operations:
 
 ```bash
-# unpark — tea has no remove-label flag; read labels, drop the one, PATCH the rest
+# unpark — tea issues edit removes a label directly; no read-modify-write needed
+tea issues edit <n> --login git-home --remove-labels "🧊 parked"
 # repark
 tea comment <n> "🧊 parked: <reason>"
 ```
 
-Use `tea api -X PATCH` for the label edit if `tea` exposes no direct removal, and
-**read back** the issue's labels afterwards either way.
+**Read back** the issue's labels afterwards either way.
+
+Do **not** hand-roll the label edit as `tea api -X PATCH "repos/$repo/issues/<n>"`
+with a `labels` array: `tea issues edit` exposes `--remove-labels` (verified against
+0.14.1), and Forgejo's `PATCH /repos/{owner}/{repo}/issues/{index}` carries no
+`labels` field at all — label replacement lives on
+`PUT /repos/{owner}/{repo}/issues/{index}/labels` — so the key is silently ignored
+and the unpark never happens.
 
 > `tea` 0.14.1 is installed locally. **Verify every flag with
 > `tea <subcommand> --help` before writing it into this file** — do not copy flags
-> from memory. `tea issues create` uses `--description`, not `--body`, and
-> `tea issues list` uses `--labels` (plural); this file already carries scars from
-> exactly this class of mistake.
+> from memory. `tea issues create` uses `--description`, not `--body`;
+> `tea issues list` uses `--labels` (plural); and `tea issues edit` has
+> `--remove-labels`, which an earlier draft of this plan wrongly claimed did not
+> exist. This file already carries scars from exactly this class of mistake.
 
 - [ ] **Step 2: Verify**
 
