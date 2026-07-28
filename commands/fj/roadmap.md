@@ -49,7 +49,7 @@ tea api --login git-home "repos/$repo/issues/<n>/comments" \
   | python3 -c '
 import sys,json
 reasons=[c["body"] for c in json.load(sys.stdin) if c.get("body","").startswith("roadmap:")]
-print(reasons[-1].split("\\n")[0] if reasons else "—")'
+print(reasons[-1].split("\n")[0] if reasons else "—")'
 ```
 
 If there are none, say the roadmap is empty and stop. Do not create the `roadmap`
@@ -103,7 +103,7 @@ tea api --login git-home "repos/$repo/issues/<n>/comments" | python3 -c '
 import sys,json
 comments=json.load(sys.stdin)
 reasons=[c.get("body","") for c in comments if c.get("body","").startswith("roadmap:")]
-print(reasons[-1].split("\\n")[0] if reasons else "—")'
+print(reasons[-1].split("\n")[0] if reasons else "—")'
 ```
 
 If no reason argument was provided, ask for one and stop. Never edit the issue body
