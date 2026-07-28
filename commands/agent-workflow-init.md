@@ -56,13 +56,23 @@ bash "$(git -C ~/repos/github/freaxnx01/public/agent-workflow rev-parse --show-t
 ```
 
 Where `$EXTRA_ARGS` is whatever followed `--` in `$ARGUMENTS` (empty by
-default — the script's own defaults are draft-PR-only, repo-scoped secrets,
-`agent claude`, `model claude-sonnet-5`, matching this project's conventions).
+default — the script's own defaults are repo-scoped secrets, `agent claude`,
+`model claude-sonnet-5`, matching this project's conventions, and it commits
+the stub **directly to the default branch** rather than opening a PR — this
+is one-shot infra bootstrapping, not day-to-day app code. Pass `-- --pr` if
+the user wants the stub reviewed via a branch + PR first instead.).
 
-If the repo already has `.github/workflows/agent.yml` merged on its default
-branch (check with `gh api repos/$repo/contents/.github/workflows/agent.yml
---jq .sha 2>/dev/null` against the default branch), pass `--no-stub` — the
-stub already exists; re-running the full script would just open a no-op PR.
+If the repo already has `.github/workflows/agent.yml` on its default branch,
+pass `--no-stub` — the stub already exists; re-running the full script would
+just create a redundant no-diff commit (or PR, under `--pr`). Check with the
+exit code, not `--jq` on a possibly-404 response (a 404's error body can
+still print non-empty output through `--jq`, which silently defeats a
+truthiness check):
+
+```bash
+default_branch=$(gh api "repos/$repo" --jq .default_branch)
+gh api "repos/$repo/contents/.github/workflows/agent.yml?ref=$default_branch" >/dev/null 2>&1 && has_stub=true || has_stub=false
+```
 
 ## Step 4 — Report
 
@@ -70,9 +80,12 @@ Print:
 
 - Repo name
 - What was set: secrets (names only, never values), labels created, the
-  Actions "create/approve PRs" setting, and whether a stub PR was opened
+  Actions "create/approve PRs" setting, and whether the stub was committed
+  directly or (under `--pr`) opened as a PR
 - If a PR was opened: its URL, and "review + merge it, then label an issue
   `ai-implement` to trigger the pipeline"
+- If committed directly: "stub is live on `<default-branch>` — label an
+  issue `ai-implement` to trigger the pipeline"
 - If `--no-stub` was used because the stub already exists: say so plainly
 
 ---

@@ -12,8 +12,11 @@
 #   4. Repo settings— enable "Actions can create PRs"; for --auto-review also
 #                     enable allow-auto-merge + allow-squash-merge.
 #   5. Consumer stub— commit .github/workflows/agent.yml (and chain-dispatch.yml
-#                     with --chain) on a branch and open a PR — via the GitHub
-#                     API, no local clone required. Idempotent.
+#                     with --chain) — via the GitHub API, no local clone
+#                     required. Idempotent. Commits DIRECTLY to the repo's
+#                     default branch by default (this is operator-invoked,
+#                     one-shot infra bootstrapping, not day-to-day app code);
+#                     pass --pr to get the old branch + PR review flow instead.
 #
 # This is HUMAN-INVOKED operator tooling, so it is flag-driven (unlike the
 # env-driven CI scripts in this repo).
@@ -52,9 +55,13 @@
 #       --auto-review           Wire auto-review: true and enable the repo
 #                               settings auto-merge needs (ADR-002 gate 7).
 #       --chain                 Also commit chain-dispatch.yml (ADR-003).
-#       --no-stub               Skip the PR; do secret + labels + settings only.
+#       --no-stub               Skip the stub commit entirely; do secret +
+#                               labels + settings only.
 #       --no-settings           Skip repo-settings changes.
-#       --branch <name>         Branch for the stub PR.
+#       --pr                    Use the branch + PR flow instead of committing
+#                               directly to the default branch (the default).
+#                               Implied by --branch.
+#       --branch <name>         Branch for the stub PR (implies --pr).
 #                               Default 'chore/onboard-agent-workflow'.
 #       --dry-run               Print what would happen; make no changes.
 #
@@ -93,6 +100,7 @@ RUNNER_LABELS='["ubuntu-latest"]'
 AUTO_REVIEW=false
 CHAIN=false
 NO_STUB=false
+DIRECT_TO_MAIN=true
 NO_SETTINGS=false
 BRANCH='chore/onboard-agent-workflow'
 DRY_RUN=false
@@ -143,7 +151,8 @@ while [[ $# -gt 0 ]]; do
     --chain)              CHAIN=true; shift ;;
     --no-stub)            NO_STUB=true; shift ;;
     --no-settings)        NO_SETTINGS=true; shift ;;
-    --branch)             BRANCH="${2:?}"; shift 2 ;;
+    --pr)                 DIRECT_TO_MAIN=false; shift ;;
+    --branch)             BRANCH="${2:?}"; DIRECT_TO_MAIN=false; shift 2 ;;
     --dry-run)            DRY_RUN=true; shift ;;
     -h|--help)            sed -n '2,90p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)                    usage_error "unknown argument: $1" ;;
@@ -368,7 +377,16 @@ open_pr() {
 }
 
 if [[ "$NO_STUB" == true ]]; then
-  info "Skipping consumer stub PR (--no-stub)"
+  info "Skipping consumer stub (--no-stub)"
+elif [[ "$DIRECT_TO_MAIN" == true ]]; then
+  info "Committing consumer stub directly to $DEFAULT_BRANCH"
+  BRANCH="$DEFAULT_BRANCH"
+  build_agent_yml | put_file ".github/workflows/agent.yml" \
+    "ci(agent-workflow): add consumer stub"
+  if [[ "$CHAIN" == true ]]; then
+    build_chain_yml | put_file ".github/workflows/chain-dispatch.yml" \
+      "ci(agent-workflow): add chain-dispatch stub"
+  fi
 else
   info "Committing consumer stub on branch $BRANCH"
   ensure_branch
@@ -381,4 +399,10 @@ else
   open_pr "ci: onboard onto agent-workflow"
 fi
 
-info "Done. Next: review the PR, merge it, then label a smoke-test issue 'ai-implement'."
+if [[ "$NO_STUB" == true ]]; then
+  info "Done. Next: label a smoke-test issue 'ai-implement'."
+elif [[ "$DIRECT_TO_MAIN" == true ]]; then
+  info "Done. Consumer stub is live on $DEFAULT_BRANCH. Next: label a smoke-test issue 'ai-implement'."
+else
+  info "Done. Next: review the PR, merge it, then label a smoke-test issue 'ai-implement'."
+fi
