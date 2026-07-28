@@ -319,9 +319,15 @@ git commit -m "feat(commands): add /roadmap forge router (#175)"
 
 **Precondition.** #173 must be merged. Check first:
 
+Each file carries its **own** placeholder wording, so check each against its own
+string — `commands/gh/issues.md` says `gh issue list --label roadmap`, while
+`commands/fj/issues.md` says `tea issues list --login git-home --labels roadmap`:
+
 ```bash
 grep -Fq 'gh issue list --label roadmap' commands/gh/issues.md \
-  && echo "#173 present — proceed" || echo "#173 not merged — SKIP this task"
+  && echo "#173 present in gh — proceed" || echo "#173 not merged (gh) — SKIP this task"
+grep -Fq 'tea issues list --login git-home --labels roadmap' commands/fj/issues.md \
+  && echo "#173 present in fj — proceed" || echo "#173 not merged (fj) — SKIP this task"
 ```
 
 If it says SKIP, skip the task and say so in the PR description. Do not write the
@@ -348,17 +354,31 @@ same pointer to `/fj:roadmap`.
 
 - [ ] **Step 3: Verify**
 
+Check each file against **its own** placeholder string. Testing the gh-worded string
+against both is a false pass on the Forgejo side: `commands/fj/issues.md` never
+contained it, so the check reports "retired" before any edit is made.
+
 ```bash
-for f in commands/gh/issues.md commands/fj/issues.md; do
-  grep -Fq 'gh issue list --label roadmap' "$f" && echo "FAIL: raw-gh placeholder still in $f" || echo "placeholder retired OK: $f"
+check_retired() {
+  local f="$1" stale="$2"
+  grep -Fq "$stale" "$f" && echo "FAIL: placeholder still in $f" || echo "placeholder retired OK: $f"
+  # wording-independent backstop, in case #173's sentence gets reworded
+  grep -Eq '(gh|tea) issues? list[^`]*roadmap' "$f" && echo "FAIL: a raw escape hatch remains in $f" || echo "no raw escape hatch OK: $f"
   grep -Eq '/(gh|fj):roadmap' "$f" && echo "points at the command OK: $f" || echo "FAIL: no command pointer in $f"
-done
+}
+check_retired commands/gh/issues.md 'gh issue list --label roadmap'
+check_retired commands/fj/issues.md 'tea issues list --login git-home --labels roadmap'
 # the filters themselves are untouched
 grep -Fq 'index("roadmap") | not' commands/gh/issues.md && echo "gh filter intact OK" || echo "FAIL: gh filter"
 grep -Fq '"roadmap" in labels' commands/fj/issues.md && echo "fj filter intact OK" || echo "FAIL: fj filter"
 ```
 
-Expected: six `OK` lines.
+Expected: eight `OK` lines.
+
+The backstop regex relies on the closing backtick of `` `gh issue list` `` to avoid
+matching the unrelated prose line that explains why GraphQL is used. If you reword
+that line, re-run this block against the **pre-change** file too and confirm it still
+reports `FAIL` — a verification that cannot fail is not a verification.
 
 - [ ] **Step 4: Commit**
 
