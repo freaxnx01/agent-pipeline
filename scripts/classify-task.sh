@@ -102,7 +102,7 @@ while IFS= read -r label; do
       ;;
   esac
   case "$label" in
-    model:opus)           chosen=claude-opus-4-7;                 reason='label model:opus' ;;
+    model:opus)           chosen=claude-opus-5;                 reason='label model:opus' ;;
     model:sonnet)         chosen=claude-sonnet-5;                 reason='label model:sonnet' ;;
     model:haiku)          chosen=claude-haiku-4-5;                reason='label model:haiku' ;;
     model:mistral-large)  chosen=mistralai/mistral-large;          reason='label model:mistral-large' ;;
@@ -129,7 +129,7 @@ if [[ -z "$chosen" ]]; then
   fi
 
   if   printf '%s' "$ISSUE_BODY" | grep -qiE 'refactor|redesign|architecture|migrat[ei]|complex|cross-cutting'; then
-    chosen=claude-opus-4-7
+    chosen=claude-opus-5
     reason='heuristic: refactor/architecture keywords'
   elif printf '%s' "$ISSUE_BODY" | grep -qiE 'typo|spelling|grammar|wording|rename|comment-only'; then
     chosen=claude-haiku-4-5

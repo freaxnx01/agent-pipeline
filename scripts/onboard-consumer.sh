@@ -49,7 +49,7 @@
 #       --ref <ref>             Pipeline ref to pin in `uses:` / `pipeline-ref:`.
 #                               Default 'v1'.
 #       --agent claude|opencode Default agent for the stub. Default 'claude'.
-#       --model <model>         default-model input. Default 'claude-opus-4-7'.
+#       --model <model>         default-model input. Default 'claude-sonnet-5'.
 #       --runner-labels '<json>' JSON array of runner labels.
 #                               Default '["ubuntu-latest"]'.
 #       --auto-review           Wire auto-review: true and enable the repo
