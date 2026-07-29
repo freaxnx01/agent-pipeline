@@ -78,4 +78,27 @@ Print the issue number, the agent assigned, and the issue URL. Note that the age
 on its **own branch** and opens a (usually draft) PR — watch for the 👀 reaction as the
 signal it picked the task up. Review its PR later with `/gh:review`. Don't merge anything.
 
+### If you set up a monitor to wait for "ready to review"
+
+Don't gate on `isDraft == false` or the title losing a `[WIP]`/`WIP` prefix. Observed
+with `anthropic-code-agent`: it pushed its final commit and requested review while
+leaving the PR as `isDraft: true` with `[WIP]` still in the title — those are cosmetic
+leftovers of its workflow, not an in-progress indicator. A monitor gated on the draft
+flag or title text will poll forever and never fire even though the agent finished
+minutes earlier.
+
+Poll the PR's timeline for a `review_requested` event (or a terminal `state != OPEN`)
+as the exit condition instead:
+
+```bash
+owner="$(gh repo view --json owner -q .owner.login)"; name="$(gh repo view --json name -q .name)"
+gh api "repos/$owner/$name/issues/<PR_NUMBER>/timeline" --paginate \
+  --jq '.[] | select(.event=="review_requested") | .created_at'
+```
+
+The GitHub web UI's Agents tab (`https://github.com/<owner>/<repo>/agents?author=<you>`)
+shows a plain "Completed Xm ago" status for the underlying agent task too — quicker
+to eyeball manually than polling the API. (Only verified against `anthropic-code-agent`
+so far — treat the same behavior for `copilot-swe-agent` as unconfirmed until observed.)
+
 If there's no `gh`/repo context, say so and stop.
