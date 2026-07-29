@@ -114,7 +114,9 @@ gate solely on `isDraft`/a `[WIP]` title, since some agents leave both
 untouched even after genuinely finishing (see the note on `review_requested`
 above). The GitHub web UI's "Agents" tab showing a run as "Completed" is a
 useful nudge to go look, not proof of a specific outcome — always re-verify
-the actual PR state or diff.
+the actual PR state or diff. Default poll interval for this kind of loop: **60
+seconds** — comfortably within a monitor's own 30s-minimum guidance for remote
+APIs, with no need to go slower.
 
 ## After
 
