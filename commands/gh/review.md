@@ -118,6 +118,35 @@ the actual PR state or diff. Default poll interval for this kind of loop: **60
 seconds** — comfortably within a monitor's own 30s-minimum guidance for remote
 APIs, with no need to go slower.
 
+### Two dedup bugs that produce false "new"/silently-dropped events
+
+Both observed in the same review-nudge-CI loop on a real PR — build the poll
+loop's seen-set carefully, since a wrong dedup key silently breaks the signal
+it exists to produce:
+
+- **Seed the baseline in one shot before the loop starts, not inside the
+  first iteration.** A loop that checks `[ -n "$seen_set" ]` as a proxy for
+  "have I completed the first pass" breaks if `seen_set` is being built
+  *during* that same pass — the check flips true partway through the initial
+  listing (as soon as the second pre-existing item is appended), so most of
+  the baseline gets misreported as "new" on the very first poll. Fix: query
+  the full baseline once, store it, and only start comparing against it on
+  the *next* poll — never mutate-and-check the same accumulator in one pass.
+- **`gh run rerun <run-id>` reuses the same run ID — it does not mint a new
+  one.** A poll loop that marks a run ID "seen" the moment it observes a
+  `action_required`/pending conclusion (so it doesn't re-trigger the rerun
+  every cycle) must **not** add that ID to the same permanently-seen set used
+  for reporting results — otherwise the run's real terminal conclusion
+  (`success`/`failure`) arrives under an ID the loop already wrote off, and
+  the actual outcome never gets reported. Only mark an ID permanently seen
+  once its conclusion is a genuine terminal state, not a gated/pending one.
+
+**How to apply:** before shipping any poll-loop dedup logic, trace through it
+by hand for the specific case of "the same identifier reappears with a
+different state" (a rerun, a retry, a status transition) — most dedup bugs in
+this class come from conflating "I've observed this ID once" with "I've
+observed this ID's *final* state."
+
 ## After
 
 Print, per PR: number, URL, verdict, and whether an agent was pinged (and which
