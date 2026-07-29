@@ -75,11 +75,13 @@ Then dispatch to the matching phase below.
 2. Clear the readiness labels — `needs-enrichment` and `❓ to-be-defined` mean "not
    ready yet," and the issue now is. `tea` has no per-issue label add/remove
    subcommand, so read-filter-PUT:
+
    ```bash
    current=$(tea api --login git-home "repos/$repo/issues/<issue>" | jq -r '[.labels[].name]')
    kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined")]')
    tea api --login git-home -X PUT "repos/$repo/issues/<issue>/labels" -f labels="$kept" >/dev/null
    ```
+
 3. Push if anything else is pending.
 4. **Done:** delete `.claude/fj-enrich-phased.state` and `.claude/handoff.md`. Print
    the issue URL, the spec and plan paths, and: *"Issue is ready — run
