@@ -1,17 +1,16 @@
 ---
-description: Assign an issue to a GitHub coding agent (@copilot / @claude) to implement it
-argument-hint: "<issue-number> [copilot|claude] — agent defaults to copilot"
+description: Assign an issue to a GitHub coding agent (@claude / @copilot) to implement it
+argument-hint: "<issue-number> [copilot|claude] — agent defaults to claude"
 ---
 
 Hand an existing issue to a GitHub **coding agent** so it opens a PR implementing it.
 `$ARGUMENTS` is `<issue-number>` plus an optional agent (`copilot` or `claude`).
 
-## Agent default — prefer `@copilot`
+## Agent default — prefer `@claude`
 
-If no agent is given, default to **copilot**. In practice the Copilot coding agent
-(`copilot-swe-agent`) is the reliable trigger: it reacts within ~a minute and starts a
-session. The Anthropic agent (`anthropic-code-agent`) is available too, but only pick it
-when the user explicitly asks for Claude (or has confirmed it's responsive in this repo).
+If no agent is given, default to **claude** (`anthropic-code-agent`). Only pick
+copilot (`copilot-swe-agent`) when the user explicitly asks for Copilot (or has
+confirmed it's responsive in this repo).
 
 ## Preconditions — confirm before assigning
 
@@ -41,7 +40,7 @@ Bots can't be assigned via `gh issue edit --add-assignee` (it resolves logins as
 Use the GraphQL `replaceActorsForAssignable` mutation with the bot's actor id:
 
 ```bash
-n="<issue-number>"; agent="${1:-copilot}"
+n="<issue-number>"; agent="${1:-claude}"
 case "$agent" in
   copilot) bot="copilot-swe-agent" ;;
   claude)  bot="anthropic-code-agent" ;;
