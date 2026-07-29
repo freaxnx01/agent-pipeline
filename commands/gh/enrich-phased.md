@@ -65,10 +65,12 @@ Then dispatch to the matching phase below.
 2. Clear the readiness labels — `needs-enrichment` and `❓ to-be-defined` mean
    "not ready yet," and the issue now is. `/gh:implement` treats either as a
    hard stop regardless of body content, so leaving one on is a silent trap:
+
    ```bash
    gh issue edit <issue> --remove-label needs-enrichment 2>/dev/null || true
    gh issue edit <issue> --remove-label "❓ to-be-defined" 2>/dev/null || true
    ```
+
    (run each on its own line with `|| true` — a repo that doesn't define one of
    the two label conventions would otherwise error on the `--remove-label`)
 3. Push if anything else is pending.
