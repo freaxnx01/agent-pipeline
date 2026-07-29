@@ -85,6 +85,37 @@ wake from a PR comment. So:
 
 Reformat code-fence/backtick content safely for a shell `--body` (or use a body file).
 
+## Verifying the agent's follow-up — don't trust the self-report
+
+After nudging, re-check the PR directly rather than trusting the agent's reply
+comment. Observed on a real nudge round-trip: the agent's summary claimed it
+had updated the PR description **and** un-drafted it; neither was true — only
+the code-file fix in its list actually landed. Diff the actual commit / fetch
+the actual PR body before treating any item as resolved.
+
+**Known structural limit — some coding-agent sandboxes can't edit PR metadata
+at all.** A coding agent's internal `report_progress`-style tool can commit and
+push code, but its sandbox may have GitHub REST API egress blocked (observed:
+`Blocked by DNS monitoring proxy`, `gh auth` failing) — so it has **no path** to
+`gh pr edit` / a PATCH call, no matter how it's asked. If a nudge asks for a
+title/description/draft-state change and the agent's follow-up says it can't
+apply it (rather than silently omitting it), that's not a one-off miss to
+re-nudge — apply the edit yourself with your own `gh` access
+(`gh pr edit <N> --title "..." --body-file <file>`, `gh pr ready <N>`) using
+the exact text the agent proposed. Re-nudging a structural limitation just
+burns another round-trip for nothing.
+
+When monitoring a PR for "is this actually done" (e.g. a background poll),
+gate on the literal content, not a cosmetic flag: hash the PR body with one
+consistent command chain used at both baseline and each check (don't mix e.g.
+jq's `@base64` filter with an external `base64` binary — they encode
+identically-same text differently and produce false positives), and don't
+gate solely on `isDraft`/a `[WIP]` title, since some agents leave both
+untouched even after genuinely finishing (see the note on `review_requested`
+above). The GitHub web UI's "Agents" tab showing a run as "Completed" is a
+useful nudge to go look, not proof of a specific outcome — always re-verify
+the actual PR state or diff.
+
 ## After
 
 Print, per PR: number, URL, verdict, and whether an agent was pinged (and which
