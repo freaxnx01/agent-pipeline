@@ -7,17 +7,37 @@
 30 non-game candidate repos via `scripts/onboard-consumer.sh`. Zero failures.
 All 30 now have a live `ai-implement` pipeline.
 
-**Done (partial):** the `sync-ai-instructions` half has been run for the 2
-clean matches — `quotes` (`dotnet-webapi`) and `flowhub` (`dotnet-blazor`),
-2026-07-28. Both were already-initialized refreshes (files existed from
-2026-07-26); base-instructions.md and both stack overlays picked up upstream
-edits (more reference-doc-linking, less inline detail; base gained a
-PowerShell 5.1 scripting section). Changes are written to disk in both repos
-but **not committed** — that's left to the user per the skill's rules.
+**Done:** the `sync-ai-instructions` half has been run for 5 repos total —
+`quotes` (`dotnet-webapi`, 2026-07-28, committed+pushed), `flowhub`
+(`dotnet-blazor`, 2026-07-28, committed+pushed), and, after bucket-2
+inspection (2026-07-30), 3 more confirmed clean matches: `llmeter`
+(`dotnet-webapi`, first-time init), `demo-feedback-poc` (`dotnet-blazor`,
+first-time init), `mgrabber-nextgen` (`dotnet-blazor` — turned out to already
+be onboarded 2026-07-26; this audit's original table was stale on that one).
+The 3 new repos have files written to disk but **not yet committed** — left
+to the user per the skill's rules.
 
-**Parked (scope decision, explicit):** the remaining 28 repos are *not* being
-onboarded for this half right now. See buckets 1–3 below for why each one is
-blocked or ambiguous.
+**Bucket 2 (ambiguous) resolved via actual inspection**, 2026-07-30 — the
+original table's stack-fit column was guessed from the GitHub languages API
+only; real code inspection (via `gh api` contents, no full clone needed for
+most) changed several verdicts:
+
+| Repo | Original guess | Actual verdict (inspected) |
+|---|---|---|
+| `llmeter` | Unclear | **dotnet-webapi fit** — clean ASP.NET Core minimal API + worker |
+| `mgrabber-nextgen` | Unclear | **dotnet-blazor fit** — clean Blazor Server + Minimal API host |
+| `demo-feedback-poc` | Possible dotnet-webapi | **dotnet-blazor fit** — Blazor Web App (server+WASM), languages API was misleading |
+| `PersonalLibrary` | Unclear | **No clean fit** — legacy .NET Framework class-library collection (mixed v3.5/v4.8, non-SDK-style), not a service; `dotnet-fx48-legacy` is the closest available overlay but a loose/debatable match |
+| `bridge` | Partial (go overlay) | **No fit** — polyglot CLI tool (Go core + shell shim + Python Telegram bot + Svelte companion UI); needs a new overlay type not on today's roster |
+| `signal-chat-to-telegram` | Unclear | **No fit** — plain run-once console tool, no host/worker/web shape at all |
+| `Digital-Signage` | Unclear | **Not a real candidate yet** — empty placeholder repo (README title only, no code) |
+| `MusicGrabber` | Unclear | **Not a real candidate yet** — empty placeholder repo (README title only, no code) |
+
+**Parked (scope decision, explicit):** the remaining ~23 repos (28 minus the
+3 newly-resolved clean matches from bucket 2 above) are *not* being onboarded
+for this half right now. See buckets 1 and 3 below; bucket 2 is resolved as
+of this update except for `PersonalLibrary` (debatable) and `bridge` /
+`signal-chat-to-telegram` (genuine no-fit).
 
 Full context: this followed onboarding all 37 `game-*` repos (same two-part
 flow, `browser-game` stack, no ambiguity there since they're homogeneous).
