@@ -91,6 +91,24 @@ If step 1 read-back does not show the milestone, stop and do not remove the labe
 After both read-backs confirm, offer `/route <n>` (read and follow
 `~/.claude/commands/gh/route.md`) rather than running it automatically.
 
+### defer
+
+`defer <n> "<reason>"` appends a roadmap reason comment and keeps labels unchanged:
+
+```bash
+gh issue comment <n> --body "roadmap: <reason>"
+gh issue view <n> --json comments --jq '.comments | last | .body | split("
+")[0]'
+```
+
+If no reason argument was provided, ask for one and stop. Never edit the issue body
+and never edit a previous comment.
+
+### No forge context
+
+If `gh` isn't on `PATH`, isn't authenticated, or the cwd isn't a GitHub clone, say
+which of those it is, point at `gh auth login`, and stop.
+
 My arguments:
 $ARGUMENTS
 
