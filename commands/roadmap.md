@@ -97,8 +97,7 @@ After both read-backs confirm, offer `/route <n>` (read and follow
 
 ```bash
 gh issue comment <n> --body "roadmap: <reason>"
-gh issue view <n> --json comments --jq '.comments | last | .body | split("
-")[0]'
+gh issue view <n> --json comments --jq '.comments | last | .body | split("\n")[0]'
 ```
 
 If no reason argument was provided, ask for one and stop. Never edit the issue body
