@@ -68,18 +68,35 @@ Pick the mention from the PR's owner — `gh pr view <N> --json author,assignees
 
 - `app/copilot-swe-agent` → **`@copilot`**.
 - `app/anthropic-code-agent` (assignee *Claude*, branch `claude/…`) → Claude's agent.
+- `app/github-actions` (opened by the `agent-workflow` pipeline via the
+  `ai-implement` label) → **do not nudge `@copilot`**. There is currently no
+  mechanism for `agent-workflow` to react to review comments with the *same*
+  model that did the implementation — that gap is tracked as
+  `agent-workflow#193` (builds on `#81`). Handing the fix to `@copilot` instead
+  silently switches the implementing model/vendor, which the user has
+  explicitly said not to do (model consistency, and Copilot usage budget is
+  not agent-workflow's to spend). Post the should-fix findings as the review
+  comment as normal, but **skip the second nudge comment** — tell the user the
+  fix needs either a manual pass, a redispatch through `agent-workflow`, or
+  `#193` implemented, and let them choose. Don't default to `@copilot` just
+  because it is the more reliable wake trigger.
 
-**Learned default — prefer `@copilot`.** In practice `@copilot` is the reliable
-trigger: it reacts (👀) within a minute and starts a session, and it can **take
-over any PR**, including ones Claude's agent opened. A bare `@claude` mention
-registers in the timeline but the native Anthropic agent does **not** reliably
-wake from a PR comment. So:
+**Learned default — prefer `@copilot`, but only for PRs Copilot's own agent
+opened.** In practice `@copilot` is the reliable trigger: it reacts (👀)
+within a minute and starts a session, and it can take over a PR regardless of
+who opened it. A bare `@claude` mention registers in the timeline but the
+native Anthropic agent does **not** reliably wake from a PR comment. That
+makes `@copilot` the right *mechanical* choice only when the goal is "get any
+agent to pick this up" — it is the wrong choice whenever the user cares which
+model does the fix (see the `agent-workflow` case above, and generally: don't
+silently hand a Claude-authored PR to Copilot either).
 
 - Copilot-owned PR → `@copilot`.
-- Claude-owned PR → first choice is still to hand it to **`@copilot`** ("the agent
-  that opened this hasn't picked up the review — can you take it over and address
-  the feedback?"). Use `@claude` only if the user has confirmed the Anthropic agent
-  is responsive in this repo, and fall back to `@copilot` if no 👀 reaction appears.
+- Claude-owned PR (`app/anthropic-code-agent`) → mention Claude's agent first.
+  Use `@copilot` as a fallback only if the user confirms they're fine with the
+  model switch, not as a silent first choice.
+- `agent-workflow`-owned PR (`app/github-actions`) → see above: no nudge,
+  surface the gap instead.
 - If a repo defines its own `.github/workflows/*claude*.yml`, that's a self-hosted
   `@claude` Action — then `@claude` is genuinely the trigger; check for it first.
 
