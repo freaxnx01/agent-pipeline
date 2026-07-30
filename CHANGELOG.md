@@ -18,11 +18,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   these 12 concepts must switch to the prefix-less command; re-run
   `setup/link-commands.sh` to pick up the change (#198, #199).
 
+### Added
+
+- **commands:** `/milestone triage` (+ `/gh:milestone`, `/fj:milestone`) — lists
+  open issues with no milestone, excluding `🧊 parked` and `roadmap`, then walks
+  them one at a time to assign one, every write confirmed by read-back (#178)
+- **commands:** `/parked` (+ `/gh:parked`, `/fj:parked`) gains `unpark`, `repark`,
+  and `review` verbs — unparking hands off to `/route`, reparking records a
+  `🧊 parked:` reason comment, and `list` now shows the most recent reason (#174)
+- **commands:** `/roadmap` (+ `/gh:roadmap`, `/fj:roadmap`) — lists issues labeled
+  `roadmap`, promotes one into a milestone (schedule first, then unlabel), and
+  records a `roadmap:` reason comment; `/issues` now points here instead of a raw
+  `gh` invocation (#175)
+
 ### Changed
 
 - **commands:** Extract the duplicated forge host-detection snippet into
   `scripts/lib/detect-forge.sh`, sourced by the 12 merged commands above (#198,
   #199).
+- **commands:** `/gh:issues` and `/fj:issues` now also exclude issues labeled
+  `roadmap` (planned for a future milestone, not current work), alongside the
+  existing `🧊 parked` exclusion (#173)
+- **commands:** `/gh:assign` and `/gh:implement` now pick an implementation
+  contract by issue shape — the TDD contract for code changes, a before/after
+  verification contract for docs-only issues — from the new shared
+  `/gh:implementation-contract` (#177)
 
 ## [1.11.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.11.0) - 2026-07-27
 
@@ -58,31 +78,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### commands
 
 - **gh:** Make pre-dispatch implementation contract conditional (code vs docs-only) (#180)
-
-## [Unreleased]
-
-### Added
-
-- **commands:** `/milestone triage` (+ `/gh:milestone`, `/fj:milestone`) — lists
-  open issues with no milestone, excluding `🧊 parked` and `roadmap`, then walks
-  them one at a time to assign one, every write confirmed by read-back (#178)
-- **commands:** `/parked` (+ `/gh:parked`, `/fj:parked`) gains `unpark`, `repark`,
-  and `review` verbs — unparking hands off to `/route`, reparking records a
-  `🧊 parked:` reason comment, and `list` now shows the most recent reason (#174)
-- **commands:** `/roadmap` (+ `/gh:roadmap`, `/fj:roadmap`) — lists issues labeled
-  `roadmap`, promotes one into a milestone (schedule first, then unlabel), and
-  records a `roadmap:` reason comment; `/issues` now points here instead of a raw
-  `gh` invocation (#175)
-
-### Changed
-
-- **commands:** `/gh:issues` and `/fj:issues` now also exclude issues labeled
-  `roadmap` (planned for a future milestone, not current work), alongside the
-  existing `🧊 parked` exclusion (#173)
-- **commands:** `/gh:assign` and `/gh:implement` now pick an implementation
-  contract by issue shape — the TDD contract for code changes, a before/after
-  verification contract for docs-only issues — from the new shared
-  `/gh:implementation-contract` (#177)
 
 ## [1.10.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.10.0) - 2026-07-26
 
