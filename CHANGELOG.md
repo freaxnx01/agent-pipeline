@@ -20,16 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **commands:** `/milestone triage` (+ `/gh:milestone`, `/fj:milestone`) — lists
-  open issues with no milestone, excluding `🧊 parked` and `roadmap`, then walks
-  them one at a time to assign one, every write confirmed by read-back (#178)
-- **commands:** `/parked` (+ `/gh:parked`, `/fj:parked`) gains `unpark`, `repark`,
-  and `review` verbs — unparking hands off to `/route`, reparking records a
-  `🧊 parked:` reason comment, and `list` now shows the most recent reason (#174)
-- **commands:** `/roadmap` (+ `/gh:roadmap`, `/fj:roadmap`) — lists issues labeled
-  `roadmap`, promotes one into a milestone (schedule first, then unlabel), and
-  records a `roadmap:` reason comment; `/issues` now points here instead of a raw
-  `gh` invocation (#175)
+- **commands:** `/milestone triage` — lists open issues with no milestone,
+  excluding `🧊 parked` and `roadmap`, then walks them one at a time to assign
+  one, every write confirmed by read-back (#178)
+- **commands:** `/parked` gains `unpark`, `repark`, and `review` verbs —
+  unparking hands off to `/route`, reparking records a `🧊 parked:` reason
+  comment, and `list` now shows the most recent reason (#174)
+- **commands:** `/roadmap` — lists issues labeled `roadmap`, promotes one into
+  a milestone (schedule first, then unlabel), and records a `roadmap:` reason
+  comment; `/issues` now points here instead of a raw `gh` invocation (#175)
 
 ### Changed
 
