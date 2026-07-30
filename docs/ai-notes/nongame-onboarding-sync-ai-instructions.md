@@ -33,11 +33,23 @@ most) changed several verdicts:
 | `Digital-Signage` | Unclear | **Not a real candidate yet** — empty placeholder repo (README title only, no code) |
 | `MusicGrabber` | Unclear | **Not a real candidate yet** — empty placeholder repo (README title only, no code) |
 
-**Parked (scope decision, explicit):** the remaining ~23 repos (28 minus the
-3 newly-resolved clean matches from bucket 2 above) are *not* being onboarded
-for this half right now. See buckets 1 and 3 below; bucket 2 is resolved as
-of this update except for `PersonalLibrary` (debatable) and `bridge` /
-`signal-chat-to-telegram` (genuine no-fit).
+**Bucket 1 resolved**, 2026-07-30 — inspected the 6 original candidates via
+real code, not the languages API. `quicktask-vikunja` turned out to be a
+**Flutter app** (existing `flutter` overlay fits, no new overlay needed,
+synced same day). The other 5 confirmed 3 new overlays were worth authoring:
+
+| New overlay | Repo(s) synced | Notes |
+|---|---|---|
+| `gdscript-godot` | `civil-war-battlefield` | Godot 4.4, real active game (not a scaffold). Single-repo calibration — kept generic. |
+| `dotnet-library` | `CommonLibrary`, `Extensions`, `StringKing`, `CodeConverterSingleFile`, `SaveOutlookCalendar` | Standalone overlay, **not** built on the shared `dotnet-core` partial (that partial assumes ASP.NET Core service shape — Modular Monolith, EF Core, Minimal API — irrelevant to a plain library/console tool). `StringKing`'s `StringKingUI` subproject is legacy net48 WinForms — a mixed-repo edge case, synced as `dotnet-library` anyway since the rest of the repo fits; flag if it needs separate treatment later. |
+| `shell-scripts` | `linux-scripts`, `powershell`, `screenpresso-localsend` | Lighter-weight by design — often no build/test tooling at all. `SampleWebNano` dropped from this bucket: turned out to be a Docker/container sample, not a script collection, despite its PowerShell language tag. |
+
+All 3 overlays committed to `ai-instructions` ([`5850ff4`](https://github.com/freaxnx01/ai-instructions/commit/5850ff4)), pass the byte budget with headroom (22–24KB assembled vs the 39.5KB ceiling), markdownlint clean. README "Supported stacks" table updated. All 9 repos above synced, committed, and pushed same day.
+
+**`dotnet-scripts`** (pure `.csx`/`dotnet-script` files, no `.csproj`) — does not fit `dotnet-library` or any existing overlay. Left unassigned; not onboarded.
+
+**Parked (scope decision, explicit):** bucket 3 (meta/tooling repos) remains
+untouched. See below.
 
 Full context: this followed onboarding all 37 `game-*` repos (same two-part
 flow, `browser-game` stack, no ambiguity there since they're homogeneous).
