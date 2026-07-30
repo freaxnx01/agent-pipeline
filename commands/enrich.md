@@ -6,7 +6,7 @@ argument-hint: <issue number>
 Detect the forge, then run the matching section below.
 
 ```bash
-source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib/detect-forge.sh"
+source "$HOME/.claude/scripts/lib/detect-forge.sh"
 detect_forge
 ```
 

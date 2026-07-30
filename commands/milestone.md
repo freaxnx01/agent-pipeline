@@ -6,7 +6,7 @@ argument-hint: list | new <name> [due <date>] | assign <issue> to <name> | triag
 Detect the forge, then run the matching section below.
 
 ```bash
-source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib/detect-forge.sh"
+source "$HOME/.claude/scripts/lib/detect-forge.sh"
 detect_forge
 ```
 
