@@ -32,7 +32,7 @@ Judge whether the issue already has all three:
 - **Scope / spec** — what to build, enough to start without guessing
 - **No blocking unknowns** — no open design questions or TBDs the agent can't resolve from the codebase
 
-If the issue is already complete, tell the user and suggest running `/implement $ARGUMENTS` directly. Stop here.
+If the issue is already complete, tell the user and suggest running `/gh:implement $ARGUMENTS` directly. Stop here.
 
 ### Step 3 — Brainstorm spec
 
@@ -116,7 +116,7 @@ gh issue edit $ARGUMENTS --body "..."
 
 **Also clear the readiness labels** — `needs-enrichment` and `❓ to-be-defined`
 mean "not ready yet," and the issue now is. Leaving either on is a silent trap:
-`/implement` treats them as a hard stop regardless of what the body says.
+`/gh:implement` treats them as a hard stop regardless of what the body says.
 
 ```bash
 gh issue edit $ARGUMENTS --remove-label needs-enrichment 2>/dev/null || true
@@ -134,7 +134,12 @@ Print:
 
 - Issue URL
 - Paths to spec and plan files
-- "Issue is ready — run `/implement $ARGUMENTS` to trigger the agent-workflow."
+- "Issue is ready — run `/gh:implement $ARGUMENTS` to trigger the agent-workflow."
+
+---
+
+If you run into blockers (brainstorming skill not available, push fails, issue edit
+rejected), find a solution and update this skill for the future.
 
 ## Forgejo
 
@@ -244,7 +249,7 @@ Print the issue URL, the spec and plan paths, and: *"Issue is ready — run
 `/work $ARGUMENTS` to implement it locally."*
 
 > When the self-hosted **Forgejo Actions** agent-workflow exists (future tier), this
-> final pointer becomes "apply the `ai-implement` label / run `/implement`" to
+> final pointer becomes "apply the `ai-implement` label / run `/fj:implement`" to
 > trigger the runner instead — update this step then.
 
 ### Choosing a tracked path
@@ -254,11 +259,13 @@ existing tracked specs/plans dir; never write to a path that `git check-ignore -
 <path>` reports as ignored — fall back to `docs/ai-notes/{specs,plans}`. Confirm with
 `git ls-files` that the committed file is tracked before the push step relies on it.
 
+---
+
+If you run into blockers (brainstorming/writing-plans unavailable, push auth fails,
+the issue-body PATCH is rejected, ignored docs dir), find a solution and update this
+command for the future.
+
 ## Unknown host
 
 Report the detected host and that no authed GitHub or Forgejo login matched it;
 point at `gh auth login` / `tea login add`. Don't guess a forge.
-
----
-
-If you run into blockers, find a solution and update this command for the future.
