@@ -1,10 +1,12 @@
 # Ideas
 
 ## Complete AI-assisted SDLC loop
+
 - id: 2026-07-30-complete-ai-assisted-sdlc-loop · captured: 2026-07-30 · status: raw
 - value: Sketch of a full SDLC (intake through post-release) plus a 4-loop AI-first framing (Plan/Build/Validate/Operate), with open questions on daily workflow and multi-repo WIP limits.
 
 Human tasks:
+
 - Create Issues out of new req & Assign to Milestone
 - Enrich Issues (Spec, Impl plan)
 - Route Issues (assign Copilot / ai-implement)
@@ -14,6 +16,7 @@ Human tasks:
 - Release
 
 Open questions:
+
 - What am I doing on a work day?
 - Multiple projects/repos — WIP limit?
 
