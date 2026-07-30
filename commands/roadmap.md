@@ -89,7 +89,12 @@ gh api "repos/$repo/milestones?state=open&sort=due_on&direction=asc&per_page=100
 
 If step 1 read-back does not show the milestone, stop and do not remove the label.
 After both read-backs confirm, offer `/route <n>` (read and follow
-`~/.claude/commands/route.md`) rather than running it automatically.
+`~/.claude/commands/gh/route.md`) rather than running it automatically.
+
+My arguments:
+$ARGUMENTS
+
+---
 
 If you hit a blocker (missing auth, renamed fields, or a milestone write/read-back
 mismatch), find a fix and update this command for the future.
@@ -184,7 +189,7 @@ for m in sorted(json.load(sys.stdin), key=lambda x: x.get("due_on") or "9999"):
 ```
 
 After both read-backs confirm, offer `/route <n>` (read and follow
-`~/.claude/commands/route.md`) rather than running it automatically.
+`~/.claude/commands/fj/route.md`) rather than running it automatically.
 
 ### defer
 
@@ -207,6 +212,11 @@ and never edit a previous comment.
 If `tea` isn't on `PATH`, there's no `git-home` login, or the remote isn't the
 homelab Forgejo (`git.home.freaxnx01.ch`), say which of those it is, point at
 `tea login add`, and stop.
+
+My arguments:
+$ARGUMENTS
+
+---
 
 If you hit a blocker (repo not resolvable, `tea` flags differ, or read-back doesn't
 match the write), find a fix and update this command for the future.
