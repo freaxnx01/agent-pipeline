@@ -49,8 +49,7 @@ vocabulary (MudBlazor, shadcn/ui, Flutter widgets, …) comes from the project's
 
 **Superpowers**: `/subagent-driven`
 
-**Forge routers** (auto-detect GitHub vs Forgejo from the `origin` remote, then
-delegate to the matching `gh:`/`fj:` command):
+**Forge-agnostic** (detect GitHub vs Forgejo from the `origin` remote internally):
 `/issues` · `/prs` · `/parked` · `/triage` · `/done` · `/new` · `/enrich` ·
 `/enrich-phased` · `/route` · `/work` · `/milestone`
 
@@ -62,12 +61,7 @@ delegate to the matching `gh:`/`fj:` command):
 > engages on its own — or invoke it as `/processing-test-feedback`. It triages a
 > batch into Issue / `TODO.md` / implement-now with dedup and a resumable worklog.
 
-**GitHub** (`gh/`): `/gh:new` · `/gh:issues` · `/gh:parked` · `/gh:triage` ·
-`/gh:enrich` · `/gh:enrich-phased` · `/gh:route` · `/gh:work` · `/gh:assign` ·
-`/gh:implement` · `/gh:prs` · `/gh:review` · `/gh:done` · `/gh:milestone`
-
-**Forgejo** (`fj/`): `/fj:new` · `/fj:issues` · `/fj:parked` · `/fj:triage` ·
-`/fj:enrich` · `/fj:enrich-phased` · `/fj:route` · `/fj:work` · `/fj:prs` ·
-`/fj:done` · `/fj:milestone`
+**GitHub-only** (`gh/`, no Forgejo equivalent): `/gh:assign` · `/gh:implement` ·
+`/gh:implementation-contract` · `/gh:review`
 
 Each `.md` file's `description:` front-matter shows in the `/` autocomplete menu.
