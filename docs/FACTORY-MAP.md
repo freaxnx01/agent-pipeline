@@ -21,6 +21,101 @@ Explicitly out of scope, though adjacent:
 
 ---
 
+## Diagram
+
+```mermaid
+flowchart TB
+    subgraph INTAKE["Intake"]
+        flowhub["flowhub<br/>AI inbox · IForgeSink"]
+        ideas["ideas-lab<br/>/capture-idea"]
+    end
+
+    subgraph GOV["Governance / Conventions"]
+        aiinstr["ai-instructions<br/>base + stack overlays<br/>milestone conventions"]
+    end
+
+    subgraph DIST["Distribution"]
+        skills["agent-skills<br/>public marketplace"]
+        plugins["claude-code-plugins<br/>private marketplace"]
+    end
+
+    subgraph ORCH["Orchestration — agent-workflow"]
+        console["Operator console<br/>45 slash commands<br/>skills · hooks · partials"]
+        ci["CI pipeline<br/>agent-implement.yml<br/>ADR-002 gates"]
+    end
+
+    subgraph RUNTIME["Runtime"]
+        lxc["agent-dev-lxc<br/>LXC 201"]
+        memory["agent-memory<br/>pgvector · mem0 · Ollama"]
+        config["config<br/>shell · prompt"]
+    end
+
+    bridge["bridge<br/>MCP · forge abstraction"]
+
+    subgraph FORGES["Forges"]
+        gh["GitHub<br/>freaxnx01"]
+        fj["Forgejo<br/>freax"]
+    end
+
+    subgraph OUT["Output fleet"]
+        games["game-* · 37 repos"]
+        libs[".NET libraries"]
+        tools["standalone tools"]
+    end
+
+    subgraph TEST["Test targets"]
+        sandbox["agent-action-sandbox"]
+        bwt["bridge-write-test"]
+    end
+
+    llmeter["llmeter<br/>cost + usage"]
+
+    flowhub -->|creates issues| bridge
+    ideas --> console
+    aiinstr -->|/sync-ai-instructions| OUT
+    aiinstr --> console
+    skills -->|/plugin install| console
+    plugins -->|/plugin install| console
+
+    console -->|files + triages issues| bridge
+    console -->|labels ai-implement| ci
+    bridge <-->|read + write| gh
+    bridge <-->|read + write| fj
+
+    ci -->|draft PR| gh
+    gh -->|human merge| OUT
+    ci -.->|validates against| TEST
+
+    lxc -->|hosts| console
+    config -->|provisions| lxc
+    memory <-->|context| console
+    console -.->|usage| llmeter
+    ci -.->|usage| llmeter
+
+    classDef core fill:#1f6feb,stroke:#0d419d,color:#fff
+    classDef support fill:#238636,stroke:#116329,color:#fff
+    classDef forge fill:#6e40c9,stroke:#4c2889,color:#fff
+    classDef output fill:#484f58,stroke:#30363d,color:#fff
+
+    class console,ci,aiinstr,skills,plugins,bridge,memory,lxc,config core
+    class flowhub,ideas,llmeter,sandbox,bwt support
+    class gh,fj forge
+    class games,libs,tools output
+```
+
+Blue = core · green = supporting · purple = forges · grey = output.
+Dotted edges are observation/validation rather than data flow.
+
+Two properties worth noting, both visible here and not in the tables below:
+
+- **`bridge` sits between nearly everything and the forges.** Console, flowhub
+  and chat sessions all route through it. Useful as a chokepoint, but it also
+  makes `bridge` a single point of failure for the whole read/write path — and
+  it is why the multi-client blast radius in freaxnx01/bridge#223 matters.
+- **The CI path is GitHub-only.** Most Forgejo repos have no runner, so
+  `ai-implement` does nothing there; `bridge` and humans are the only writers
+  on that side.
+
 ## Core (7)
 
 | Repo | Forge | Layer | Owns |
