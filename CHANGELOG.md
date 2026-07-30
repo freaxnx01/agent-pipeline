@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+
+- **commands:** Remove `/gh:done` `/gh:enrich` `/gh:enrich-phased` `/gh:issues`
+  `/gh:milestone` `/gh:new` `/gh:parked` `/gh:prs` `/gh:roadmap` `/gh:route`
+  `/gh:triage` `/gh:work` and their `/fj:*` equivalents — merged into the
+  forge-agnostic `/done` `/enrich` `/enrich-phased` `/issues` `/milestone`
+  `/new` `/parked` `/prs` `/roadmap` `/route` `/triage` `/work` commands.
+  **BREAKING CHANGE:** anyone invoking a `gh:x`/`fj:x` name directly for one of
+  these 12 concepts must switch to the prefix-less command; re-run
+  `setup/link-commands.sh` to pick up the change (#198, #199).
+
+### Changed
+
+- **commands:** Extract the duplicated forge host-detection snippet into
+  `scripts/lib/detect-forge.sh`, sourced by the 12 merged commands above (#198,
+  #199).
+
 ## [1.11.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.11.0) - 2026-07-27
 
 ### Added
