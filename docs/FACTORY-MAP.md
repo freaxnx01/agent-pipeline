@@ -50,7 +50,15 @@ flowchart TB
         config["config<br/>shell · prompt"]
     end
 
-    bridge["bridge<br/>MCP · forge abstraction"]
+    subgraph BRIDGE["bridge"]
+        mcp["MCP<br/>forge abstraction"]
+        rest["REST<br/>headless core over HTTP"]
+        webui["WebUI<br/>PC + mobile · visualization"]
+        nav["nav<br/>TUI · repo picker"]
+        dispatch["dispatch<br/>issue → pipeline decision engine"]
+    end
+
+    locutus["locutus<br/>Telegram bot"]
 
     subgraph FORGES["Forges"]
         gh["GitHub<br/>freaxnx01"]
@@ -70,17 +78,19 @@ flowchart TB
 
     llmeter["llmeter<br/>cost + usage"]
 
-    flowhub -->|creates issues| bridge
+    flowhub -->|creates issues| BRIDGE
     ideas --> console
     aiinstr -->|/sync-ai-instructions| OUT
     aiinstr --> console
     skills -->|/plugin install| console
     plugins -->|/plugin install| console
 
-    console -->|files + triages issues| bridge
+    console -->|files + triages issues| BRIDGE
     console -->|labels ai-implement| ci
-    bridge <-->|read + write| gh
-    bridge <-->|read + write| fj
+    BRIDGE <-->|read + write| gh
+    BRIDGE <-->|read + write| fj
+    rest -->|serves| webui
+    BRIDGE -.->|status notifications| locutus
 
     ci -->|draft PR| gh
     gh -->|human merge| OUT
@@ -97,8 +107,8 @@ flowchart TB
     classDef forge fill:#6e40c9,stroke:#4c2889,color:#fff
     classDef output fill:#484f58,stroke:#30363d,color:#fff
 
-    class console,ci,aiinstr,skills,plugins,bridge,memory,lxc,config core
-    class flowhub,ideas,llmeter,sandbox,bwt support
+    class console,ci,aiinstr,skills,plugins,mcp,rest,webui,nav,dispatch,memory,lxc,config core
+    class flowhub,ideas,llmeter,sandbox,bwt,locutus support
     class gh,fj forge
     class games,libs,tools output
 ```
