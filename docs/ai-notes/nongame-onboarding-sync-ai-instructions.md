@@ -14,8 +14,7 @@ inspection (2026-07-30), 3 more confirmed clean matches: `llmeter`
 (`dotnet-webapi`, first-time init), `demo-feedback-poc` (`dotnet-blazor`,
 first-time init), `mgrabber-nextgen` (`dotnet-blazor` — turned out to already
 be onboarded 2026-07-26; this audit's original table was stale on that one).
-The 3 new repos have files written to disk but **not yet committed** — left
-to the user per the skill's rules.
+All 5 committed and pushed 2026-07-30.
 
 **Bucket 2 (ambiguous) resolved via actual inspection**, 2026-07-30 — the
 original table's stack-fit column was guessed from the GitHub languages API
@@ -48,8 +47,24 @@ All 3 overlays committed to `ai-instructions` ([`5850ff4`](https://github.com/fr
 
 **`dotnet-scripts`** (pure `.csx`/`dotnet-script` files, no `.csproj`) — does not fit `dotnet-library` or any existing overlay. Left unassigned; not onboarded.
 
-**Parked (scope decision, explicit):** bucket 3 (meta/tooling repos) remains
-untouched. See below.
+**Bucket 3 resolved**, 2026-07-30 — inspected all 5; verdict is **skip
+`/sync-ai-instructions` for all of them**, per-repo, as anticipated:
+
+| Repo | Verdict |
+|---|---|
+| `claude-code-plugins` | Claude Code plugin marketplace (`.claude-plugin` structure) — domain-specific, not a language stack |
+| `agent-skills` | Same shape (skills/plugin repo). **No `CLAUDE.md` exists at all** — worth a hand-written one eventually, but that's a new task, not a sync-ai-instructions candidate |
+| `ai-instructions` | Self-referential — this repo **is** the overlay source; its own `CLAUDE.md` explicitly documents it's never a consumer of its own output |
+| `agent-os` | Hand-written `CLAUDE.md` describing host-specific infra (LXC container, mirror config) — inherently repo-specific |
+| `config` | Thin existing hand-written `CLAUDE.md` (commit conventions) for a dotfiles/shell-config repo |
+
+Also synced same day: `quicktask-vikunja` (existing `flutter` overlay was
+stale, refreshed to `5850ff4`) — the bucket-1 repo that turned out not to
+need a new overlay.
+
+**Status: all 3 buckets now resolved.** Remaining open items, not blocking:
+`dotnet-scripts` (no overlay fits — pure `.csx` files), and whether
+`agent-skills` eventually gets a hand-written `CLAUDE.md` (separate task).
 
 Full context: this followed onboarding all 37 `game-*` repos (same two-part
 flow, `browser-game` stack, no ambiguity there since they're homogeneous).
@@ -132,21 +147,29 @@ No decision has been made on any of: whether to author new stack overlays
 base-instructions only, no stack?), or whether to just do the 2 clean matches
 now and park the rest.
 
-## Next step, when resumed
+## Outcome (resolved 2026-07-30)
 
-1. Decide scope: run `/sync-ai-instructions` now for just `quotes` and
-   `flowhub` (the 2 clean matches), and explicitly park the other 28 pending
-   further triage — or tackle bucket 2's ambiguous repos first by actually
-   inspecting them (clone + look, not just `languages` API guesswork).
-2. For bucket 1, decide whether new stack overlays are worth authoring in
-   `freaxnx01/ai-instructions` (`.ai/stacks/gdscript-godot.md`,
-   `.ai/stacks/shell.md`, `.ai/stacks/dotnet-library.md`,
-   `.ai/stacks/kotlin-android.md` or similar) before onboarding those repos,
-   or accept they stay un-onboarded for the instructions half indefinitely.
-3. For bucket 3 (meta/tooling repos), decide per-repo rather than batch —
-   some may already have adequate hand-written `CLAUDE.md` files that
-   shouldn't be overwritten by a generic assembly.
-4. Whatever is decided, execution is just running `/sync-ai-instructions
-   [stack]` (or `/init-repo` if `agent-workflow-init` somehow needs re-running
-   too, though it doesn't for these 30 — that half is done) per repo, one at a
-   time, from that repo's own working directory.
+All 3 buckets are resolved — see the Status section above for the full
+breakdown. Final count across the original 30 candidates:
+
+- **15 repos synced**: `quotes`, `flowhub`, `llmeter`, `demo-feedback-poc`,
+  `mgrabber-nextgen`, `civil-war-battlefield`, `CommonLibrary`, `Extensions`,
+  `StringKing`, `CodeConverterSingleFile`, `SaveOutlookCalendar`,
+  `linux-scripts`, `powershell`, `screenpresso-localsend`,
+  `quicktask-vikunja`.
+- **3 new overlays authored**: `gdscript-godot`, `dotnet-library`,
+  `shell-scripts` (`ai-instructions@5850ff4`).
+- **5 repos deliberately skipped** (bucket 3, bespoke instructions stay
+  hand-written): `claude-code-plugins`, `agent-skills`, `ai-instructions`,
+  `agent-os`, `config`.
+- **3 repos with no clean fit**: `PersonalLibrary` (debatable
+  `dotnet-fx48-legacy`, not actually run), `bridge`, `signal-chat-to-telegram`.
+- **3 repos not real candidates**: `Digital-Signage`, `MusicGrabber` (empty
+  placeholders), `SampleWebNano` (turned out to be a Docker sample).
+- **1 repo unassigned**: `dotnet-scripts` (no `.csproj`, doesn't fit any
+  overlay).
+
+No further action needed unless: `PersonalLibrary` gets manually assigned
+`dotnet-fx48-legacy` despite the loose fit, `bridge`/`signal-chat-to-telegram`
+get a bespoke treatment, `dotnet-scripts` gets its own overlay, or
+`agent-skills` gets a hand-written `CLAUDE.md`.
