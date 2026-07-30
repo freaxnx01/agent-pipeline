@@ -116,6 +116,9 @@ flowchart TB
 Blue = core · green = supporting · purple = forges · grey = output.
 Dotted edges are observation/validation rather than data flow.
 
+[Standalone fullscreen page](http://github.freaxnx01.ch/agent-workflow/) — diagram
+only, no other page chrome; press F11 for browser fullscreen.
+
 Two properties worth noting, both visible here and not in the tables below:
 
 - **`bridge` sits between nearly everything and the forges.** Console, flowhub
