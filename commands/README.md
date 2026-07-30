@@ -51,7 +51,7 @@ vocabulary (MudBlazor, shadcn/ui, Flutter widgets, …) comes from the project's
 
 **Forge-agnostic** (detect GitHub vs Forgejo from the `origin` remote internally):
 `/issues` · `/prs` · `/parked` · `/triage` · `/done` · `/new` · `/enrich` ·
-`/enrich-phased` · `/route` · `/work` · `/milestone`
+`/enrich-phased` · `/route` · `/work` · `/milestone` · `/roadmap`
 
 **Idea capture** (forge-agnostic, local — precedes the issue funnel):
 `/capture-idea <idea>` — jot an idea into the current repo's `docs/ideas.md`.
