@@ -41,7 +41,7 @@ Then dispatch to the matching phase below.
 1. `gh issue view <issue> --comments`. If the issue is closed, already has
    `ai-implement`, or is `🧊 parked`, stop and say so.
 2. Assess readiness (acceptance criteria + scope + no blocking unknowns). If it's
-   already complete, say so, suggest `/implement <issue>`, clear the state file,
+   already complete, say so, suggest `/gh:implement <issue>`, clear the state file,
    and stop.
 3. Invoke **superpowers:brainstorming** with the issue as context. Follow it
    end-to-end — clarifying questions, approaches, design sections, the spec
@@ -73,7 +73,7 @@ Then dispatch to the matching phase below.
    - a `## Spec` section with just the relative path to `spec=` (linked as
      markdown) — human/reviewer reference only, not needed by the implementing agent.
 2. Clear the readiness labels — `needs-enrichment` and `❓ to-be-defined` mean
-   "not ready yet," and the issue now is. `/implement` treats either as a
+   "not ready yet," and the issue now is. `/gh:implement` treats either as a
    hard stop regardless of body content, so leaving one on is a silent trap:
 
    ```bash
@@ -86,7 +86,7 @@ Then dispatch to the matching phase below.
 3. Push if anything else is pending.
 4. **Done:** delete `.claude/enrich-phased.state` and `.claude/handoff.md`. Print the
    issue URL, the spec and plan paths, and: *"Issue is ready — run
-   `/implement <issue>` to trigger the agent-workflow."*
+   `/gh:implement <issue>` to trigger the agent-workflow."*
 
 ### Between phases (handoff protocol)
 
@@ -216,7 +216,7 @@ Then dispatch to the matching phase below.
    `/work <issue>` to implement it locally."*
 
 > When the self-hosted **Forgejo Actions** agent-workflow exists (future tier), the
-> final pointer becomes "apply `ai-implement` / run `/implement`" instead.
+> final pointer becomes "apply `ai-implement` / run `/fj:implement`" instead.
 
 ### Between phases (handoff protocol)
 
