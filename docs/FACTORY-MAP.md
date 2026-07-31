@@ -275,4 +275,3 @@ across both forges and tell me what has drifted from the map.
 ```
 
 One tool call re-derives the ground truth. Update the map, commit, move on.
-
