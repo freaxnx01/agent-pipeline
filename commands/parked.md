@@ -33,8 +33,8 @@ fi
 - **unknown** → report the detected host and that no authed GitHub or Forgejo login
   matched it; point at `gh auth login` / `tea login add`. Don't guess a forge.
 
-Announce the chosen forge in one line (e.g. `→ GitHub (github.com)`), then produce
-that command's table — nothing else.
+Announce the chosen forge in one line (e.g. `→ GitHub (github.com)`), then carry out
+that command.
 
 ---
 
