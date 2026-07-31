@@ -89,7 +89,7 @@ gh api "repos/$repo/milestones?state=open&sort=due_on&direction=asc&per_page=100
 
 If step 1 read-back does not show the milestone, stop and do not remove the label.
 After both read-backs confirm, offer `/route <n>` (read and follow
-`~/.claude/commands/gh/route.md`) rather than running it automatically.
+`~/.claude/commands/route.md`) rather than running it automatically.
 
 ### defer
 
@@ -206,7 +206,7 @@ for m in sorted(json.load(sys.stdin), key=lambda x: x.get("due_on") or "9999"):
 ```
 
 After both read-backs confirm, offer `/route <n>` (read and follow
-`~/.claude/commands/fj/route.md`) rather than running it automatically.
+`~/.claude/commands/route.md`) rather than running it automatically.
 
 ### defer
 
