@@ -18,7 +18,8 @@ Design notes: [`docs/DESIGN.md`](docs/DESIGN.md) · decisions: [`docs/DECISIONS.
 ## Diagram
 
 Source of truth: [`docs/FACTORY-MAP.md`](docs/FACTORY-MAP.md). Use the pan/zoom
-controls in the top-right corner of the diagram to view it fullscreen.
+controls in the top-right corner of the diagram to view it fullscreen, or open the
+[standalone fullscreen page](http://github.freaxnx01.ch/agent-workflow/) (diagram only, press F11).
 
 ```mermaid
 flowchart TB
