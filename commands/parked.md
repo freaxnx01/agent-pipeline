@@ -47,7 +47,7 @@ query($owner:String!,$name:String!){
         number title createdAt
         author{login}
         labels(first:20){nodes{name}}
-        comments(last:20){nodes{body}}
+        comments(last:100){nodes{body}}
       }
     }
   }
@@ -57,7 +57,7 @@ query($owner:String!,$name:String!){
     | .[] | [ .number, .title,
               ([.labels.nodes[].name] | join(",")),
               .createdAt, .author.login,
-              ( [ .comments.nodes[].body | select(startswith("🧊 parked:")) ]
+              ( [ .comments.nodes[] | (.body // "") | select(startswith("🧊 parked:")) ]
                 | last // "—" | split("\n")[0] ) ] | @tsv'
 ```
 
@@ -88,10 +88,12 @@ read and follow `~/.claude/commands/route.md` (i.e. run `/route <n>`).
 gh issue comment <n> --body "🧊 parked: <reason>"
 ```
 
-Then confirm from read-back:
+Then read back the newest comment whose body starts with `🧊 parked:` and confirm
+from it, never from the exit code:
 
 ```bash
-gh issue view <n> --json comments --jq '.comments | last | .body | split("\n")[0]'
+gh issue view <n> --json comments \
+  --jq '[.comments[] | (.body // "") | select(startswith("🧊 parked:"))] | last // "—" | split("\n")[0]'
 ```
 
 If no reason argument was provided, ask for one and stop. Never edit the issue
@@ -107,6 +109,11 @@ parked?* with options `unpark` / `repark` / `skip`.
 - Never act without an explicit answer. Unanswered means skipped.
 - `skip` is silent and never re-prompts.
 - Stop cleanly when told to.
+- **`unpark` chosen mid-walk is deferred**, not run immediately — running
+  `/route` per issue would derail the one-at-a-time walk with a heavy
+  interactive analysis. Record the issue number and continue the walk; after the
+  walk completes, run `/route <n>` for each unparked issue number and list
+  those numbers in the tally.
 - Report a final tally: unparked, reparked, skipped, remaining.
 
 My arguments:
@@ -174,7 +181,7 @@ for i in json.load(sys.stdin):
 tea api --login git-home "repos/$repo/issues/<n>/comments" \
   | python3 -c '
 import sys,json
-reasons=[c["body"] for c in json.load(sys.stdin) if c.get("body","").startswith("🧊 parked:")]
+reasons=[c["body"] for c in json.load(sys.stdin) if (c.get("body") or "").startswith("🧊 parked:")]
 print(reasons[-1].split("\n")[0] if reasons else "—")'
 ```
 
@@ -212,13 +219,14 @@ read and follow `~/.claude/commands/route.md` (i.e. run `/route <n>`).
 tea comment <n> "🧊 parked: <reason>"
 ```
 
-Then confirm from read-back:
+Then read back the newest comment whose body starts with `🧊 parked:` and confirm
+from it, never from the exit code:
 
 ```bash
 tea api --login git-home "repos/$repo/issues/<n>/comments" | python3 -c '
 import sys,json
 comments=json.load(sys.stdin)
-reasons=[c.get("body","") for c in comments if c.get("body","").startswith("🧊 parked:")]
+reasons=[(c.get("body") or "") for c in comments if (c.get("body") or "").startswith("🧊 parked:")]
 print(reasons[-1].split("\n")[0] if reasons else "—")'
 ```
 
@@ -235,13 +243,15 @@ valid to stay parked?* with options `unpark` / `repark` / `skip`.
 - Never act without an explicit answer. Unanswered means skipped.
 - `skip` is silent and never re-prompts.
 - Stop cleanly when told to.
+- **`unpark` chosen mid-walk is deferred**, not run immediately — running
+  `/route` per issue would derail the one-at-a-time walk with a heavy
+  interactive analysis. Record the issue number and continue the walk; after the
+  walk completes, run `/route <n>` for each unparked issue number and list
+  those numbers in the tally.
 - Report a final tally: unparked, reparked, skipped, remaining.
 
 My arguments:
 $ARGUMENTS
-
-If you hit a blocker (label filter param ignored, repo not resolvable), find a fix
-and update this command for the future.
 
 ## Unknown host
 
