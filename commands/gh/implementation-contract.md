@@ -43,7 +43,25 @@ No production code without a failing test first.
 
 Your PR description must include TDD evidence:
 - RED: command run + relevant failing output
-- GREEN: command run + passing output"
+- GREEN: command run + passing output
+
+## Turn budget discipline — non-negotiable
+
+You are running with a finite turn budget in an unattended pipeline. If it
+runs out mid-implementation, everything uncommitted is lost — there is no
+partial credit for edits sitting only in your working tree.
+
+- **Commit after every task** in the Implementation Plan, the moment that
+  task's own tests pass — do not front-load all edits across every task and
+  commit once at the end. If this is the last task you complete before
+  running out of turns, a committed-and-pushed partial PR (even an
+  incomplete one, clearly noted as such in its description) is far more
+  useful than nothing.
+- **Trust the plan's line numbers and diffs.** The Implementation Plan
+  already names exact files, line ranges, and before/after code. Only
+  re-read a file if a step's actual command output contradicts what the
+  plan expected (e.g. the diff doesn't apply cleanly) — don't defensively
+  re-read files you were already given exact context for."
 ```
 
 ## Docs-only variant

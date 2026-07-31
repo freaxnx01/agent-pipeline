@@ -16,6 +16,13 @@
 # Optional environment variables:
 #   EXECUTION_FILE      NDJSON of all SDK messages. Required for "Max context
 #                       per turn"; otherwise that row reads 0.
+#   MAX_TURNS           The configured turn budget for this run (e.g.
+#                       steps.triage_turns.outputs.turns). When set, the
+#                       Turns metric reads "N / cap M" instead of just "N" —
+#                       note num_turns can exceed the configured cap and the
+#                       run still succeed (the cap is not strictly enforced
+#                       by the underlying action), so don't read "N > M" as
+#                       a contradiction.
 #   REPO                owner/repo (default: $GITHUB_REPOSITORY).
 #   CONTEXT_WINDOW_SIZE Token limit used as the % denominator. Default 200000.
 #   RENDER_ONLY         If "1", print the rendered comment + label list to
@@ -48,6 +55,7 @@ RENDER_ONLY="${RENDER_ONLY:-0}"
 EXECUTION_FILE="${EXECUTION_FILE:-}"
 MODEL="${MODEL:-}"   # resolved model (steps.triage.outputs.model) — optional
 AGENT="${AGENT:-}"   # resolved agent (steps.classify_agent.outputs.agent) — optional
+MAX_TURNS="${MAX_TURNS:-}"   # configured turn budget (steps.triage_turns.outputs.turns) — optional
 
 [[ -r "$RESULT_FILE" ]] || {
   printf 'error: RESULT_FILE not readable: %s\n' "$RESULT_FILE" >&2
@@ -200,6 +208,9 @@ if [[ -n "$MODEL" || -n "$AGENT" ]]; then
 fi
 CACHE_HIT_PCT="$(pct "$CACHE_READ" "$CACHE_DENOM")"
 
+TURNS_TEXT="$NUM_TURNS"
+[[ -n "$MAX_TURNS" ]] && TURNS_TEXT="${NUM_TURNS} / cap ${MAX_TURNS}"
+
 if [[ "$IS_ERROR" == "true" ]]; then
   STATUS_EMOJI=':x:'
   STATUS_TEXT="failed: ${SUBTYPE}"
@@ -239,7 +250,7 @@ render_comment() {
 ## ai-implement run
 
 **Outcome:** ${STATUS_EMOJI} ${STATUS_TEXT}
-**Duration:** $(format_duration_ms "$DURATION_MS") · **Turns:** ${NUM_TURNS} · **Cost:** $(format_usd "$COST_USD")
+**Duration:** $(format_duration_ms "$DURATION_MS") · **Turns:** ${TURNS_TEXT} · **Cost:** $(format_usd "$COST_USD")
 ${MODEL_AGENT_LINE}
 
 | Metric | Value |

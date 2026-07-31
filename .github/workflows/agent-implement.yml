@@ -15,6 +15,19 @@ on:
         description: Model used when no `model:*` label is present on the issue.
         type: string
         default: claude-sonnet-5
+      review-model:
+        description: |
+          Model used for the agent review step in auto_review (ADR-002) and
+          pre_preview (ADR-004) — deliberately independent of the
+          implementation model. A stronger review model than the
+          implementation model is a reasonable default: reviewing an
+          existing diff for correctness/AC-coverage is a different task
+          than writing it, and catching a real bug (as happened reviewing
+          game-tschau-sepp#9 manually) benefits from the more careful model.
+          Empty string uses the `claude` CLI's own default instead of
+          passing --model.
+        type: string
+        default: claude-opus-5
       agent:
         description: |
           Which agent runs the implementation. One of `claude` or `opencode`.
@@ -30,13 +43,24 @@ on:
         default: 30
       max-turns:
         description: |
-          Hard cap on Claude Code tool-use turns for the implement step.
-          Raise this for issues whose implementation plan needs more than
-          the default 30 turns (e.g. multiple files, or several edit
-          locations in one file) to fully implement, test, commit, and
+          Default hard cap on Claude Code tool-use turns for the implement
+          step, used when the issue carries no `turns:<N>` label. A
+          `turns:50|80|120|160` label on the issue always overrides this
+          (classify-turns.sh); absent an override label, the same script
+          also sizes up automatically from the issue body's Implementation
+          Plan task count. Raise this repo-wide default for consumers whose
+          issues routinely need more than 50 turns (multiple files, several
+          edit locations in one file) to fully implement, test, commit, and
           open a PR in one run.
+
+          Tuned from one real run (game-tschau-sepp#9): a 4-task enriched
+          plan actually used 110 turns to succeed after failing outright at
+          a 30-turn cap (all edits done, nothing committed). Thin evidence
+          (n=1), but running out loses all uncommitted work while
+          overshooting just costs a bit more compute — the tiers below
+          intentionally err generous.
         type: number
-        default: 30
+        default: 50
       pipeline-repo:
         description: |
           Owner/repo for the agent-workflow checkout that supplies shared
@@ -382,6 +406,16 @@ jobs:
           AGENT: ${{ steps.classify_agent.outputs.agent }}
         run: bash .claude-pipeline/scripts/classify-task.sh
 
+      - name: Triage turns
+        if: ${{ !inputs.stub-claude }}
+        id: triage_turns
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          DEFAULT_MAX_TURNS: ${{ inputs.max-turns }}
+        run: bash .claude-pipeline/scripts/classify-turns.sh
+
       - name: Check auto-review gate
         if: ${{ !inputs.stub-claude }}
         id: auto_review_gate
@@ -439,7 +473,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt_file: ${{ steps.issue.outputs.prompt-file }}
           model: ${{ steps.triage.outputs.model }}
-          max_turns: ${{ inputs.max-turns }}
+          max_turns: ${{ steps.triage_turns.outputs.turns }}
           # Headless mode has no human in the loop to approve tool use, so
           # everything Claude needs to implement an issue must be allowlisted
           # up front: code changes, search, repo operations, branch + PR.
@@ -672,6 +706,7 @@ jobs:
           RENDER_ONLY: ${{ inputs.dry-run && '1' || '0' }}
           MODEL: ${{ steps.triage.outputs.model }}
           AGENT: ${{ steps.classify_agent.outputs.agent }}
+          MAX_TURNS: ${{ steps.triage_turns.outputs.turns }}
           PR_PRESENT: ${{ steps.verify_pr.outputs.pr-present }}
         run: bash .claude-pipeline/scripts/post-run-report.sh
 
@@ -817,6 +852,7 @@ jobs:
           HEAD_SHA: ${{ steps.find_pr.outputs.head-sha }}
           AGENT: claude
           AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
+          MODEL: ${{ inputs.review-model }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: bash .claude-pipeline/scripts/review-pr.sh
 
@@ -1018,6 +1054,7 @@ jobs:
           HEAD_SHA: ${{ steps.find_pr.outputs.head-sha }}
           AGENT: claude
           AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
+          MODEL: ${{ inputs.review-model }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: bash .claude-pipeline/scripts/review-pr.sh
 

@@ -37,6 +37,13 @@ design sections, spec self-review, user approval gate).
 After brainstorming exits, invoke **superpowers:writing-plans** to produce the
 full task-by-task plan at `<plans-dir>/YYYY-MM-DD-<topic>.md` and commit it.
 
+**Do not stop at writing-plans' own handoff prompt.** That skill ends by asking
+"Subagent-Driven or Inline Execution?" — that is writing-plans' generic ending,
+not the end of `/gh:enrich`. Do not execute the plan and do not wait for an
+answer to that question here. Treat the plan as written the moment the skill
+exits, and continue straight to Step 5 — pushing the files and writing the plan
+into the issue body is still required, always.
+
 ### Picking `<specs-dir>` / `<plans-dir>` — check gitignore first
 
 Both superpowers skills default to `docs/superpowers/{specs,plans}/`. **Many repos
@@ -97,6 +104,20 @@ extra file reads to orient itself. Replace the issue body with:
 ```bash
 gh issue edit $ARGUMENTS --body "..."
 ```
+
+**Also clear the readiness labels** — `needs-enrichment` and `❓ to-be-defined`
+mean "not ready yet," and the issue now is. Leaving either on is a silent trap:
+`/gh:implement` treats them as a hard stop regardless of what the body says.
+
+```bash
+gh issue edit $ARGUMENTS --remove-label needs-enrichment 2>/dev/null || true
+gh issue edit $ARGUMENTS --remove-label "❓ to-be-defined" 2>/dev/null || true
+```
+
+`--remove-label` on a label the issue doesn't carry is a no-op, but on a label
+that doesn't exist **anywhere in the repo** it errors — many repos only define
+one of the two conventions. Run each on its own line with `|| true` so a
+missing repo label doesn't abort the step.
 
 ## Step 7 — Confirm
 

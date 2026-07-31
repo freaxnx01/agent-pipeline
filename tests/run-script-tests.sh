@@ -220,10 +220,10 @@ assert_contains "$out" '| Input tokens | 1 |' "no exec log → result.json usage
 
 section "resolved model + agent in the report (#59)"
 
-out="$(MODEL=claude-opus-4-7 AGENT=claude RENDER_ONLY=1 \
+out="$(MODEL=claude-opus-5 AGENT=claude RENDER_ONLY=1 \
        RESULT_FILE="$FIXTURES/result-success-cheap.json" \
        ISSUE_NUMBER=1 WORKFLOW_RUN_URL=u bash "$SCRIPT")"
-assert_contains "$out" '**Model:** claude-opus-4-7 · **Agent:** claude' \
+assert_contains "$out" '**Model:** claude-opus-5 · **Agent:** claude' \
   "MODEL+AGENT env → Model·Agent line rendered"
 
 out="$(render_only result-success-cheap.json)"
@@ -254,7 +254,7 @@ CLASSIFY="$ROOT/scripts/classify-task.sh"
 # Override: model:opus label
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement
 model:opus' bash "$CLASSIFY")"
-assert_contains "$out" 'chosen: claude-opus-4-7 (label model:opus)'   "label model:opus → opus"
+assert_contains "$out" 'chosen: claude-opus-5 (label model:opus)'   "label model:opus → opus"
 
 # Override: model:haiku
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='model:haiku' bash "$CLASSIFY")"
@@ -367,7 +367,7 @@ assert_contains "$out" 'warn: label model:opus incompatible with AGENT=opencode'
 # Heuristic: refactor keyword → opus
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' \
        ISSUE_BODY='Refactor the auth middleware' bash "$CLASSIFY")"
-assert_contains "$out" 'claude-opus-4-7 (heuristic: refactor/architecture keywords)' "refactor keyword → opus"
+assert_contains "$out" 'claude-opus-5 (heuristic: refactor/architecture keywords)' "refactor keyword → opus"
 
 # Heuristic: typo keyword → haiku
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' \

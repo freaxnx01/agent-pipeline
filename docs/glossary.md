@@ -87,3 +87,12 @@ and keep going on the original ask, only expanding scope when that expansion
 is a deliberate decision rather than a drift. See
 [`partials/scope-boundary.md`](../partials/scope-boundary.md) for the full
 rule.
+
+## SDLC
+
+Software Development Life Cycle — the end-to-end sequence from intake
+(capturing a new requirement) through release and back into the backlog. A
+working sketch of an AI-assisted SDLC for this workflow — full phase list
+plus a four-loop Plan/Build/Validate/Operate framing — is captured as an idea,
+not yet a settled convention: see
+[`docs/ideas.md`](ideas.md#complete-ai-assisted-sdlc-loop).

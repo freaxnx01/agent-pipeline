@@ -68,8 +68,12 @@ Only if using the OpenCode/OpenRouter backend (§3 below): also set
 
 ### 2. Commit the consumer stub
 
-Add `.github/workflows/agent.yml` (§1 below has the full template). Commit it on
-a feature branch → PR, not direct to the default branch.
+Add `.github/workflows/agent.yml` (§1 below has the full template).
+`scripts/onboard-consumer.sh` (see below) commits it **directly to the
+default branch** by default — this is one-shot infra bootstrapping on a repo
+you already control, not day-to-day app code, so the base branching-strategy
+PR requirement doesn't apply here by design. Pass `--pr` to that script if
+you'd rather review the stub via a branch + PR first.
 
 ### 3. First run = a trivial smoke test
 

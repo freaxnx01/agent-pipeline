@@ -44,6 +44,10 @@ Then dispatch to the matching phase below.
 1. Re-open the spec at `spec=` to re-establish context.
 2. Invoke **superpowers:writing-plans** to produce the task-by-task implementation
    plan in the repo's tracked plans dir. Commit it and record `plan=<path>`.
+   **Do not stop at writing-plans' own "Subagent-Driven or Inline Execution?"
+   handoff prompt** — that's the skill's generic ending, not this phase's. Do not
+   execute the plan; treat it as written the moment the skill exits and continue
+   to step 3.
 3. **Push** so both spec and plan are on the remote (the agent-workflow checks them
    out): `git push`. Verify it succeeded.
 4. **Phase boundary:** set `phase=issue`, hand off, stop.
@@ -58,8 +62,19 @@ Then dispatch to the matching phase below.
      implementing agent can work from the issue body alone with no extra file reads,
    - a `## Spec` section with just the relative path to `spec=` (linked as
      markdown) — human/reviewer reference only, not needed by the implementing agent.
-2. Push if anything else is pending.
-3. **Done:** delete `.claude/enrich-phased.state` and `.claude/handoff.md`. Print the
+2. Clear the readiness labels — `needs-enrichment` and `❓ to-be-defined` mean
+   "not ready yet," and the issue now is. `/gh:implement` treats either as a
+   hard stop regardless of body content, so leaving one on is a silent trap:
+
+   ```bash
+   gh issue edit <issue> --remove-label needs-enrichment 2>/dev/null || true
+   gh issue edit <issue> --remove-label "❓ to-be-defined" 2>/dev/null || true
+   ```
+
+   (run each on its own line with `|| true` — a repo that doesn't define one of
+   the two label conventions would otherwise error on the `--remove-label`)
+3. Push if anything else is pending.
+4. **Done:** delete `.claude/enrich-phased.state` and `.claude/handoff.md`. Print the
    issue URL, the spec and plan paths, and: *"Issue is ready — run
    `/gh:implement <issue>` to trigger the agent-workflow."*
 
