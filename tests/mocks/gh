@@ -7,10 +7,19 @@
 #   GH_MOCK_PR_CREATE_FAIL_TIMES  fail the first N `pr create` calls (exit 1)
 #   GH_MOCK_PR_CREATE_STDERR      stderr emitted on those failures
 #   GH_MOCK_PR_CREATE_CTR         counter file path (required if FAIL_TIMES set)
+#   GH_MOCK_AUTH_HOSTS            space-separated hosts 'gh auth token --hostname' succeeds for
 set -euo pipefail
 IFS=$'\n\t'
 : "${GH_MOCK_LOG:?GH_MOCK_LOG must be set when using the gh mock}"
 ( IFS=' '; printf '%s\n' "$*" >> "$GH_MOCK_LOG" )
+
+if [[ "${1:-}" == "auth" && "${2:-}" == "token" && -n "${GH_MOCK_AUTH_HOSTS:-}" ]]; then
+  host="${4:-}"
+  for h in $GH_MOCK_AUTH_HOSTS; do
+    [[ "$h" == "$host" ]] && exit 0
+  done
+  exit 1
+fi
 
 if [[ "${1:-}" == "pr" && "${2:-}" == "create" && -n "${GH_MOCK_PR_CREATE_FAIL_TIMES:-}" ]]; then
   ctr="${GH_MOCK_PR_CREATE_CTR:?GH_MOCK_PR_CREATE_CTR must be set with FAIL_TIMES}"

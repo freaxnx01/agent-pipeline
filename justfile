@@ -18,6 +18,7 @@ lint:
 # Layer-1 fixture tests (no network, runs in seconds)
 test:
     bash tests/run-script-tests.sh
+    bash tests/run-detect-forge-tests.sh
 
 # Layer-2: run the *.test.yml workflows under act (needs `act` + Docker; Linux only)
 test-act:

@@ -132,15 +132,15 @@ which source a command came from tells you where to edit it and how to refresh i
 ### 1 — This repo: the user-level console
 
 `commands/` is the source of truth for the global commands. Subfolders become `:`
-namespaces, so `commands/fj/work.md` is invoked as `/fj:work`.
+namespaces, so `commands/work.md` is invoked as `/work`.
 
 ```text
 commands/
-  fj/    → /fj:new  /fj:issues  /fj:triage  /fj:enrich  /fj:work  /fj:prs  /fj:milestone  …
-  gh/    → /gh:new  /gh:issues  /gh:assign  /gh:implement  /gh:review  /gh:milestone  …
+  gh/    → /gh:assign  /gh:implement  /gh:implementation-contract  /gh:review
   wt/    → /wt:status  /wt:finish
   *.md   → /handoff  /pickup  /todo  /wrap-up  /loose-ends  /clear-check
-           /issues  /prs  /triage  /route  /work  /milestone  (forge routers)
+           /issues  /prs  /triage  /route  /work  /milestone  /new  /enrich
+           /enrich-phased  /parked  /roadmap  /done  (forge-agnostic)
            /capture-idea  /commands  /update-commands
 ```
 
@@ -158,7 +158,7 @@ here does not update your commands — re-run the installer.**
 | `--no-sync` | Skip the clone/pull, install from the current tree as-is |
 
 Because they live under `$HOME`, these commands are **not** copied into individual
-repos and don't need to be. `/fj:work` works in a non-coding repo (`org`) exactly as it
+repos and don't need to be. `/work` works in a non-coding repo (`org`) exactly as it
 does in a code repo — Claude Code reads `~/.claude/commands/` regardless of the working
 directory.
 
@@ -275,7 +275,7 @@ skills/
 
 These are **not** the plugin skills from `agent-skills` (source 2 above). The split is
 ownership: the marketplace publishes *sharable, non-personal* skills, while a skill
-that calls `/gh:new`, `/fj:new` and this repo's `area:*` label conventions is only
+that calls `/new` and this repo's `area:*` label conventions is only
 meaningful alongside the console — so it ships with the console.
 
 **Skill or command?** A command is a prompt you invoke by name and nothing else. A skill

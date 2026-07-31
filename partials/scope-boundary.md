@@ -5,8 +5,8 @@ At the start of any multi-step session, state what's in scope in one sentence:
 
 When you (Claude) find something outside that scope while working — a flaky test,
 a missing CI gate, a vulnerable dependency, anything — that's a **discovery**, not
-automatically a **task**. Default: capture it (`/capture-idea`, `TODO.md`, `/gh:new`,
-`/fj:new`) and keep going on the original scope. Only turn a discovery into work if
+automatically a **task**. Default: capture it (`/capture-idea`, `TODO.md`, `/new`)
+and keep going on the original scope. Only turn a discovery into work if
 I decide on purpose to expand scope.
 
 **Stop and ask before expanding scope**, even for something that looks small. If
