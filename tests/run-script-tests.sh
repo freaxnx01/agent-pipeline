@@ -1892,9 +1892,13 @@ env HOME="$lc_home" bash "$LINK_COMMANDS" --no-sync >/dev/null
 
 # Seed a stale command file that no longer exists in the repo's commands/ tree —
 # simulating a machine that installed an older revision before some commands
-# were removed (e.g. the gh:/fj: -> forge-agnostic merge, #198/#199).
+# were removed (e.g. the gh:/fj: -> forge-agnostic merge, #198/#199). Recording
+# it in the manifest too is what marks it as "this installer's own prior work"
+# rather than a foreign file — pruning is scoped to the manifest, never to
+# "any *.md under DEST_DIR" (see the scope-guard test below).
 mkdir -p "$lc_home/.claude/commands/gh"
 echo "stale content" > "$lc_home/.claude/commands/gh/stale-removed-command.md"
+echo "gh/stale-removed-command.md" >> "$lc_home/.claude/.agent-workflow-commands-manifest"
 
 # Re-running the installer must prune it, not just leave it alongside the
 # current set — a stale command left installed silently shadows nothing (it's
@@ -1918,9 +1922,25 @@ ln -s "$ROOT" "$lc_link_home/repos/github/freaxnx01/public/agent-workflow"
 env HOME="$lc_link_home" bash "$LINK_COMMANDS" --no-sync --link >/dev/null
 mkdir -p "$lc_link_home/.claude/commands/fj"
 ln -sfn /nonexistent "$lc_link_home/.claude/commands/fj/stale-removed-command.md"
+echo "fj/stale-removed-command.md" >> "$lc_link_home/.claude/.agent-workflow-commands-manifest"
 env HOME="$lc_link_home" bash "$LINK_COMMANDS" --no-sync --link >/dev/null
 assert_equals "$([ -L "$lc_link_home/.claude/commands/fj/stale-removed-command.md" ] && echo yes || echo no)" \
   "no" "re-install (--link) prunes a dangling stale symlink"
+
+# Scope guard: pruning must never touch a file this installer never placed.
+# ~/.claude/commands/ is Claude Code's general user-commands directory, not
+# exclusively agent-workflow's — a file a user authored by hand (or another
+# tool installed) must survive, even though it's not part of the current
+# agent-workflow commands/ tree.
+lc_foreign_home="$(mktemp -d)"
+mkdir -p "$lc_foreign_home/repos/github/freaxnx01/public"
+ln -s "$ROOT" "$lc_foreign_home/repos/github/freaxnx01/public/agent-workflow"
+env HOME="$lc_foreign_home" bash "$LINK_COMMANDS" --no-sync >/dev/null
+mkdir -p "$lc_foreign_home/.claude/commands/my-own-namespace"
+echo "not agent-workflow's" > "$lc_foreign_home/.claude/commands/my-own-namespace/personal.md"
+env HOME="$lc_foreign_home" bash "$LINK_COMMANDS" --no-sync >/dev/null
+assert_equals "$([ -e "$lc_foreign_home/.claude/commands/my-own-namespace/personal.md" ] && echo yes || echo no)" \
+  "yes" "re-install never prunes a file this installer didn't place"
 
 # --- setup/bootstrap.sh -----------------------------------------------------
 
