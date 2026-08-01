@@ -108,4 +108,4 @@ else
   echo "  linked  scripts/lib/detect-forge.sh"
 fi
 
-echo "✓ done — agent-workflow console commands installed (e.g. /gh:enrich, /route, /capture-idea)"
+echo "✓ done — agent-workflow console commands installed (e.g. /enrich, /route, /capture-idea)"
