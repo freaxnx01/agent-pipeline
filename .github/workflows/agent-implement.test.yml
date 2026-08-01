@@ -357,6 +357,51 @@ jobs:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: not-used-by-stub
 
+  # ─── Self-fix pass (#81 / ADR-004 follow-up) ──────────────────────────────
+  # self-fix is exercised via stub-self-fix-verdict-sequence, which drives
+  # self-fix-loop.sh's stub branch directly (bypassing the fix/re-review
+  # scripts themselves — those are covered by Layer-1 tests). This proves
+  # the workflow's wiring: gating, the final-verdict resolution, and the
+  # promote/block steps reading from it correctly.
+
+  call-pre-preview-self-fix-approve:
+    name: Reusable workflow — pre-preview self-fix fixes then approves
+    uses: ./.github/workflows/agent-implement.yml
+    with:
+      issue-number: 9010
+      timeout-minutes: 10
+      local-scripts: true
+      stub-claude: true
+      stub-fixture: success
+      pre-preview: true
+      dry-run: true
+      stub-pre-preview-enabled: true
+      stub-review-verdict: request_changes
+      self-fix: true
+      self-fix-max-iterations: 3
+      stub-self-fix-verdict-sequence: "request_changes,approve"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: not-used-by-stub
+
+  call-pre-preview-self-fix-exhausted:
+    name: Reusable workflow — pre-preview self-fix cap exhausted
+    uses: ./.github/workflows/agent-implement.yml
+    with:
+      issue-number: 9011
+      timeout-minutes: 10
+      local-scripts: true
+      stub-claude: true
+      stub-fixture: success
+      pre-preview: true
+      dry-run: true
+      stub-pre-preview-enabled: true
+      stub-review-verdict: request_changes
+      self-fix: true
+      self-fix-max-iterations: 2
+      stub-self-fix-verdict-sequence: "request_changes,request_changes"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: not-used-by-stub
+
   verify-auto-review-approve-safe:
     name: Assert approve + safe → merge attempted
     needs: call-auto-review-approve-safe
@@ -479,3 +524,45 @@ jobs:
           [[ "$AUTO_MERGE" != "true" ]]     || { echo "::error::auto-review-merge-attempted=$AUTO_MERGE (want not-true — auto_review must be suppressed)"; fail=1; }
           (( fail == 0 )) || exit 1
           echo "precedence OK: ready=$READY preview-merge=$PREVIEW_MERGE auto-merge=$AUTO_MERGE"
+
+  verify-pre-preview-self-fix-approve:
+    name: Assert self-fix fixes then approves → promoted, no merge
+    needs: call-pre-preview-self-fix-approve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      READY:      ${{ needs.call-pre-preview-self-fix-approve.outputs.pre-preview-ready-attempted }}
+      ATTEMPTED:  ${{ needs.call-pre-preview-self-fix-approve.outputs.pre-preview-merge-attempted }}
+      ITERATIONS: ${{ needs.call-pre-preview-self-fix-approve.outputs.pre-preview-self-fix-iterations-used }}
+    steps:
+      - name: Assert promoted after 2 self-fix iterations, still no merge
+        run: |
+          fail=0
+          [[ "$READY" == "true" ]]      || { echo "::error::ready-attempted=$READY (want true — self-fix approve must promote)"; fail=1; }
+          [[ "$ATTEMPTED" == "false" ]] || { echo "::error::merge-attempted=$ATTEMPTED (want false)"; fail=1; }
+          [[ "$ITERATIONS" == "2" ]]    || { echo "::error::self-fix-iterations-used=$ITERATIONS (want 2)"; fail=1; }
+          (( fail == 0 )) || exit 1
+          echo "self-fix approve OK: ready=$READY merge=$ATTEMPTED iterations=$ITERATIONS"
+
+  verify-pre-preview-self-fix-exhausted:
+    name: Assert self-fix cap exhausted → draft, no promote, no merge
+    needs: call-pre-preview-self-fix-exhausted
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      READY:      ${{ needs.call-pre-preview-self-fix-exhausted.outputs.pre-preview-ready-attempted }}
+      ATTEMPTED:  ${{ needs.call-pre-preview-self-fix-exhausted.outputs.pre-preview-merge-attempted }}
+      ITERATIONS: ${{ needs.call-pre-preview-self-fix-exhausted.outputs.pre-preview-self-fix-iterations-used }}
+    steps:
+      - name: Assert not promoted after cap exhausted, still no merge
+        run: |
+          fail=0
+          [[ "$READY" == "false" ]]     || { echo "::error::ready-attempted=$READY (want false — cap-exhausted must NOT promote)"; fail=1; }
+          [[ "$ATTEMPTED" == "false" ]] || { echo "::error::merge-attempted=$ATTEMPTED (want false)"; fail=1; }
+          [[ "$ITERATIONS" == "2" ]]    || { echo "::error::self-fix-iterations-used=$ITERATIONS (want 2 — cap reached)"; fail=1; }
+          (( fail == 0 )) || exit 1
+          echo "self-fix cap-exhausted OK: ready=$READY merge=$ATTEMPTED iterations=$ITERATIONS"
