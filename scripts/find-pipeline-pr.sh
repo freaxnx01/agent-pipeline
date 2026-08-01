@@ -26,6 +26,7 @@
 # Output:
 #   pr-number  PR number (empty if none found)
 #   head-sha   PR head commit SHA (empty if none found)
+#   head-ref   PR head branch name (empty if none found)
 #   found      true | false
 #
 # Exit codes:
@@ -53,7 +54,7 @@ if [[ -z "${PIPELINE_PRS_JSON:-}" ]]; then
     --repo "$REPO" \
     --state open \
     --search "closes #${ISSUE_NUMBER} in:body" \
-    --json number,isDraft,headRefOid,author \
+    --json number,isDraft,headRefOid,headRefName,author \
     --limit 10 2>/dev/null || printf '[]')"
 fi
 
@@ -83,6 +84,7 @@ SELECTED="$(printf '%s' "$PIPELINE_PRS_JSON" \
     | sort_by(-.number) | .[0] // {}')"
 pr_number="$(printf '%s' "$SELECTED" | jq -r '.number // ""')"
 head_sha="$(printf '%s' "$SELECTED" | jq -r '.headRefOid // ""')"
+head_ref="$(printf '%s' "$SELECTED" | jq -r '.headRefName // ""')"
 
 if [[ -n "$pr_number" ]]; then
   found=true
@@ -90,12 +92,13 @@ else
   found=false
 fi
 
-printf 'found=%s pr-number=%s head-sha=%s\n' "$found" "$pr_number" "$head_sha"
+printf 'found=%s pr-number=%s head-sha=%s head-ref=%s\n' "$found" "$pr_number" "$head_sha" "$head_ref"
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {
     printf 'found=%s\n'     "$found"
     printf 'pr-number=%s\n' "$pr_number"
     printf 'head-sha=%s\n'  "$head_sha"
+    printf 'head-ref=%s\n'  "$head_ref"
   } >> "$GITHUB_OUTPUT"
 fi

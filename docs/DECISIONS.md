@@ -676,6 +676,21 @@ Add a third flow, **pre-preview**, as a `pre_preview` job parallel to
 + The reusable workflow gains `pre-preview` / `stub-pre-preview-enabled` inputs
   and `pre-preview-{merge,ready}-attempted` outputs.
 
+### Addendum — Self-fix pass delivered (2026-07-31)
+
+**Tracking:** [#81](https://github.com/freaxnx01/agent-workflow/issues/81)
+
+The self-fix pass deferred above is delivered. On a `request_changes`
+verdict, opt-in `self-fix: true` runs up to `self-fix-max-iterations`
+(default 2) fix → re-review cycles via `scripts/self-fix-loop.sh` /
+`scripts/self-fix-pr.sh` before falling back to the block path. `block` and
+missing-PR verdicts are unaffected — self-fix only ever runs after
+`request_changes`. Still no merge envelope and no auto-merge; self-fix
+only changes what the human reviewer eventually sees. Cap-exhausted blocks
+get distinct wording in `post-auto-review-block.sh` ("self-fix exhausted
+after N/M iterations") via new `SELF_FIX_ITERATIONS` / `SELF_FIX_MAX` env,
+byte-identical to the original wording when self-fix didn't run.
+
 ## ADR-005 — Operator console lives here; user-level vs project-scoped commands (2026-07-12)
 
 ### Context
