@@ -1875,6 +1875,53 @@ lp_home3="$(mktemp -d)"
 lp_ec="$(run_capture_ec env HOME="$lp_home3" bash "$lp_scratch/setup/link-partials.sh" --no-sync)"
 assert_equals "$lp_ec" "1" "empty partials/ -> hard fail, not silent success"
 
+# --- setup/link-commands.sh --------------------------------------------------
+
+section "setup/link-commands.sh"
+
+LINK_COMMANDS="$ROOT/setup/link-commands.sh"
+
+# link-commands.sh resolves its source from $HOME (not BASH_SOURCE), so a scratch
+# HOME needs the canonical path to point back at the real checkout.
+lc_home="$(mktemp -d)"
+mkdir -p "$lc_home/repos/github/freaxnx01/public"
+ln -s "$ROOT" "$lc_home/repos/github/freaxnx01/public/agent-workflow"
+
+# Baseline install.
+env HOME="$lc_home" bash "$LINK_COMMANDS" --no-sync >/dev/null
+
+# Seed a stale command file that no longer exists in the repo's commands/ tree —
+# simulating a machine that installed an older revision before some commands
+# were removed (e.g. the gh:/fj: -> forge-agnostic merge, #198/#199).
+mkdir -p "$lc_home/.claude/commands/gh"
+echo "stale content" > "$lc_home/.claude/commands/gh/stale-removed-command.md"
+
+# Re-running the installer must prune it, not just leave it alongside the
+# current set — a stale command left installed silently shadows nothing (it's
+# just extra), but for a removed/renamed command it means the old, superseded
+# behavior keeps working forever instead of actually going away.
+env HOME="$lc_home" bash "$LINK_COMMANDS" --no-sync >/dev/null
+assert_equals "$([ -e "$lc_home/.claude/commands/gh/stale-removed-command.md" ] && echo yes || echo no)" \
+  "no" "re-install prunes a command file no longer in source"
+
+# Non-destructive: real, current commands from the repo survive re-install.
+assert_equals "$([ -e "$lc_home/.claude/commands/issues.md" ] && echo yes || echo no)" \
+  "yes" "re-install -> current command file still present"
+
+# The same pruning must catch a stale command left over from a --link install
+# (a symlink, and a dangling one at that once its source file is gone) — a
+# plain `find -type f` silently skips broken symlinks, so this needs its own
+# scratch HOME rather than reusing lc_home's copy-mode state.
+lc_link_home="$(mktemp -d)"
+mkdir -p "$lc_link_home/repos/github/freaxnx01/public"
+ln -s "$ROOT" "$lc_link_home/repos/github/freaxnx01/public/agent-workflow"
+env HOME="$lc_link_home" bash "$LINK_COMMANDS" --no-sync --link >/dev/null
+mkdir -p "$lc_link_home/.claude/commands/fj"
+ln -sfn /nonexistent "$lc_link_home/.claude/commands/fj/stale-removed-command.md"
+env HOME="$lc_link_home" bash "$LINK_COMMANDS" --no-sync --link >/dev/null
+assert_equals "$([ -L "$lc_link_home/.claude/commands/fj/stale-removed-command.md" ] && echo yes || echo no)" \
+  "no" "re-install (--link) prunes a dangling stale symlink"
+
 # --- setup/bootstrap.sh -----------------------------------------------------
 
 section "setup/bootstrap.sh"

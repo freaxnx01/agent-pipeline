@@ -61,9 +61,11 @@ mkdir -p "$DEST_DIR"
 # 3) Install each command .md, preserving subdirs (which become /namespace:cmd).
 #    Skip any README.md at the top level or inside namespace dirs.
 echo "→ installing agent-workflow console commands into $DEST_DIR ($mode)"
+declare -A current_rels=()
 while IFS= read -r f; do
   rel="${f#"$SRC_DIR"/}"
   case "$rel" in README.md|*/README.md) continue ;; esac
+  current_rels["$rel"]=1
   dest="$DEST_DIR/$rel"
   mkdir -p "$(dirname "$dest")"
   if [ "$mode" = "copy" ]; then
@@ -75,6 +77,16 @@ while IFS= read -r f; do
     echo "  linked  $rel"
   fi
 done < <(find "$SRC_DIR" -type f -name '*.md')
+
+# 3b) Prune previously-installed commands no longer in source (e.g. removed or
+#     merged elsewhere, like the gh:/fj: -> forge-agnostic consolidation,
+#     #198/#199) — otherwise a superseded command keeps working forever.
+while IFS= read -r d; do
+  rel="${d#"$DEST_DIR"/}"
+  [ -n "${current_rels["$rel"]:-}" ] && continue
+  rm -f "$d"
+  echo "  removed $rel (no longer in source)"
+done < <(find "$DEST_DIR" -name '*.md' \( -type f -o -type l \))
 
 # 4) Install the shared detect-forge.sh helper the forge-agnostic commands source.
 mkdir -p "$(dirname "$LIB_DEST")"
