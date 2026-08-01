@@ -1013,6 +1013,66 @@ assert_contains "$calls" 'failed gates: 6'                      "failed-gate IDs
 ec="$(run_capture_ec env REPO=o/r bash "$POST_BLOCK")"
 assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
 
+section "self-fix-pr — checkout, fix, commit (local repo simulation)"
+
+SELF_FIX_PR="$ROOT/scripts/self-fix-pr.sh"
+
+make_self_fix_repo() {
+  local dir; dir="$(mktemp -d)"
+  git -C "$dir" init --quiet -b main
+  git -C "$dir" config user.email test@example.com
+  git -C "$dir" config user.name test
+  printf 'hello\n' > "$dir/file.txt"
+  git -C "$dir" add file.txt
+  git -C "$dir" commit --quiet -m init
+  printf '%s' "$dir"
+}
+
+CONCERNS="$(mktemp --suffix=.json)"
+printf '{"verdict":"request_changes","summary":"x","concerns":[{"severity":"high","message":"fix the bug"}]}' > "$CONCERNS"
+
+# Happy path: mock agent edits a file → committed (push skipped in tests)
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "agent edit → fixed=true"
+commit_msg="$(git -C "$REPO_DIR" log -1 --format=%s)"
+assert_equals "$commit_msg" "address self-review (iteration 1)" "commit message includes iteration number"
+rm -rf "$REPO_DIR"
+
+# Agent makes no changes → exit 1, no new commit
+REPO_DIR="$(make_self_fix_repo)"
+before_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
+ec="$(run_capture_ec env WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+        REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+        FIX_AGENT_CMD="$MOCKS/self-fix-agent-noop" \
+        bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "1" "agent makes no changes → exit 1"
+after_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
+assert_equals "$after_sha" "$before_sha" "no new commit created"
+rm -rf "$REPO_DIR"
+
+# Fix agent crashes → exit 1
+REPO_DIR="$(make_self_fix_repo)"
+ec="$(run_capture_ec env WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+        REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+        FIX_AGENT_CMD="$MOCKS/self-fix-agent-fail" \
+        bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "1" "fix agent crash → exit 1"
+rm -rf "$REPO_DIR"
+
+# Error paths
+ec="$(run_capture_ec bash "$SELF_FIX_PR")"
+assert_equals "$ec" "2" "missing pr-number/concerns args → exit 2"
+
+ec="$(run_capture_ec env REPO=o/r HEAD_REF=x ITERATION=1 bash "$SELF_FIX_PR" 99 /no/such/file.json)"
+assert_equals "$ec" "2" "unreadable concerns file → exit 2"
+
+ec="$(run_capture_ec env HEAD_REF=x ITERATION=1 bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "2" "missing REPO → exit 2"
+
 section "find-pipeline-pr — discover the draft PR opened for an issue"
 
 FIND_PR="$ROOT/scripts/find-pipeline-pr.sh"

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#
+# self-fix-agent-fail — self-fix-pr.sh FIX_AGENT_CMD mock simulating an
+# agent-runner crash.
+set -euo pipefail
+exit 1

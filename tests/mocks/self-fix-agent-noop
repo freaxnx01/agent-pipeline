@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#
+# self-fix-agent-noop — self-fix-pr.sh FIX_AGENT_CMD mock that makes no
+# changes, simulating an agent that judged nothing needed fixing.
+set -euo pipefail
+exit 0
