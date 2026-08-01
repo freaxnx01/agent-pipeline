@@ -1,42 +1,74 @@
 ---
-description: Work on an issue end-to-end — auto-routes to GitHub or Forgejo by remote
+description: Work on an issue end-to-end — plan then subagent-driven implementation
 argument-hint: <issue number>
 ---
 
-Route to the forge-specific **work** command based on the `origin` remote host, then
-follow it exactly. This command holds no logic of its own — `/gh:work` and `/fj:work`
-remain the single source of truth.
-
-## Detect the forge (generic host-matching)
+Detect the forge, then run the matching section below.
 
 ```bash
-# Host from origin, handling https://, ssh://, and scp-style git@host:path remotes
-host=$(git remote get-url origin 2>/dev/null | sed -E 's#^[a-zA-Z]+://##; s#^[^@/]*@##; s#[:/].*##')
-if gh auth token --hostname "$host" >/dev/null 2>&1; then
-  echo "github  ($host)"     # a GitHub / GHES host gh is logged into
-elif tea logins list 2>/dev/null | grep -qiF "$host"; then
-  echo "forgejo ($host)"     # matches a tea (Forgejo/Gitea) login
-elif [ "$host" = "github.com" ]; then
-  echo "github  ($host)"     # fallback: canonical GitHub host, even if gh isn't authed
-else
-  echo "unknown ($host)"
-fi
+source "$HOME/.claude/scripts/lib/detect-forge.sh"
+detect_forge
 ```
 
-## Then
+## GitHub
 
-- **github** → read and follow `~/.claude/commands/gh/work.md` (i.e. run `/gh:work`).
-- **forgejo** → read and follow `~/.claude/commands/fj/work.md` (i.e. run `/fj:work`).
-- **unknown** → report the detected host and that no authed GitHub or Forgejo login
-  matched it; point at `gh auth login` / `tea login add`. Don't guess a forge.
+Implement GitHub issue #$ARGUMENTS end to end (strip any leading `#` from the
+number):
 
-The target command implements an issue end-to-end by number (**TDD enforced**) —
-supply it with this issue number (strip any leading `#`): `$ARGUMENTS`
+1. `gh issue view $ARGUMENTS --comments` — read the issue and its discussion.
+2. If scope or requirements are unclear or open-ended, use the
+   **superpowers:brainstorming** skill to settle them before any code.
+3. Use **superpowers:writing-plans** to produce an implementation plan (markdown).
+   TDD is a non-negotiable global constraint — include it verbatim in the plan's
+   Global Constraints section: "Use Test-Driven Development for every task: write
+   a failing test first, watch it fail, implement minimally to pass, verify green."
+4. Create an isolated workspace with **superpowers:using-git-worktrees**, on a
+   branch named for the issue (e.g. `issue-$ARGUMENTS-<slug>`).
+5. Execute the plan with **superpowers:subagent-driven-development**.
+6. When implementation is complete **and verified**, stop and tell me it's ready
+   for `/wt:finish` — do not merge yet.
 
-Announce the chosen forge in one line (e.g. `→ GitHub (github.com)`), then carry out
-that command.
+Reference issue #$ARGUMENTS in commits. If the issue doesn't exist, say so and stop.
 
----
+## Forgejo
 
-If detection misfires (new host, an SSH `Host` alias that hides the real domain,
-`gh`/`tea` not on PATH), fix the snippet here and update this command for the future.
+Implement Forgejo issue #$ARGUMENTS end to end (strip any leading `#` from the
+number).
+
+### Forgejo access
+
+Target the homelab Forgejo (`git.home.freaxnx01.ch`) via **`tea`** (login
+`git-home`). Read the issue and its discussion:
+
+```bash
+url=$(git remote get-url origin); url=${url%.git}
+repo=$(echo "$url" | sed -E 's#.*[:/]([^/]+/[^/]+)$#\1#')
+tea issues $ARGUMENTS --login git-home                              # issue detail
+tea api --login git-home "repos/$repo/issues/$ARGUMENTS/comments"   # discussion
+```
+
+If the issue doesn't exist, say so and stop.
+
+### Steps
+
+1. Read the issue and its comments (above).
+2. If scope or requirements are unclear or open-ended, use the
+   **superpowers:brainstorming** skill to settle them before any code.
+3. Use **superpowers:writing-plans** to produce an implementation plan (markdown).
+   TDD is a non-negotiable global constraint — include it verbatim in the plan's
+   Global Constraints section: "Use Test-Driven Development for every task: write a
+   failing test first, watch it fail, implement minimally to pass, verify green."
+4. Create an isolated workspace with **superpowers:using-git-worktrees**, on a
+   branch named for the issue (e.g. `issue-$ARGUMENTS-<slug>`).
+5. Execute the plan with **superpowers:subagent-driven-development**.
+6. When implementation is complete **and verified**, stop and tell me it's ready for
+   `/wt:finish` — do not merge yet.
+
+Reference issue #$ARGUMENTS in commits (Forgejo links `Closes #$ARGUMENTS` in the
+PR/commit, same as GitHub). Note: the `issue-N-*` branch name lets `/issues`
+detect this issue as WIP even before a PR exists.
+
+## Unknown host
+
+Report the detected host and that no authed GitHub or Forgejo login matched
+it; point at `gh auth login` / `tea login add`. Don't guess a forge.

@@ -82,7 +82,7 @@ makes it hard to notice from the inside — each hop seems justified, but three
 or four hops away from the original request you're effectively doing a
 different project without ever deciding to. This repo's convention is to treat
 anything outside the stated scope as a **discovery**, not automatically a
-**task**: capture it (`/capture-idea`, `docs/TODO.md`, `/gh:new`, `/fj:new`)
+**task**: capture it (`/capture-idea`, `docs/TODO.md`, `/new`)
 and keep going on the original ask, only expanding scope when that expansion
 is a deliberate decision rather than a drift. See
 [`partials/scope-boundary.md`](../partials/scope-boundary.md) for the full

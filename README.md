@@ -15,6 +15,107 @@ Design notes: [`docs/DESIGN.md`](docs/DESIGN.md) · decisions: [`docs/DECISIONS.
 
 ---
 
+## Diagram
+
+Source of truth: [`docs/FACTORY-MAP.md`](docs/FACTORY-MAP.md). Use the pan/zoom
+controls in the top-right corner of the diagram to view it fullscreen, or open the
+[standalone fullscreen page](http://github.freaxnx01.ch/agent-workflow/) (diagram only, press F11).
+
+```mermaid
+flowchart TB
+    subgraph INTAKE["Intake"]
+        flowhub["flowhub<br/>AI inbox · IForgeSink"]
+        ideas["ideas-lab<br/>/capture-idea"]
+    end
+
+    subgraph GOV["Governance / Conventions"]
+        aiinstr["ai-instructions<br/>base + stack overlays<br/>milestone conventions"]
+    end
+
+    subgraph DIST["Distribution"]
+        skills["agent-skills<br/>public marketplace"]
+        plugins["claude-code-plugins<br/>private marketplace"]
+    end
+
+    subgraph ORCH["Orchestration — agent-workflow"]
+        console["Operator console<br/>45 slash commands<br/>skills · hooks · partials"]
+        ci["CI pipeline<br/>agent-implement.yml<br/>ADR-002 gates"]
+    end
+
+    subgraph RUNTIME["Runtime"]
+        lxc["agent-dev-lxc<br/>LXC 201"]
+        memory["agent-memory<br/>pgvector · mem0 · Ollama"]
+        config["config<br/>shell · prompt"]
+    end
+
+    subgraph BRIDGE["bridge"]
+        mcp["MCP<br/>forge abstraction"]
+        rest["REST<br/>headless core over HTTP"]
+        webui["WebUI<br/>PC + mobile · visualization"]
+        nav["nav<br/>TUI · repo picker"]
+        dispatch["dispatch<br/>issue → pipeline decision engine"]
+    end
+
+    locutus["locutus<br/>Telegram bot"]
+
+    subgraph FORGES["Forges"]
+        gh["GitHub<br/>freaxnx01"]
+        fj["Forgejo<br/>freax"]
+    end
+
+    subgraph OUT["Output fleet"]
+        games["game-* · 37 repos"]
+        libs[".NET libraries"]
+        tools["standalone tools"]
+    end
+
+    subgraph TEST["Test targets"]
+        sandbox["agent-action-sandbox"]
+        bwt["bridge-write-test"]
+    end
+
+    llmeter["llmeter<br/>cost + usage"]
+
+    flowhub -->|creates issues| BRIDGE
+    ideas --> console
+    aiinstr -->|/sync-ai-instructions| OUT
+    aiinstr --> console
+    skills -->|/plugin install| console
+    plugins -->|/plugin install| console
+
+    console -->|files + triages issues| BRIDGE
+    console -->|labels ai-implement| ci
+    BRIDGE <-->|read + write| gh
+    BRIDGE <-->|read + write| fj
+    rest -->|serves| webui
+    BRIDGE -.->|status notifications| locutus
+
+    ci -->|draft PR| gh
+    gh -->|human merge| OUT
+    ci -.->|validates against| TEST
+
+    lxc -->|hosts| console
+    config -->|provisions| lxc
+    memory <-->|context| console
+    console -.->|usage| llmeter
+    ci -.->|usage| llmeter
+
+    classDef core fill:#1f6feb,stroke:#0d419d,color:#fff
+    classDef support fill:#238636,stroke:#116329,color:#fff
+    classDef forge fill:#6e40c9,stroke:#4c2889,color:#fff
+    classDef output fill:#484f58,stroke:#30363d,color:#fff
+
+    class console,ci,aiinstr,skills,plugins,mcp,rest,webui,nav,dispatch,memory,lxc,config core
+    class flowhub,ideas,llmeter,sandbox,bwt,locutus support
+    class gh,fj forge
+    class games,libs,tools output
+```
+
+Blue = core · green = supporting · purple = forges · grey = output.
+Dotted edges are observation/validation rather than data flow.
+
+---
+
 ## Slash commands — where they come from and how they get there
 
 Claude Code resolves `/commands` from **four independent sources**. Nothing merges
@@ -31,15 +132,15 @@ which source a command came from tells you where to edit it and how to refresh i
 ### 1 — This repo: the user-level console
 
 `commands/` is the source of truth for the global commands. Subfolders become `:`
-namespaces, so `commands/fj/work.md` is invoked as `/fj:work`.
+namespaces, so `commands/work.md` is invoked as `/work`.
 
 ```text
 commands/
-  fj/    → /fj:new  /fj:issues  /fj:triage  /fj:enrich  /fj:work  /fj:prs  /fj:milestone  …
-  gh/    → /gh:new  /gh:issues  /gh:assign  /gh:implement  /gh:review  /gh:milestone  …
+  gh/    → /gh:assign  /gh:implement  /gh:implementation-contract  /gh:review
   wt/    → /wt:status  /wt:finish
   *.md   → /handoff  /pickup  /todo  /wrap-up  /loose-ends  /clear-check
-           /issues  /prs  /triage  /route  /work  /milestone  (forge routers)
+           /issues  /prs  /triage  /route  /work  /milestone  /new  /enrich
+           /enrich-phased  /parked  /roadmap  /done  (forge-agnostic)
            /capture-idea  /commands  /update-commands
 ```
 
@@ -57,7 +158,7 @@ here does not update your commands — re-run the installer.**
 | `--no-sync` | Skip the clone/pull, install from the current tree as-is |
 
 Because they live under `$HOME`, these commands are **not** copied into individual
-repos and don't need to be. `/fj:work` works in a non-coding repo (`org`) exactly as it
+repos and don't need to be. `/work` works in a non-coding repo (`org`) exactly as it
 does in a code repo — Claude Code reads `~/.claude/commands/` regardless of the working
 directory.
 
@@ -174,7 +275,7 @@ skills/
 
 These are **not** the plugin skills from `agent-skills` (source 2 above). The split is
 ownership: the marketplace publishes *sharable, non-personal* skills, while a skill
-that calls `/gh:new`, `/fj:new` and this repo's `area:*` label conventions is only
+that calls `/new` and this repo's `area:*` label conventions is only
 meaningful alongside the console — so it ships with the console.
 
 **Skill or command?** A command is a prompt you invoke by name and nothing else. A skill
