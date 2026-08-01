@@ -5,9 +5,6 @@ plus the `setup/link-commands.sh` prune fixes, #219/#220).
 
 ## PR #215 follow-ups (deferred, non-blocking, flagged in the PR itself)
 
-- [ ] `setup/link-commands.sh`'s success banner still says
-      `(e.g. /gh:enrich, /route, /capture-idea)` — `/gh:enrich` no longer exists,
-      pick a command that still does.
 - [ ] No fixture asserts `setup/link-commands.sh` actually installs
       `scripts/lib/detect-forge.sh` to `~/.claude/scripts/lib/` (in either copy or
       `--link` mode) — a regression there would go green.
