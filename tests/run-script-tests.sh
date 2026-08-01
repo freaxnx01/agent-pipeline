@@ -977,6 +977,26 @@ calls="$(cat "$LOG")"; rm -f "$LOG"
 assert_contains     "$calls" 'pr comment 100 --repo o/r --body Pre-review held: agent review verdict: block (gate 4)' "MODE=pre-preview → 'Pre-review held' PR comment"
 assert_not_contains "$calls" 'Auto-merge held'                                                                        "MODE=pre-preview → no 'Auto-merge held' wording"
 
+# SELF_FIX_ITERATIONS > 0 → distinct "self-fix exhausted" wording
+LOG="$(mktemp)"
+PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
+REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true \
+VERDICT=request_changes MODE=pre-preview \
+SELF_FIX_ITERATIONS=2 SELF_FIX_MAX=2 \
+  bash "$POST_BLOCK" >/dev/null
+calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_contains     "$calls" 'self-fix exhausted after 2/2 iteration(s) — last verdict: request_changes' "self-fix exhausted → distinct wording"
+assert_not_contains "$calls" 'agent review verdict: request_changes (gate 4)'                              "self-fix wording replaces the plain verdict reason"
+
+# SELF_FIX_ITERATIONS unset/0 → unchanged wording (byte-identical to today)
+LOG="$(mktemp)"
+PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
+REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true \
+VERDICT=block MODE=pre-preview \
+  bash "$POST_BLOCK" >/dev/null
+calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_contains "$calls" 'agent review verdict: block (gate 4)' "SELF_FIX_ITERATIONS unset → plain wording unchanged"
+
 # Envelope fail → reason includes the gate IDs from check-merge-envelope.sh
 LOG="$(mktemp)"
 PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
@@ -993,6 +1013,206 @@ assert_contains "$calls" 'failed gates: 6'                      "failed-gate IDs
 ec="$(run_capture_ec env REPO=o/r bash "$POST_BLOCK")"
 assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
 
+section "self-fix-pr — checkout, fix, commit (local repo simulation)"
+
+SELF_FIX_PR="$ROOT/scripts/self-fix-pr.sh"
+
+make_self_fix_repo() {
+  local dir; dir="$(mktemp -d)"
+  git -C "$dir" init --quiet -b main
+  git -C "$dir" config user.email test@example.com
+  git -C "$dir" config user.name test
+  printf 'hello\n' > "$dir/file.txt"
+  git -C "$dir" add file.txt
+  git -C "$dir" commit --quiet -m init
+  printf '%s' "$dir"
+}
+
+CONCERNS="$(mktemp --suffix=.json)"
+printf '{"verdict":"request_changes","summary":"x","concerns":[{"severity":"high","message":"fix the bug"}]}' > "$CONCERNS"
+
+# Happy path: mock agent edits a file → committed (push skipped in tests)
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "agent edit → fixed=true"
+commit_msg="$(git -C "$REPO_DIR" log -1 --format=%s)"
+assert_equals "$commit_msg" "address self-review (iteration 1)" "commit message includes iteration number"
+rm -rf "$REPO_DIR"
+
+# Agent creates a new untracked file (not editing the tracked file) →
+# must still be detected as a change, committed, fixed=true (#81 review fix:
+# `git diff --quiet` is blind to untracked files, git status --porcelain isn't)
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent-newfile" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "agent creates new untracked file → fixed=true"
+assert_equals "$(git -C "$REPO_DIR" show --stat -1 --format= | grep -c untracked.txt)" "1" "new untracked file committed"
+rm -rf "$REPO_DIR"
+
+# Agent makes no changes → exit 1, no new commit
+REPO_DIR="$(make_self_fix_repo)"
+before_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
+ec="$(run_capture_ec env WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+        REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+        FIX_AGENT_CMD="$MOCKS/self-fix-agent-noop" \
+        bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "1" "agent makes no changes → exit 1"
+after_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
+assert_equals "$after_sha" "$before_sha" "no new commit created"
+rm -rf "$REPO_DIR"
+
+# Fix agent crashes → exit 1
+REPO_DIR="$(make_self_fix_repo)"
+ec="$(run_capture_ec env WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+        REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+        FIX_AGENT_CMD="$MOCKS/self-fix-agent-fail" \
+        bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "1" "fix agent crash → exit 1"
+rm -rf "$REPO_DIR"
+
+# Error paths
+ec="$(run_capture_ec bash "$SELF_FIX_PR")"
+assert_equals "$ec" "2" "missing pr-number/concerns args → exit 2"
+
+ec="$(run_capture_ec env REPO=o/r HEAD_REF=x ITERATION=1 bash "$SELF_FIX_PR" 99 /no/such/file.json)"
+assert_equals "$ec" "2" "unreadable concerns file → exit 2"
+
+ec="$(run_capture_ec env HEAD_REF=x ITERATION=1 bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "2" "missing REPO → exit 2"
+
+# Real self-fix-pr.sh, no ambient git identity (repo has none, global/system
+# config nulled out) — locks in the `-c user.name=... -c user.email=...`
+# fix on the commit call (#81 review finding 2): on a real runner, a fresh
+# `gh repo clone` has no identity configured and a bare `git commit` fails
+# with "fatal: empty ident name".
+make_self_fix_repo_no_identity() {
+  local dir; dir="$(mktemp -d)"
+  git -C "$dir" init --quiet -b main
+  printf 'hello\n' > "$dir/file.txt"
+  git -C "$dir" add file.txt
+  # Identity for the *setup* commit only, passed via -c so it never lands
+  # in the repo's own .git/config — the repo genuinely has no ambient
+  # identity afterward.
+  git -C "$dir" -c user.email=setup@example.com -c user.name=setup \
+    commit --quiet -m init
+  printf '%s' "$dir"
+}
+
+REPO_DIR="$(make_self_fix_repo_no_identity)"
+out="$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+       WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "no ambient git identity → commit still succeeds (fixed=true)"
+commit_msg="$(git -C "$REPO_DIR" log -1 --format=%s)"
+assert_equals "$commit_msg" "address self-review (iteration 1)" "no ambient git identity → correct commit message"
+rm -rf "$REPO_DIR"
+
+section "self-fix-loop — bounded fix→re-review cycles"
+
+SELF_FIX_LOOP="$ROOT/scripts/self-fix-loop.sh"
+FIX_STUB="$MOCKS/self-fix-loop-fix-stub"
+REVIEW_STUB="$MOCKS/self-fix-loop-review-stub"
+
+LOOP_CONCERNS="$(mktemp --suffix=.json)"
+printf '{"verdict":"request_changes","summary":"x","concerns":[]}' > "$LOOP_CONCERNS"
+
+loop_run() {
+  # args: <fix-log> <review-verdicts-csv> [extra env assignments...]
+  local fix_log="$1" verdicts="$2"; shift 2
+  local go; go="$(mktemp)"
+  GITHUB_OUTPUT="$go" \
+  PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+  INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" \
+  MAX_ITERATIONS=3 \
+  FIX_CMD="$FIX_STUB" FIX_LOG="$fix_log" \
+  REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS="$verdicts" \
+  NEW_HEAD_SHA=newsha \
+  "$@" \
+    bash "$SELF_FIX_LOOP" >/dev/null
+  cat "$go"
+  rm -f "$go"
+}
+
+# Fix succeeds, second re-review approves → stop at iteration 2
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'request_changes,approve')"
+assert_contains "$out" 'verdict=approve'   "fix→approve within cap → verdict=approve"
+assert_contains "$out" 'iterations-used=2' "stops at iteration 2 (the approving one)"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$(printf '%s\n' "$fix_calls" | grep -c .)" "2" "FIX_CMD invoked exactly twice"
+
+# Cap exhausted without approve
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'request_changes,request_changes,request_changes')"
+assert_contains "$out" 'verdict=request_changes' "cap exhausted → final verdict still request_changes"
+assert_contains "$out" 'iterations-used=3'        "used all 3 iterations"
+rm -f "$LOG"
+
+# Fix succeeds but re-review blocks → stop immediately, don't burn remaining iterations
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'block')"
+assert_contains "$out" 'verdict=block'      "re-review block → stops with verdict=block"
+assert_contains "$out" 'iterations-used=1'  "stops after 1 iteration on block"
+rm -f "$LOG"
+
+# FIX_CMD itself fails → loop aborts, keeps last known verdict, 0 completed iterations
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'approve' env FIX_FAIL=1)"
+assert_contains "$out" 'verdict=request_changes' "FIX_CMD failure → verdict stays at INITIAL_VERDICT"
+assert_contains "$out" 'iterations-used=0'        "FIX_CMD failure on first attempt → 0 completed iterations"
+rm -f "$LOG"
+
+# REVIEW_SCRIPT itself fails mid-loop → loop stops gracefully with the
+# last known verdict, not a crash (set -e would otherwise kill the whole
+# script before it writes anything to $GITHUB_OUTPUT — #81 review finding 4).
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'CRASH')"
+assert_contains "$out" 'verdict=request_changes' "REVIEW_SCRIPT crash → verdict stays at INITIAL_VERDICT (no re-review completed)"
+assert_contains "$out" 'iterations-used=1'        "REVIEW_SCRIPT crash → the fix itself still counted as completed"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$(printf '%s\n' "$fix_calls" | grep -c .)" "1" "FIX_CMD invoked once before the re-review crash"
+
+# Stub verdict sequence path (Layer-2 test seam) — bypasses FIX_CMD/REVIEW_SCRIPT entirely
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes MAX_ITERATIONS=3 \
+STUB_VERDICT_SEQUENCE='request_changes,approve' \
+  bash "$SELF_FIX_LOOP" >/dev/null
+out="$(cat "$go")"; rm -f "$go"
+assert_contains "$out" 'verdict=approve'   "stub sequence → verdict=approve"
+assert_contains "$out" 'iterations-used=2' "stub sequence consumes 2 entries"
+
+# Error paths
+ec="$(run_capture_ec env REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "missing PR_NUMBER → exit 2"
+
+# MAX_ITERATIONS=0 is not an error — a misconfigured consumer
+# (self-fix-max-iterations: 0 while self-fix: true) gets self-fix
+# trivially exhausted, not a red CI job (#81 review finding 12).
+go="$(mktemp)"
+ec="$(run_capture_ec env GITHUB_OUTPUT="$go" PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=0 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "0" "MAX_ITERATIONS=0 → exit 0 (graceful no-op)"
+out="$(cat "$go")"; rm -f "$go"
+assert_contains "$out" 'verdict=request_changes' "MAX_ITERATIONS=0 → verdict unchanged (INITIAL_VERDICT)"
+assert_contains "$out" 'iterations-used=0'        "MAX_ITERATIONS=0 → iterations-used=0"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=-1 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "MAX_ITERATIONS=-1 (genuinely invalid) → exit 2"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=abc bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "MAX_ITERATIONS=abc (non-numeric) → exit 2"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes MAX_ITERATIONS=2 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "missing CONCERNS_FILE (no STUB_VERDICT_SEQUENCE) → exit 2"
+
 section "find-pipeline-pr — discover the draft PR opened for an issue"
 
 FIND_PR="$ROOT/scripts/find-pipeline-pr.sh"
@@ -1007,10 +1227,11 @@ find_pr_run() {
 
 # One draft PR closing the issue → found
 out="$(find_pr_run env ISSUE_NUMBER=42 REPO=o/r \
-        PIPELINE_PRS_JSON='[{"number":17,"isDraft":true,"headRefOid":"deadbeef","author":{"login":"github-actions[bot]"}}]')"
+        PIPELINE_PRS_JSON='[{"number":17,"isDraft":true,"headRefOid":"deadbeef","headRefName":"feat/fix-thing","author":{"login":"github-actions[bot]"}}]')"
 assert_contains "$out" 'found=true'         "single draft PR → found=true"
 assert_contains "$out" 'pr-number=17'       "emits pr-number"
 assert_contains "$out" 'head-sha=deadbeef'  "emits head-sha"
+assert_contains "$out" 'head-ref=feat/fix-thing' "emits head-ref (branch name)"
 
 # Multiple drafts (e.g. stale + fresh) → highest-numbered wins
 out="$(find_pr_run env ISSUE_NUMBER=42 REPO=o/r \

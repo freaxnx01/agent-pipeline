@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#
+# self-fix-agent-newfile — self-fix-pr.sh FIX_AGENT_CMD mock that creates a
+# brand-new untracked file instead of editing an existing tracked one.
+# Regression coverage for the "no changes" detection missing untracked
+# files (git diff --quiet is blind to them; git status --porcelain is not).
+set -euo pipefail
+IFS=$'\n\t'
+printf 'new\n' > untracked.txt

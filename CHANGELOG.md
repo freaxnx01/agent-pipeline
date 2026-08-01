@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **pre-preview:** `self-fix` and `self-fix-max-iterations` workflow
+  inputs — on a `request_changes` verdict, optionally let the agent
+  attempt bounded fix → re-review cycles before falling back to the
+  human-review block path (#81)
 - **commands:** `/milestone triage` — lists open issues with no milestone,
   excluding `🧊 parked` and `roadmap`, then walks them one at a time to assign
   one, every write confirmed by read-back (#178)
