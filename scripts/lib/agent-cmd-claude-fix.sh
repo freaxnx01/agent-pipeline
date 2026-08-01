@@ -11,6 +11,11 @@
 # place (see .github/workflows/agent-implement.yml's "Run Claude Code" step).
 #
 # MODEL is optional; if set it becomes a `--model <value>` flag.
+#
+# stdout/stderr are captured to $RUNNER_TEMP/self-fix-agent-output.log
+# (falls back to /tmp) instead of discarded, so a failed fix attempt
+# leaves a trace the caller can inspect (#81 review finding 11) — this
+# is diagnostics only, it does not change the exit-code contract.
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -19,4 +24,4 @@ prompt="$1"
 args=(--print --allowedTools 'Edit,Write,Read,Glob,Grep,MultiEdit,Bash')
 [[ -n "${MODEL:-}" ]] && args+=(--model "$MODEL")
 
-claude "${args[@]}" < "$prompt" > /dev/null
+claude "${args[@]}" < "$prompt" > "${RUNNER_TEMP:-/tmp}/self-fix-agent-output.log" 2>&1
