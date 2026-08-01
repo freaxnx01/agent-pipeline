@@ -1042,6 +1042,18 @@ commit_msg="$(git -C "$REPO_DIR" log -1 --format=%s)"
 assert_equals "$commit_msg" "address self-review (iteration 1)" "commit message includes iteration number"
 rm -rf "$REPO_DIR"
 
+# Agent creates a new untracked file (not editing the tracked file) →
+# must still be detected as a change, committed, fixed=true (#81 review fix:
+# `git diff --quiet` is blind to untracked files, git status --porcelain isn't)
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent-newfile" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "agent creates new untracked file → fixed=true"
+assert_equals "$(git -C "$REPO_DIR" show --stat -1 --format= | grep -c untracked.txt)" "1" "new untracked file committed"
+rm -rf "$REPO_DIR"
+
 # Agent makes no changes → exit 1, no new commit
 REPO_DIR="$(make_self_fix_repo)"
 before_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"

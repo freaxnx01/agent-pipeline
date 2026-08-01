@@ -99,7 +99,7 @@ if ! ( cd "$WORK_DIR" && "$FIX_AGENT_CMD" "$PROMPT_FILE" ); then
 fi
 rm -f "$PROMPT_FILE"
 
-if ( cd "$WORK_DIR" && git diff --quiet && git diff --cached --quiet ); then
+if [[ -z "$( cd "$WORK_DIR" && git status --porcelain )" ]]; then
   printf 'error: agent made no changes -- nothing to commit\n' >&2
   exit 1
 fi
