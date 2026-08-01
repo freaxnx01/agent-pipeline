@@ -47,6 +47,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   verification contract for docs-only issues — from the new shared
   `/gh:implementation-contract` (#177)
 
+### Fixed
+
+- **setup:** `setup/link-commands.sh` now prunes command files it previously
+  installed that no longer exist in the repo's `commands/` tree, instead of
+  only ever adding/updating. Previously a re-install after a command was
+  removed or merged elsewhere (e.g. the gh:/fj: -> forge-agnostic
+  consolidation, #198/#199) left the superseded file installed and working
+  indefinitely, alongside its replacement. Scoped to a manifest of this
+  installer's own prior writes — `~/.claude/commands/` is Claude Code's
+  general user-commands directory, not exclusively agent-workflow's, so a
+  file this installer never placed (hand-authored, or from another tool) is
+  never touched.
+
 ## [1.11.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.11.0) - 2026-07-27
 
 ### Added
