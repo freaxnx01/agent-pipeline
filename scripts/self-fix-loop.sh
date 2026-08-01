@@ -14,7 +14,9 @@
 #   HEAD_SHA          initial PR head SHA (from the first review)
 #   HEAD_REF          PR head branch name (passed through to FIX_CMD)
 #   INITIAL_VERDICT   verdict from the first review-pr.sh run
-#   MAX_ITERATIONS    self-fix-max-iterations input (positive integer)
+#   MAX_ITERATIONS    self-fix-max-iterations input (non-negative integer;
+#                     0 means self-fix is trivially exhausted -- the loop
+#                     never runs, verdict stays INITIAL_VERDICT)
 #   CONCERNS_FILE     validated review JSON from the first review-pr.sh
 #                     run. Not required when STUB_VERDICT_SEQUENCE is set.
 #
@@ -47,7 +49,7 @@
 #
 # Exit codes:
 #   0   always — verdict/iterations-used/head-sha carry the outcome
-#   2   required env missing or MAX_ITERATIONS not a positive integer
+#   2   required env missing or MAX_ITERATIONS not a non-negative integer
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -67,10 +69,16 @@ require_env HEAD_REF
 require_env INITIAL_VERDICT
 require_env MAX_ITERATIONS
 
-if ! [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]] || (( MAX_ITERATIONS < 1 )); then
-  printf 'error: MAX_ITERATIONS must be a positive integer (got %q)\n' "$MAX_ITERATIONS" >&2
+if ! [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]]; then
+  printf 'error: MAX_ITERATIONS must be a non-negative integer (got %q)\n' "$MAX_ITERATIONS" >&2
   exit 2
 fi
+# MAX_ITERATIONS=0 is not an error -- a misconfigured consumer (self-fix:
+# true, self-fix-max-iterations: 0) should get self-fix trivially exhausted
+# (loop never runs, verdict stays INITIAL_VERDICT, iterations-used=0, exit
+# 0) rather than a red CI job (#81 review finding 12). The `for` loops
+# below already no-op when MAX_ITERATIONS is 0 -- no further branching
+# needed.
 
 if [[ -z "${STUB_VERDICT_SEQUENCE:-}" ]]; then
   require_env CONCERNS_FILE
@@ -103,23 +111,41 @@ else
   # shellcheck disable=SC2153 # CONCERNS_FILE (env) seeds local concerns_file; not a typo
   concerns_file="$CONCERNS_FILE"
 
+  abort_iteration() {
+    # A fix or re-review failure under `set -e` would otherwise crash this
+    # whole script before it writes anything to $GITHUB_OUTPUT — the
+    # workflow's downstream promote/block steps key off find_pr's output
+    # only, so a crash here silently skips ALL of them (no PR comment, no
+    # ai:review-blocked label). Degrade instead: stop the loop, keep the
+    # last known verdict, and annotate loudly so this doesn't look
+    # identical to "self-fix simply wasn't configured" (#81 review
+    # findings 4/5).
+    printf 'self-fix-loop: %s (iteration %s) -- stopping\n' "$1" "$2" >&2
+    printf '::warning::self-fix-loop: aborted due to a failed fix/review attempt (iteration %s)\n' "$2"
+  }
+
   for (( i = 1; i <= MAX_ITERATIONS; i++ )); do
     if ! ITERATION="$i" REPO="$REPO" HEAD_REF="$HEAD_REF" \
          "$FIX_CMD" "$PR_NUMBER" "$concerns_file"; then
-      printf 'self-fix-loop: fix attempt %s failed -- stopping\n' "$i" >&2
+      abort_iteration "fix attempt failed" "$i"
       break
     fi
     iterations_used=$i
 
     if [[ -n "${NEW_HEAD_SHA:-}" ]]; then
       head_sha="$NEW_HEAD_SHA"
-    else
-      head_sha="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid --jq '.headRefOid')"
+    elif ! head_sha="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid --jq '.headRefOid')"; then
+      abort_iteration "gh pr view failed after fix" "$i"
+      break
     fi
 
     review_go="$(mktemp)"
-    GITHUB_OUTPUT="$review_go" ITERATION="$i" PR_NUMBER="$PR_NUMBER" REPO="$REPO" HEAD_SHA="$head_sha" \
-      bash "$REVIEW_SCRIPT" >/dev/null
+    if ! GITHUB_OUTPUT="$review_go" ITERATION="$i" PR_NUMBER="$PR_NUMBER" REPO="$REPO" HEAD_SHA="$head_sha" \
+         bash "$REVIEW_SCRIPT" >/dev/null; then
+      abort_iteration "re-review failed" "$i"
+      rm -f "$review_go"
+      break
+    fi
     verdict="$(grep '^verdict=' "$review_go" | tail -n1 | cut -d= -f2-)"
     new_concerns="$(grep '^summary-file=' "$review_go" | tail -n1 | cut -d= -f2-)"
     rm -f "$review_go"

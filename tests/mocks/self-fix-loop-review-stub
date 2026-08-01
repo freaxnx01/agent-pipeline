@@ -3,7 +3,9 @@
 # self-fix-loop-review-stub — self-fix-loop.sh REVIEW_SCRIPT mock for
 # Layer-1 tests. Emits the Nth (1-indexed via $ITERATION) entry of the
 # comma-separated $REVIEW_VERDICTS list to $GITHUB_OUTPUT, mirroring
-# review-pr.sh's verdict output.
+# review-pr.sh's verdict output. An entry of "CRASH" simulates
+# review-pr.sh exiting non-zero mid-loop (#81 review finding 4) — exits 1
+# without writing $GITHUB_OUTPUT.
 set -euo pipefail
 IFS=$'\n\t'
 : "${REVIEW_VERDICTS:?REVIEW_VERDICTS must be set}"
@@ -11,6 +13,10 @@ IFS=$'\n\t'
 IFS=',' read -ra verdicts <<< "$REVIEW_VERDICTS"
 idx=$((ITERATION - 1))
 verdict="${verdicts[$idx]:-block}"
+if [[ "$verdict" == "CRASH" ]]; then
+  printf 'self-fix-loop-review-stub: simulated review-pr.sh crash\n' >&2
+  exit 1
+fi
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   printf 'verdict=%s\n'      "$verdict" >> "$GITHUB_OUTPUT"
   printf 'summary-file=\n'              >> "$GITHUB_OUTPUT"

@@ -1169,6 +1169,16 @@ assert_contains "$out" 'verdict=request_changes' "FIX_CMD failure → verdict st
 assert_contains "$out" 'iterations-used=0'        "FIX_CMD failure on first attempt → 0 completed iterations"
 rm -f "$LOG"
 
+# REVIEW_SCRIPT itself fails mid-loop → loop stops gracefully with the
+# last known verdict, not a crash (set -e would otherwise kill the whole
+# script before it writes anything to $GITHUB_OUTPUT — #81 review finding 4).
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'CRASH')"
+assert_contains "$out" 'verdict=request_changes' "REVIEW_SCRIPT crash → verdict stays at INITIAL_VERDICT (no re-review completed)"
+assert_contains "$out" 'iterations-used=1'        "REVIEW_SCRIPT crash → the fix itself still counted as completed"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$(printf '%s\n' "$fix_calls" | grep -c .)" "1" "FIX_CMD invoked once before the re-review crash"
+
 # Stub verdict sequence path (Layer-2 test seam) — bypasses FIX_CMD/REVIEW_SCRIPT entirely
 go="$(mktemp)"
 GITHUB_OUTPUT="$go" \
@@ -1184,8 +1194,21 @@ assert_contains "$out" 'iterations-used=2' "stub sequence consumes 2 entries"
 ec="$(run_capture_ec env REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 bash "$SELF_FIX_LOOP")"
 assert_equals "$ec" "2" "missing PR_NUMBER → exit 2"
 
-ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=0 bash "$SELF_FIX_LOOP")"
-assert_equals "$ec" "2" "MAX_ITERATIONS=0 → exit 2"
+# MAX_ITERATIONS=0 is not an error — a misconfigured consumer
+# (self-fix-max-iterations: 0 while self-fix: true) gets self-fix
+# trivially exhausted, not a red CI job (#81 review finding 12).
+go="$(mktemp)"
+ec="$(run_capture_ec env GITHUB_OUTPUT="$go" PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=0 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "0" "MAX_ITERATIONS=0 → exit 0 (graceful no-op)"
+out="$(cat "$go")"; rm -f "$go"
+assert_contains "$out" 'verdict=request_changes' "MAX_ITERATIONS=0 → verdict unchanged (INITIAL_VERDICT)"
+assert_contains "$out" 'iterations-used=0'        "MAX_ITERATIONS=0 → iterations-used=0"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=-1 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "MAX_ITERATIONS=-1 (genuinely invalid) → exit 2"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=abc bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "MAX_ITERATIONS=abc (non-numeric) → exit 2"
 
 ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes MAX_ITERATIONS=2 bash "$SELF_FIX_LOOP")"
 assert_equals "$ec" "2" "missing CONCERNS_FILE (no STUB_VERDICT_SEQUENCE) → exit 2"
