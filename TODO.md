@@ -5,8 +5,6 @@ plus the `setup/link-commands.sh` prune fixes, #219/#220).
 
 ## PR #215 follow-ups (deferred, non-blocking, flagged in the PR itself)
 
-- [ ] `docs/model-comparison.md:4` still references the deleted `gh:route` command
-      — should read `/route`.
 - [ ] `setup/link-commands.sh`'s success banner still says
       `(e.g. /gh:enrich, /route, /capture-idea)` — `/gh:enrich` no longer exists,
       pick a command that still does.
