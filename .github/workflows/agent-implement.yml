@@ -817,7 +817,7 @@ jobs:
             printf 'PATH=%s/.claude-pipeline/tests/mocks:%s\n' "$WORKSPACE" "$PATH"
             printf 'GH_MOCK_LOG=%s\n' "$log"
             printf 'PIPELINE_PRS_JSON=%s\n' \
-              '[{"number":9999,"isDraft":true,"headRefOid":"stubsha","author":{"login":"github-actions[bot]"}}]'
+              '[{"number":9999,"isDraft":true,"headRefOid":"stubsha","headRefName":"stub-branch","author":{"login":"github-actions[bot]"}}]'
           } >> "$GITHUB_ENV"
 
       - name: Self-modification guard (ADR-002 — agent-workflow itself)
@@ -1057,7 +1057,7 @@ jobs:
             printf 'PATH=%s/.claude-pipeline/tests/mocks:%s\n' "$WORKSPACE" "$PATH"
             printf 'GH_MOCK_LOG=%s\n' "$log"
             printf 'PIPELINE_PRS_JSON=%s\n' \
-              '[{"number":9999,"isDraft":true,"headRefOid":"stubsha","author":{"login":"github-actions[bot]"}}]'
+              '[{"number":9999,"isDraft":true,"headRefOid":"stubsha","headRefName":"stub-branch","author":{"login":"github-actions[bot]"}}]'
           } >> "$GITHUB_ENV"
 
       - name: Find pipeline-opened PR
