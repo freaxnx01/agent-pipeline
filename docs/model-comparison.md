@@ -1,7 +1,7 @@
 # Model Comparison — OpenCode × OpenRouter coding agents
 
 **Status:** Living document. Each benchmark run is appended as a new *Round* below.
-The selection policy distilled from it lives in the `gh:route` command (Step 4b) and the
+The selection policy distilled from it lives in the `/route` command (Step 4b) and the
 model roster in [`CONSUMER-SETUP.md`](CONSUMER-SETUP.md#per-issue-model-labels).
 
 > ⚠️ **Evidence is currently thin.** The policy rests on two rounds of the *same task shape*
