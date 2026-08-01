@@ -32,6 +32,7 @@ SRC_DIR="$REPO_DIR/commands"
 DEST_DIR="$HOME/.claude/commands"
 LIB_SRC="$REPO_DIR/scripts/lib/detect-forge.sh"
 LIB_DEST="$HOME/.claude/scripts/lib/detect-forge.sh"
+MANIFEST="$HOME/.claude/.agent-workflow-commands-manifest"
 
 mode="copy"
 sync=1
@@ -78,15 +79,23 @@ while IFS= read -r f; do
   fi
 done < <(find "$SRC_DIR" -type f -name '*.md')
 
-# 3b) Prune previously-installed commands no longer in source (e.g. removed or
-#     merged elsewhere, like the gh:/fj: -> forge-agnostic consolidation,
-#     #198/#199) — otherwise a superseded command keeps working forever.
-while IFS= read -r d; do
-  rel="${d#"$DEST_DIR"/}"
-  [ -n "${current_rels["$rel"]:-}" ] && continue
-  rm -f "$d"
-  echo "  removed $rel (no longer in source)"
-done < <(find "$DEST_DIR" -name '*.md' \( -type f -o -type l \))
+# 3b) Prune commands THIS installer placed on a prior run that are no longer
+#     in source (e.g. removed or merged elsewhere, like the gh:/fj: ->
+#     forge-agnostic consolidation, #198/#199) — otherwise a superseded
+#     command keeps working forever. Scoped to the manifest from the last run,
+#     never to "any *.md under DEST_DIR" — that directory is Claude Code's
+#     general user-commands location, not exclusively agent-workflow's, and a
+#     file this installer never placed (hand-authored, or from another tool)
+#     must never be touched.
+if [ -f "$MANIFEST" ]; then
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    [ -n "${current_rels["$rel"]:-}" ] && continue
+    rm -f "$DEST_DIR/$rel"
+    echo "  removed $rel (no longer in source)"
+  done < "$MANIFEST"
+fi
+printf '%s\n' "${!current_rels[@]}" | sort > "$MANIFEST"
 
 # 4) Install the shared detect-forge.sh helper the forge-agnostic commands source.
 mkdir -p "$(dirname "$LIB_DEST")"
