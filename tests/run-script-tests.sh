@@ -1085,6 +1085,82 @@ assert_equals "$ec" "2" "unreadable concerns file → exit 2"
 ec="$(run_capture_ec env HEAD_REF=x ITERATION=1 bash "$SELF_FIX_PR" 99 "$CONCERNS")"
 assert_equals "$ec" "2" "missing REPO → exit 2"
 
+section "self-fix-loop — bounded fix→re-review cycles"
+
+SELF_FIX_LOOP="$ROOT/scripts/self-fix-loop.sh"
+FIX_STUB="$MOCKS/self-fix-loop-fix-stub"
+REVIEW_STUB="$MOCKS/self-fix-loop-review-stub"
+
+LOOP_CONCERNS="$(mktemp --suffix=.json)"
+printf '{"verdict":"request_changes","summary":"x","concerns":[]}' > "$LOOP_CONCERNS"
+
+loop_run() {
+  # args: <fix-log> <review-verdicts-csv> [extra env assignments...]
+  local fix_log="$1" verdicts="$2"; shift 2
+  local go; go="$(mktemp)"
+  GITHUB_OUTPUT="$go" \
+  PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+  INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" \
+  MAX_ITERATIONS=3 \
+  FIX_CMD="$FIX_STUB" FIX_LOG="$fix_log" \
+  REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS="$verdicts" \
+  NEW_HEAD_SHA=newsha \
+  "$@" \
+    bash "$SELF_FIX_LOOP" >/dev/null
+  cat "$go"
+  rm -f "$go"
+}
+
+# Fix succeeds, second re-review approves → stop at iteration 2
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'request_changes,approve')"
+assert_contains "$out" 'verdict=approve'   "fix→approve within cap → verdict=approve"
+assert_contains "$out" 'iterations-used=2' "stops at iteration 2 (the approving one)"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$(printf '%s\n' "$fix_calls" | grep -c .)" "2" "FIX_CMD invoked exactly twice"
+
+# Cap exhausted without approve
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'request_changes,request_changes,request_changes')"
+assert_contains "$out" 'verdict=request_changes' "cap exhausted → final verdict still request_changes"
+assert_contains "$out" 'iterations-used=3'        "used all 3 iterations"
+rm -f "$LOG"
+
+# Fix succeeds but re-review blocks → stop immediately, don't burn remaining iterations
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'block')"
+assert_contains "$out" 'verdict=block'      "re-review block → stops with verdict=block"
+assert_contains "$out" 'iterations-used=1'  "stops after 1 iteration on block"
+rm -f "$LOG"
+
+# FIX_CMD itself fails → loop aborts, keeps last known verdict, 0 completed iterations
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'approve' env FIX_FAIL=1)"
+assert_contains "$out" 'verdict=request_changes' "FIX_CMD failure → verdict stays at INITIAL_VERDICT"
+assert_contains "$out" 'iterations-used=0'        "FIX_CMD failure on first attempt → 0 completed iterations"
+rm -f "$LOG"
+
+# Stub verdict sequence path (Layer-2 test seam) — bypasses FIX_CMD/REVIEW_SCRIPT entirely
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes MAX_ITERATIONS=3 \
+STUB_VERDICT_SEQUENCE='request_changes,approve' \
+  bash "$SELF_FIX_LOOP" >/dev/null
+out="$(cat "$go")"; rm -f "$go"
+assert_contains "$out" 'verdict=approve'   "stub sequence → verdict=approve"
+assert_contains "$out" 'iterations-used=2' "stub sequence consumes 2 entries"
+
+# Error paths
+ec="$(run_capture_ec env REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "missing PR_NUMBER → exit 2"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=0 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "MAX_ITERATIONS=0 → exit 2"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes MAX_ITERATIONS=2 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "missing CONCERNS_FILE (no STUB_VERDICT_SEQUENCE) → exit 2"
+
 section "find-pipeline-pr — discover the draft PR opened for an issue"
 
 FIND_PR="$ROOT/scripts/find-pipeline-pr.sh"
