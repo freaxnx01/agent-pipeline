@@ -11,6 +11,9 @@
 #   REPO        owner/repo
 #   HEAD_REF    PR head branch name — checked out and pushed to
 #   ITERATION   integer, used in the commit message
+#   GH_TOKEN    Required unless SKIP_CLONE=1. Injected into the clone's
+#               remote URL so `git push` has credentials — `gh repo clone`
+#               does not write a credential.helper into the fresh clone.
 #
 # Optional environment variables:
 #   FIX_AGENT_CMD     Override the agent invocation. Contract:
@@ -19,7 +22,10 @@
 #                     resolves to <script-dir>/lib/agent-cmd-claude-fix.sh.
 #   MODEL             Model id passed to FIX_AGENT_CMD.
 #   PROMPT_TEMPLATE   Override path to lib/self-fix-prompt.md.
-#   WORK_DIR          Directory to operate in. Default: mktemp -d.
+#   WORK_DIR          Directory to operate in. Default: mktemp -d, removed
+#                     on exit. Caller-supplied WORK_DIR is never deleted
+#                     (Layer-1 tests pass it explicitly and assert against
+#                     it after the script returns).
 #   SKIP_CLONE        "1" to skip `gh repo clone` / `git fetch` and operate
 #                     directly in WORK_DIR (already a checked-out git repo
 #                     on HEAD_REF). Used by Layer-1 tests.
@@ -64,12 +70,26 @@ if [[ ! -r "$PROMPT_TEMPLATE" ]]; then
   exit 2
 fi
 
-WORK_DIR="${WORK_DIR:-$(mktemp -d)}"
+WORK_DIR_SUPPLIED=1
+if [[ -z "${WORK_DIR:-}" ]]; then
+  WORK_DIR_SUPPLIED=0
+  WORK_DIR="$(mktemp -d)"
+fi
 PROMPT_FILE="$(mktemp)"
+
+if [[ "$WORK_DIR_SUPPLIED" == "0" ]]; then
+  trap 'rm -rf "$WORK_DIR"' EXIT
+fi
 
 if [[ "${SKIP_CLONE:-0}" != "1" ]]; then
   gh repo clone "$REPO" "$WORK_DIR" -- --quiet
   ( cd "$WORK_DIR" && git fetch --quiet origin "$HEAD_REF" && git checkout --quiet "$HEAD_REF" )
+  # `gh repo clone` does not persist push credentials into the clone's
+  # .git/config (no credential.helper entry) -- without this, `git push`
+  # below has no credentials on a real runner. Inject the token into the
+  # remote URL instead. Never log it (no set -x, no echoing the URL).
+  : "${GH_TOKEN:?GH_TOKEN must be set to push (or GITHUB_TOKEN via gh env)}"
+  ( cd "$WORK_DIR" && git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" )
 fi
 
 concerns_md="$(jq -r '.concerns[] | "- **\(.severity)**: \(.message)"' "$CONCERNS_FILE" 2>/dev/null || true)"
@@ -79,7 +99,7 @@ awk -v repo="$REPO" -v pr="$PR_NUMBER" -v ref="$HEAD_REF" -v concerns="$concerns
   {
     gsub(/\{\{REPO\}\}/, repo)
     gsub(/\{\{PR_NUMBER\}\}/, pr)
-    gsub(/\{\{HEAD_SHA\}\}/, ref)
+    gsub(/\{\{HEAD_REF\}\}/, ref)
     if (index($0, "{{CONCERNS}}")) {
       print concerns
     } else {
@@ -104,7 +124,7 @@ if [[ -z "$( cd "$WORK_DIR" && git status --porcelain )" ]]; then
   exit 1
 fi
 
-( cd "$WORK_DIR" && git add -A && git commit --quiet -m "address self-review (iteration $ITERATION)" )
+( cd "$WORK_DIR" && git add -A && git -c user.name='github-actions[bot]' -c user.email='github-actions[bot]@users.noreply.github.com' commit --quiet -m "address self-review (iteration $ITERATION)" )
 
 if [[ "${SKIP_PUSH:-0}" != "1" ]]; then
   ( cd "$WORK_DIR" && git push --quiet origin "HEAD:$HEAD_REF" )

@@ -1085,6 +1085,35 @@ assert_equals "$ec" "2" "unreadable concerns file → exit 2"
 ec="$(run_capture_ec env HEAD_REF=x ITERATION=1 bash "$SELF_FIX_PR" 99 "$CONCERNS")"
 assert_equals "$ec" "2" "missing REPO → exit 2"
 
+# Real self-fix-pr.sh, no ambient git identity (repo has none, global/system
+# config nulled out) — locks in the `-c user.name=... -c user.email=...`
+# fix on the commit call (#81 review finding 2): on a real runner, a fresh
+# `gh repo clone` has no identity configured and a bare `git commit` fails
+# with "fatal: empty ident name".
+make_self_fix_repo_no_identity() {
+  local dir; dir="$(mktemp -d)"
+  git -C "$dir" init --quiet -b main
+  printf 'hello\n' > "$dir/file.txt"
+  git -C "$dir" add file.txt
+  # Identity for the *setup* commit only, passed via -c so it never lands
+  # in the repo's own .git/config — the repo genuinely has no ambient
+  # identity afterward.
+  git -C "$dir" -c user.email=setup@example.com -c user.name=setup \
+    commit --quiet -m init
+  printf '%s' "$dir"
+}
+
+REPO_DIR="$(make_self_fix_repo_no_identity)"
+out="$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+       WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "no ambient git identity → commit still succeeds (fixed=true)"
+commit_msg="$(git -C "$REPO_DIR" log -1 --format=%s)"
+assert_equals "$commit_msg" "address self-review (iteration 1)" "no ambient git identity → correct commit message"
+rm -rf "$REPO_DIR"
+
 section "self-fix-loop — bounded fix→re-review cycles"
 
 SELF_FIX_LOOP="$ROOT/scripts/self-fix-loop.sh"
