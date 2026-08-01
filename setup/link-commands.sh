@@ -30,6 +30,8 @@ REPO_URL="https://github.com/freaxnx01/agent-workflow.git"
 REPO_DIR="$HOME/repos/github/freaxnx01/public/agent-workflow"
 SRC_DIR="$REPO_DIR/commands"
 DEST_DIR="$HOME/.claude/commands"
+LIB_SRC="$REPO_DIR/scripts/lib/detect-forge.sh"
+LIB_DEST="$HOME/.claude/scripts/lib/detect-forge.sh"
 
 mode="copy"
 sync=1
@@ -73,5 +75,16 @@ while IFS= read -r f; do
     echo "  linked  $rel"
   fi
 done < <(find "$SRC_DIR" -type f -name '*.md')
+
+# 4) Install the shared detect-forge.sh helper the forge-agnostic commands source.
+mkdir -p "$(dirname "$LIB_DEST")"
+if [ "$mode" = "copy" ]; then
+  rm -f "$LIB_DEST"        # dest may be a symlink from a prior install → cp would error
+  cp -f "$LIB_SRC" "$LIB_DEST"
+  echo "  copied  scripts/lib/detect-forge.sh"
+else
+  ln -sfn "$LIB_SRC" "$LIB_DEST"
+  echo "  linked  scripts/lib/detect-forge.sh"
+fi
 
 echo "✓ done — agent-workflow console commands installed (e.g. /gh:enrich, /route, /capture-idea)"

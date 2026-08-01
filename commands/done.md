@@ -1,38 +1,61 @@
 ---
-description: Recently implemented (closed) issues — auto-routes to GitHub or Forgejo by remote
+description: Recently implemented (closed) issues
 ---
 
-Route to the forge-specific **done** command based on the `origin` remote host, then
-follow it exactly. This command holds no query logic of its own — `/gh:done` and
-`/fj:done` remain the single source of truth.
-
-## Detect the forge (generic host-matching)
+Detect the forge, then run the matching section below.
 
 ```bash
-# Host from origin, handling https://, ssh://, and scp-style git@host:path remotes
-host=$(git remote get-url origin 2>/dev/null | sed -E 's#^[a-zA-Z]+://##; s#^[^@/]*@##; s#[:/].*##')
-if gh auth token --hostname "$host" >/dev/null 2>&1; then
-  echo "github  ($host)"     # a GitHub / GHES host gh is logged into
-elif tea logins list 2>/dev/null | grep -qiF "$host"; then
-  echo "forgejo ($host)"     # matches a tea (Forgejo/Gitea) login
-elif [ "$host" = "github.com" ]; then
-  echo "github  ($host)"     # fallback: canonical GitHub host, even if gh isn't authed
-else
-  echo "unknown ($host)"
-fi
+source "$HOME/.claude/scripts/lib/detect-forge.sh"
+detect_forge
 ```
 
-## Then
+## GitHub
 
-- **github** → read and follow `~/.claude/commands/gh/done.md` (i.e. run `/gh:done`).
-- **forgejo** → read and follow `~/.claude/commands/fj/done.md` (i.e. run `/fj:done`).
-- **unknown** → report the detected host and that no authed GitHub or Forgejo login
-  matched it; point at `gh auth login` / `tea login add`. Don't guess a forge.
+List recently implemented issues — closed issues, most recently closed first:
 
-Announce the chosen forge in one line (e.g. `→ GitHub (github.com)`), then produce
-that command's table — nothing else.
+`gh issue list --state closed --limit 30 --json number,title,closedAt,labels,stateReason --jq 'sort_by(.closedAt) | reverse'`
 
----
+Prefer issues closed as **completed** (`stateReason` = `COMPLETED`); list any that
+were closed **not planned** separately at the end. Compact table: number, title,
+when closed (relative), labels. Concise.
 
-If detection misfires (new host, an SSH `Host` alias that hides the real domain,
-`gh`/`tea` not on PATH), fix the snippet here and update this command for the future.
+## Forgejo
+
+List recently implemented issues in the current Forgejo repo — closed issues, most
+recently closed first.
+
+### Forgejo access
+
+Target the homelab Forgejo (`git.home.freaxnx01.ch`) via **`tea`** (login
+`git-home`). `tea issues list --state closed` works from inside the clone:
+
+```bash
+tea issues list --login git-home --state closed --fields index,title,updated,labels 2>/dev/null
+```
+
+For precise "closed at" ordering, query the API and sort by `closed_at`:
+
+```bash
+url=$(git remote get-url origin); url=${url%.git}
+repo=$(echo "$url" | sed -E 's#.*[:/]([^/]+/[^/]+)$#\1#')
+tea api --login git-home "repos/$repo/issues?state=closed&type=issues&limit=30&sort=updated&order=desc" \
+  | python3 -c '
+import sys,json
+rows=[i for i in json.load(sys.stdin)]
+rows.sort(key=lambda i:i.get("closed_at") or "", reverse=True)
+for i in rows:
+    labels=[l["name"] for l in i.get("labels") or []]
+    print(i["number"],"|",i["title"],"|",i.get("closed_at"),"|",",".join(labels) or "-")'
+```
+
+> **Forgejo has no `stateReason`** (no GitHub-style "completed" vs "not planned"
+> distinction) — a closed issue is just closed. So, unlike `/done`, this can't
+> split completed from not-planned. If you need that signal, infer it from labels
+> (e.g. a `wontfix`/`duplicate` label) and list those separately.
+
+Compact table: number, title, when closed (relative), labels. Concise.
+
+## Unknown host
+
+Report the detected host and that no authed GitHub or Forgejo login matched
+it; point at `gh auth login` / `tea login add`. Don't guess a forge.

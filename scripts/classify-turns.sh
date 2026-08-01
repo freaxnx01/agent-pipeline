@@ -6,7 +6,7 @@
 #   1. Explicit override via a `turns:<N>` label on the issue (N one of
 #      50/80/120/160). This always wins.
 #   2. Heuristic over the issue body — counts `### Task` headings under an
-#      `## Implementation Plan` section (the shape /gh:enrich writes). More
+#      `## Implementation Plan` section (the shape /enrich writes). More
 #      tasks means more file edits + test runs + a regression pass before
 #      the agent can commit/push/open a PR, so it needs a bigger budget.
 #      An issue with no Implementation Plan section (not enriched, or a

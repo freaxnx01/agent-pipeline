@@ -1,38 +1,74 @@
 ---
-description: List PRs awaiting review — auto-routes to GitHub or Forgejo by remote
+description: List pull requests awaiting review
 ---
 
-Route to the forge-specific **prs** command based on the `origin` remote host, then
-follow it exactly. This command holds no query logic of its own — `/gh:prs` and
-`/fj:prs` remain the single source of truth.
-
-## Detect the forge (generic host-matching)
+Detect the forge, then run the matching section below.
 
 ```bash
-# Host from origin, handling https://, ssh://, and scp-style git@host:path remotes
-host=$(git remote get-url origin 2>/dev/null | sed -E 's#^[a-zA-Z]+://##; s#^[^@/]*@##; s#[:/].*##')
-if gh auth token --hostname "$host" >/dev/null 2>&1; then
-  echo "github  ($host)"     # a GitHub / GHES host gh is logged into
-elif tea logins list 2>/dev/null | grep -qiF "$host"; then
-  echo "forgejo ($host)"     # matches a tea (Forgejo/Gitea) login
-elif [ "$host" = "github.com" ]; then
-  echo "github  ($host)"     # fallback: canonical GitHub host, even if gh isn't authed
-else
-  echo "unknown ($host)"
-fi
+source "$HOME/.claude/scripts/lib/detect-forge.sh"
+detect_forge
 ```
 
-## Then
+## GitHub
 
-- **github** → read and follow `~/.claude/commands/gh/prs.md` (i.e. run `/gh:prs`).
-- **forgejo** → read and follow `~/.claude/commands/fj/prs.md` (i.e. run `/fj:prs`).
-- **unknown** → report the detected host and that no authed GitHub or Forgejo login
-  matched it; point at `gh auth login` / `tea login add`. Don't guess a forge.
+Show open pull requests that need review in the current repo.
 
-Announce the chosen forge in one line (e.g. `→ GitHub (github.com)`), then produce
-that command's table — nothing else.
+- **My review requested** (priority):
+  `gh pr list --state open --search "review-requested:@me" --json number,title,author,createdAt,reviewDecision`
+- **Also awaiting review** — other open PRs not authored by me with
+  `reviewDecision` of `REVIEW_REQUIRED` or empty, so nothing slips through.
 
----
+Compact table: number, title, author, age, review state. Exclude drafts unless
+that's all there is. If none, say so.
 
-If detection misfires (new host, an SSH `Host` alias that hides the real domain,
-`gh`/`tea` not on PATH), fix the snippet here and update this command for the future.
+## Forgejo
+
+Show open pull requests that need review in the current Forgejo repo.
+
+### Forgejo access
+
+Target the homelab Forgejo (`git.home.freaxnx01.ch`) via **`tea`** (login
+`git-home`). Resolve `owner/name` from the remote for `tea api`:
+
+```bash
+url=$(git remote get-url origin); url=${url%.git}
+repo=$(echo "$url" | sed -E 's#.*[:/]([^/]+/[^/]+)$#\1#')
+me=$(tea api --login git-home user 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin)["login"])')
+```
+
+### Approach
+
+Forgejo has no GitHub `reviewDecision` / `review-requested:@me` search. Derive the
+two buckets from the open PRs and their `requested_reviewers`:
+
+```bash
+tea api --login git-home "repos/$repo/pulls?state=open&limit=50&type=pulls" \
+  | python3 -c "
+import sys,json
+me='$me'
+prs=json.load(sys.stdin)
+mine=[]; other=[]
+for p in prs:
+    if p.get('draft'): continue
+    rr=[u.get('login') for u in (p.get('requested_reviewers') or [])]
+    row=(p['number'], p['title'], (p.get('user') or {}).get('login','?'), p.get('created_at'))
+    (mine if me in rr else other).append(row)
+print('## My review requested')
+for r in mine or [('—','none','','')]: print(*r, sep=' | ')
+print('## Also awaiting review')
+for r in other or [('—','none','','')]: print(*r, sep=' | ')
+"
+```
+
+> If a PR has **no** requested reviewers and isn't authored by you, surface it under
+> "also awaiting review" so nothing slips through. Forgejo also exposes per-PR
+> review state via `repos/$repo/pulls/<n>/reviews` if you need approve/changes
+> status — fetch it only when it matters, not for every PR in the list.
+
+Compact table: number, title, author, age, bucket. Exclude drafts unless that's all
+there is (agent/WIP PRs are often drafts). If none, say so.
+
+## Unknown host
+
+Report the detected host and that no authed GitHub or Forgejo login matched
+it; point at `gh auth login` / `tea login add`. Don't guess a forge.
