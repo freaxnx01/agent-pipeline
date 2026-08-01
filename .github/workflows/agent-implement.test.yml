@@ -387,7 +387,7 @@ jobs:
     name: Reusable workflow — pre-preview self-fix cap exhausted
     uses: ./.github/workflows/agent-implement.yml
     with:
-      issue-number: 9011
+      issue-number: 9014
       timeout-minutes: 10
       local-scripts: true
       stub-claude: true
