@@ -46,12 +46,15 @@ design sections, spec self-review, user approval gate).
 After brainstorming exits, invoke **superpowers:writing-plans** to produce the
 full task-by-task plan at `<plans-dir>/YYYY-MM-DD-<topic>.md` and commit it.
 
-**Do not stop at writing-plans' own handoff prompt.** That skill ends by asking
-"Subagent-Driven or Inline Execution?" — that is writing-plans' generic ending,
-not the end of `/enrich`. Do not execute the plan and do not wait for an
-answer to that question here. Treat the plan as written the moment the skill
-exits, and continue straight to Step 5 — pushing the files and writing the plan
-into the issue body is still required, always.
+**Do not stop at writing-plans' own handoff prompt — don't even print it.**
+That skill ends by asking "Subagent-Driven or Inline Execution?"; that is
+writing-plans' generic ending, not the end of `/enrich`. `/enrich`'s own
+execution model is neither of those — the plan goes into the issue body and
+gets dispatched via the `ai-implement` label (Step 6), not run locally. So
+suppress that question entirely: don't ask it, don't wait for an answer, don't
+execute the plan. Treat the plan as written the moment writing-plans exits,
+and continue straight to Step 5 — pushing the files and writing the plan into
+the issue body is still required, always.
 
 #### Picking `<specs-dir>` / `<plans-dir>` — check gitignore first
 
@@ -190,12 +193,15 @@ approaches, design sections, spec self-review, user approval gate).
 After brainstorming exits, invoke **superpowers:writing-plans** to produce the full
 task-by-task plan in a tracked plans dir and commit it.
 
-**Do not stop at writing-plans' own handoff prompt.** That skill ends by asking
-"Subagent-Driven or Inline Execution?" — that is writing-plans' generic ending,
-not the end of `/enrich`. Do not execute the plan and do not wait for an
-answer to that question here. Treat the plan as written the moment the skill
-exits, and continue straight to Step 5 — pushing the files and writing the plan
-into the issue body is still required, always.
+**Do not stop at writing-plans' own handoff prompt — don't even print it.**
+That skill ends by asking "Subagent-Driven or Inline Execution?"; that is
+writing-plans' generic ending, not the end of `/enrich`. `/enrich`'s own
+execution model is neither of those — the plan goes into the issue body and
+gets dispatched via the `ai-implement` label (Step 6), not run locally. So
+suppress that question entirely: don't ask it, don't wait for an answer, don't
+execute the plan. Treat the plan as written the moment writing-plans exits,
+and continue straight to Step 5 — pushing the files and writing the plan into
+the issue body is still required, always.
 
 ### Step 5 — Push to remote
 

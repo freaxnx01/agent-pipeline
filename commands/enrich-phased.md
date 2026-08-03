@@ -55,9 +55,11 @@ Then dispatch to the matching phase below.
 2. Invoke **superpowers:writing-plans** to produce the task-by-task implementation
    plan in the repo's tracked plans dir. Commit it and record `plan=<path>`.
    **Do not stop at writing-plans' own "Subagent-Driven or Inline Execution?"
-   handoff prompt** — that's the skill's generic ending, not this phase's. Do not
-   execute the plan; treat it as written the moment the skill exits and continue
-   to step 3.
+   handoff prompt — don't even print it.** That's the skill's generic ending, not
+   this phase's; `/enrich-phased` dispatches via the issue body + `ai-implement`
+   label, not local execution. Suppress the question entirely: don't ask it,
+   don't wait for an answer, don't execute the plan. Treat it as written the
+   moment the skill exits and continue to step 3.
 3. **Push** so both spec and plan are on the remote (the agent-workflow checks them
    out): `git push`. Verify it succeeded.
 4. **Phase boundary:** set `phase=issue`, hand off, stop.
@@ -184,9 +186,11 @@ Then dispatch to the matching phase below.
 2. Invoke **superpowers:writing-plans** to produce the task-by-task plan in the
    repo's tracked plans dir. Commit it and record `plan=<path>`.
    **Do not stop at writing-plans' own "Subagent-Driven or Inline Execution?"
-   handoff prompt** — that's the skill's generic ending, not this phase's. Do not
-   execute the plan; treat it as written the moment the skill exits and continue
-   to step 3.
+   handoff prompt — don't even print it.** That's the skill's generic ending, not
+   this phase's; `/enrich-phased` dispatches via the issue body + `ai-implement`
+   label, not local execution. Suppress the question entirely: don't ask it,
+   don't wait for an answer, don't execute the plan. Treat it as written the
+   moment the skill exits and continue to step 3.
 3. **Push** so both spec and plan are on the remote: `git push`. Verify it succeeded.
 4. **Phase boundary:** set `phase=issue`, hand off, stop.
 
