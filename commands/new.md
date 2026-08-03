@@ -14,20 +14,22 @@ detect_forge
 
 Create a GitHub issue in the current repo with `gh issue create`.
 
-- **Title**: a concise summary derived from my notes.
+- **Title**: `<type>(<scope>): <concise summary>` per ai-instructions'
+  [Issue Title Conventions](https://github.com/freaxnx01/ai-instructions/blob/main/.ai/base-instructions.md#issue-title-conventions)
+  — same Conventional Commits format as this org's commits/PR titles.
+  Classify my notes as `feat` (a new capability — "add", "support for", a new
+  mode/screen/entry point), `fix` (something is broken, wrong, or behaves
+  unexpectedly and should be corrected), or `chore` (maintenance — refactor,
+  docs, cleanup, tooling, deps); `test`/`ci`/`perf` apply too if that's what
+  the notes describe. This is a judgment call on what the notes actually
+  describe, not a keyword match. `<scope>` is optional — include it when
+  there's an obvious one, omit it (`type: summary`, no parens) when there
+  isn't. Don't add a `type:*` label for this — the title prefix is the whole
+  signal, see the linked convention.
 - **Body**: my notes, lightly cleaned up — keep my meaning, don't invent scope or
   pad. Add a short context line only if it's obvious from the repo.
 - **Label**: `needs-enrichment` (always). If that label doesn't exist yet, create
   it first (`gh label create needs-enrichment` with a sensible color), then retry.
-- **Type label**: classify my notes as `type:feat` (a new capability — "add",
-  "support for", a new mode/screen/entry point), `type:fix` (something is
-  broken, wrong, or behaves unexpectedly and should be corrected), or
-  `type:chore` (maintenance — refactor, docs, cleanup, tooling, deps) — this is
-  a judgment call on what the notes actually describe, not a keyword match.
-  Check whether that label exists in the target repo first
-  (`gh label list --search "type:"`); if it does, add it alongside
-  `needs-enrichment`. If none of the three exist there, this repo hasn't
-  adopted the convention — skip it silently, don't create it.
 - **Milestone**: only if my notes name one — then pass it as `-m "<name>"`. If that
   milestone doesn't exist yet, **ask** me before creating it (and ask for a due
   date); never create one silently. If I give no due date, omit `-f due_on=…`
@@ -42,8 +44,8 @@ Write the cleaned-up notes to a temp file first (`mktemp`) — `--body-file` nee
 path, not inline text — then pass it as `<notes-file>`:
 
 ```bash
-gh issue create --title "<concise title>" --body-file <notes-file> \
-  --label needs-enrichment [--label "type:<feat|fix|chore>"] [-m "<milestone>"]
+gh issue create --title "<type>(<scope>): <concise title>" --body-file <notes-file> \
+  --label needs-enrichment [-m "<milestone>"]
 ```
 
 After creating, print the issue number, title, and URL — **read back** rather than
@@ -61,16 +63,12 @@ $ARGUMENTS
 
 Create an issue in the current Forgejo repo with **`tea`** (login `git-home`).
 
-- **Title**: a concise summary derived from my notes.
+- **Title**: `<type>(<scope>): <concise summary>` — same classification and
+  format as the GitHub section above.
 - **Body**: my notes, lightly cleaned up — keep my meaning, don't invent scope or
   pad. Add a short context line only if it's obvious from the repo.
 - **Label**: `needs-enrichment` (always). If that label doesn't exist yet, create it
   first, then retry.
-- **Type label**: same classification as the GitHub section — `type:feat` /
-  `type:fix` / `type:chore`, a judgment call on what the notes describe. Check
-  `tea labels list --login git-home` (repo path per the `tea api` note below)
-  for a `type:` label first; if none exist, this repo hasn't adopted the
-  convention — skip it silently, don't create it.
 - **Milestone**: only if my notes name one — then pass it as `-m "<name>"`. If that
   milestone doesn't exist yet, **ask** me before creating it (and ask for a due
   date, via `tea milestones create --login git-home --title … --deadline …`); never
@@ -86,9 +84,9 @@ tea labels create --login git-home --name needs-enrichment --color "#d4c5f9" \
 
 # create the issue — NOTE: tea uses --description / -d for the body (not --body)
 tea issues create --login git-home \
-  --title "<concise title>" \
+  --title "<type>(<scope>): <concise title>" \
   --description "<cleaned-up notes>" \
-  --labels needs-enrichment[,type:<feat|fix|chore>]  # type: only if it exists here \
+  --labels needs-enrichment \
   -m "<milestone>"            # only when my notes named one
 ```
 
