@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.1](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.11.1) - 2026-08-03
+
+### Fixed
+
+- **classify-task:** Don't escalate to claude-* models for non-claude agents
+
 ## [1.11.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.11.0) - 2026-07-27
 
 ### Added
