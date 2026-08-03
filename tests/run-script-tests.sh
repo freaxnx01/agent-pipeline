@@ -374,6 +374,28 @@ out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' \
        ISSUE_BODY='Fix typo in the README' bash "$CLASSIFY")"
 assert_contains "$out" 'claude-haiku-4-5 (heuristic: trivial-edit keywords)' "typo keyword → haiku"
 
+# Heuristic escalation is Claude-only: refactor/architecture keywords must
+# NOT hand a non-Claude agent a claude-* model id (opencode/OpenRouter has
+# no such model and dies at zero tokens) — falls back to DEFAULT_MODEL.
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode ISSUE_LABELS='ai-implement' \
+       ISSUE_BODY='Refactor the auth middleware' DEFAULT_MODEL=z-ai/glm-5.2 bash "$CLASSIFY")"
+assert_contains "$out" 'z-ai/glm-5.2 (heuristic: default (AGENT=opencode' \
+  "refactor keyword + agent=opencode → DEFAULT_MODEL, not claude-opus-5"
+
+# Same for the trivial-edit branch.
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode ISSUE_LABELS='ai-implement' \
+       ISSUE_BODY='Fix typo in the README' DEFAULT_MODEL=z-ai/glm-5.2 bash "$CLASSIFY")"
+assert_contains "$out" 'z-ai/glm-5.2 (heuristic: default (AGENT=opencode' \
+  "typo keyword + agent=opencode → DEFAULT_MODEL, not claude-haiku-4-5"
+
+# An explicit OpenRouter override label still wins over the AGENT=opencode
+# fallback above (override path is untouched by this fix).
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode \
+       ISSUE_LABELS=$'ai-implement\nmodel:qwen3-coder' \
+       ISSUE_BODY='Refactor the auth middleware' bash "$CLASSIFY")"
+assert_contains "$out" 'chosen: qwen/qwen3-coder-30b-a3b-instruct (label model:qwen3-coder)' \
+  "override label still wins over agent=opencode heuristic fallback"
+
 # Default: nothing matches
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' \
        ISSUE_BODY='Add a hello.md file' bash "$CLASSIFY")"
