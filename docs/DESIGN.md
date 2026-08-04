@@ -1,7 +1,7 @@
 # Claude Pipeline — Design Notes for Implementation
 
 > Handoff from desktop brainstorming (April 2026) to local Claude Code session.
-> Drop this file into the new `freaxnx01/agent-pipeline` repo as `docs/DESIGN.md`
+> Drop this file into the new `freaxnx01/agent-workflow` repo as `docs/DESIGN.md`
 > or similar, and reference it from CLAUDE.md so future sessions stay aligned.
 >
 > Brainstorming transcript: <https://claude.ai/share/3f06e2d3-2b65-4b64-87a6-81d6715005f7>
@@ -18,6 +18,10 @@ subscription, your model choices, and your existing `dotnet-ai-instructions` con
 ## Scope
 
 - **Personal repos only.** Work repos (`anim-bossinfo-ch`) are out of scope for now.
+- **CI side *and* operator console.** This repo owns both the CI implementation
+  (`.github/workflows`, `scripts`, fixtures) **and** the user-level slash-command
+  console (`commands/`) you drive the pipeline with — forge-agnostic across GitHub
+  Actions (now) and Forgejo Actions (later). See ADR-005.
 - **Modes #0 and #1 only.** Mode #2 (Copilot Coding Agent) is deferred — not needed
   for personal use, since the focus is on the Claude ecosystem.
 - **Mode #0**: do it now locally, no delegation. The skill must support deciding this.
@@ -28,7 +32,7 @@ subscription, your model choices, and your existing `dotnet-ai-instructions` con
 ### Three repos, distinct concerns
 
 ```text
-freaxnx01/agent-pipeline       # NEW — the CI side (workflows, scripts, fixtures, docs)
+freaxnx01/agent-workflow       # the pipeline end-to-end: CI side (workflows, scripts, fixtures, docs) + operator console (commands/)
 freaxnx01/dotnet-ai-instructions # EXISTING — local Claude Code stack, /sync-ai-instr
 freaxnx01/<homelab-ansible>      # EXISTING — add github-actions-runner role here
 ```
@@ -38,13 +42,13 @@ stub via `/sync-ai-instr`.
 
 ### Reusable workflow pattern
 
-`agent-pipeline` exposes a single reusable workflow that consumer repos call:
+`agent-workflow` exposes a single reusable workflow that consumer repos call:
 
 ```yaml
 # In consumer repo: .github/workflows/agent.yml
 jobs:
   claude:
-    uses: freaxnx01/agent-pipeline/.github/workflows/agent-implement.yml@v1
+    uses: freaxnx01/agent-workflow/.github/workflows/agent-implement.yml@v1
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     with:
@@ -56,7 +60,7 @@ This means:
 
 - Single source of truth for the pipeline logic
 - Each consumer repo has a tiny stub (good for `/sync-ai-instr`)
-- `agent-pipeline` must be **public** (or accessible via PAT) for FlowHub (public) to call it
+- `agent-workflow` must be **public** (or accessible via PAT) for FlowHub (public) to call it
 
 ### Runner strategy
 
@@ -69,7 +73,7 @@ This means:
 Fork-PR attack surface is unacceptable. FlowHub stays GitHub-hosted permanently.
 
 The self-hosted LXC runner is provisioned via a new Ansible role in the existing
-homelab Ansible repo (`roles/github-actions-runner/`), not in `agent-pipeline` itself.
+homelab Ansible repo (`roles/github-actions-runner/`), not in `agent-workflow` itself.
 Treat it like any other homelab service.
 
 ### Runner toolchain (both hosted and self-hosted)
@@ -152,14 +156,15 @@ For self-hosted runners: sleeping during rate-limit waits is free. For GitHub-ho
 (FlowHub): minutes are unlimited on public repos, also free. Pattern A from the
 brainstorm (self-rescheduling) is fine for both.
 
-## Repo structure for agent-pipeline
+## Repo structure for agent-workflow
 
 ```text
-agent-pipeline/
+agent-workflow/
 ├── .github/workflows/
 │   ├── agent-implement.yml         # the reusable workflow consumers call
 │   ├── agent-implement.test.yml    # stubbed Claude step, for act-based testing
 │   └── lint.yml                     # actionlint + shellcheck on PRs
+├── commands/                        # user-level operator console (routers, gh/, fj/) — linked into ~/.claude/commands/
 ├── scripts/
 │   ├── classify-failure.sh          # rate_limit | transient | task_failure | bug
 │   ├── classify-task.sh             # haiku triage: opus | sonnet | haiku
@@ -195,7 +200,7 @@ Strict order. Don't skip ahead.
 
 ### Phase 1: Foundations (Layer 0/1 testing)
 
-1. Create `agent-pipeline` repo (private at first; flip public when stable)
+1. Create `agent-workflow` repo (private at first; flip public when stable)
 2. Set up `actionlint` + `shellcheck` lint workflow
 3. Build `scripts/post-run-report.sh` with extracted bash, env-driven
 4. Build fixture set (~6 JSON files covering success/failure/edge cases)

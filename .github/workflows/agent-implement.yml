@@ -15,6 +15,19 @@ on:
         description: Model used when no `model:*` label is present on the issue.
         type: string
         default: claude-sonnet-5
+      review-model:
+        description: |
+          Model used for the agent review step in auto_review (ADR-002) and
+          pre_preview (ADR-004) — deliberately independent of the
+          implementation model. A stronger review model than the
+          implementation model is a reasonable default: reviewing an
+          existing diff for correctness/AC-coverage is a different task
+          than writing it, and catching a real bug (as happened reviewing
+          game-tschau-sepp#9 manually) benefits from the more careful model.
+          Empty string uses the `claude` CLI's own default instead of
+          passing --model.
+        type: string
+        default: claude-opus-5
       agent:
         description: |
           Which agent runs the implementation. One of `claude` or `opencode`.
@@ -28,14 +41,37 @@ on:
         description: Hard cap on the implementation job runtime.
         type: number
         default: 30
+      max-turns:
+        description: |
+          Default hard cap on Claude Code tool-use turns for the implement
+          step, used when the issue carries no `turns:<N>` label. A
+          `turns:50|80|120|160` label on the issue always overrides this
+          (classify-turns.sh); absent an override label, the same script
+          also sizes up automatically from the issue body's Implementation
+          Plan task count. Raise this repo-wide default for consumers whose
+          issues routinely need more than 50 turns (multiple files, several
+          edit locations in one file) to fully implement, test, commit, and
+          open a PR in one run.
+
+          Tuned from one real run (game-tschau-sepp#9): a 4-task enriched
+          plan actually used 110 turns to succeed after failing outright at
+          a 30-turn cap (all edits done, nothing committed). Thin evidence
+          (n=1), but running out loses all uncommitted work while
+          overshooting just costs a bit more compute — the tiers below
+          intentionally err generous.
+        type: number
+        default: 50
       pipeline-repo:
         description: |
-          Owner/repo for the agent-pipeline checkout that supplies shared
-          scripts. Defaults to the canonical 'freaxnx01/agent-pipeline'.
+          Owner/repo for the agent-workflow checkout that supplies shared
+          scripts. Defaults to the canonical 'freaxnx01/agent-workflow'.
           Override only for self-tests (the test workflow points this at the
           repo currently being PR-tested so it works on fork PRs and act).
         type: string
-        default: freaxnx01/agent-pipeline
+        # Transitional: freaxnx01/agent-workflow doesn't exist on GitHub until
+        # the rename lands (ADR-006) — actions/checkout would fail against it.
+        # Flip to freaxnx01/agent-workflow once the rename is verified.
+        default: freaxnx01/agent-workflow
       pipeline-ref:
         description: |
           Ref of `pipeline-repo` to check out for shared scripts. Defaults
@@ -144,6 +180,32 @@ on:
           suppressed).
         type: boolean
         default: false
+      self-fix:
+        description: |
+          Opt-in for pre-preview's self-fix pass (#81 / ADR-004
+          follow-up). When true AND the first review's verdict is
+          `request_changes`, the agent attempts up to
+          `self-fix-max-iterations` fix → re-review cycles before falling
+          back to the block path. Ignored when `pre-preview` is false, or
+          when the first verdict is `approve` (nothing to fix) or `block`
+          (the agent already refused — self-fix never runs after a block).
+        type: boolean
+        default: false
+      self-fix-max-iterations:
+        description: |
+          Hard cap on self-fix fix → re-review cycles. Only read when
+          `self-fix: true`. Never loop unbounded.
+        type: number
+        default: 2
+      stub-self-fix-verdict-sequence:
+        description: |
+          Test-only. Comma-separated verdicts (e.g.
+          "request_changes,approve") consumed one per iteration by
+          self-fix-loop.sh instead of really invoking the fix/re-review
+          scripts. Required for end-to-end act tests of the self-fix loop
+          under `stub-claude: true`.
+        type: string
+        default: ''
       pipeline-author-allowlist:
         description: |
           Newline-separated list of `pr.user.login` values the auto-merge
@@ -224,6 +286,12 @@ on:
           was invoked by the pre_preview job. True on the approve path.
           Populated only when `stub-review-verdict` is set.
         value: ${{ jobs.pre_preview.outputs.ready-attempted }}
+      pre-preview-self-fix-iterations-used:
+        description: |
+          Iterations actually used by the self-fix loop (0 if it never
+          ran). Populated only when `stub-review-verdict` /
+          `stub-self-fix-verdict-sequence` is set.
+        value: ${{ jobs.pre_preview.outputs.self-fix-iterations-used }}
 
 permissions:
   contents: read
@@ -249,6 +317,8 @@ jobs:
       retry-decision:      ${{ steps.retry.outputs.decision }}
       auto-review-enabled: ${{ steps.auto_review_gate.outputs.enabled || steps.auto_review_gate_stub.outputs.enabled }}
       pre-preview-enabled: ${{ steps.preview_gate.outputs.enabled || steps.preview_gate_stub.outputs.enabled }}
+      agent:               ${{ steps.classify_agent.outputs.agent || inputs.agent }}
+      model:               ${{ steps.triage.outputs.model || inputs.default-model }}
     env:
       # Optional GitHub App for PR creation (#55). Exposed as an env var so the
       # mint step's `if:` can test it (the `secrets` context isn't available in
@@ -273,7 +343,7 @@ jobs:
           app-id: ${{ secrets.PIPELINE_APP_ID }}
           private-key: ${{ secrets.PIPELINE_APP_PRIVATE_KEY }}
 
-      - name: Checkout agent-pipeline scripts
+      - name: Checkout agent-workflow scripts
         if: ${{ !inputs.local-scripts }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -370,6 +440,16 @@ jobs:
           AGENT: ${{ steps.classify_agent.outputs.agent }}
         run: bash .claude-pipeline/scripts/classify-task.sh
 
+      - name: Triage turns
+        if: ${{ !inputs.stub-claude }}
+        id: triage_turns
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          DEFAULT_MAX_TURNS: ${{ inputs.max-turns }}
+        run: bash .claude-pipeline/scripts/classify-turns.sh
+
       - name: Check auto-review gate
         if: ${{ !inputs.stub-claude }}
         id: auto_review_gate
@@ -427,7 +507,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt_file: ${{ steps.issue.outputs.prompt-file }}
           model: ${{ steps.triage.outputs.model }}
-          max_turns: '30'
+          max_turns: ${{ steps.triage_turns.outputs.turns }}
           # Headless mode has no human in the loop to approve tool use, so
           # everything Claude needs to implement an issue must be allowlisted
           # up front: code changes, search, repo operations, branch + PR.
@@ -458,13 +538,25 @@ jobs:
           set +x
           out_file="${RUNNER_TEMP:-/tmp}/opencode-output.json"
           log_file="${RUNNER_TEMP:-/tmp}/opencode-output.log"
+          # Preflight (#164): with OPENROUTER_API_KEY empty, opencode registers
+          # no `openrouter` provider and dies with a ProviderModelNotFoundError
+          # that reads like a bad model id. Short-circuit into the normal
+          # degradation path with an actionable AuthError instead.
+          if ! OUTPUT_FILE="$out_file" bash .claude-pipeline/scripts/check-opencode-auth.sh; then
+            printf 'execution_file=%s\n' "$out_file" >> "$GITHUB_OUTPUT"
+            printf 'exit_code=64\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # opencode 1.x CLI (verified against opencode-ai@1.15.13 --help):
           #   opencode run [message..] -m <provider/model> --format json
           # The message is a POSITIONAL arg (no --prompt-file); --format json
           # writes raw JSON events to stdout; --print-logs sends logs to stderr.
           # Triage emits OpenRouter model ids (e.g. mistralai/mistral-large-latest,
           # google/gemma-4-31b-it); opencode needs the `openrouter/` provider
-          # prefix, so prepend it unless already present.
+          # prefix, so prepend it unless already present. Ids that already carry
+          # a provider slug are prefixed too — `openrouter/openai/gpt-oss-120b`
+          # is the documented form (opencode.ai/docs/providers), NOT a
+          # double-prefix bug. See #164 before "fixing" this.
           #
           # EXPERIMENTAL (see #58): the OpenRouter auth mechanism (OPENROUTER_API_KEY
           # env vs. `opencode auth login`) and the exact --format json event shape
@@ -648,6 +740,7 @@ jobs:
           RENDER_ONLY: ${{ inputs.dry-run && '1' || '0' }}
           MODEL: ${{ steps.triage.outputs.model }}
           AGENT: ${{ steps.classify_agent.outputs.agent }}
+          MAX_TURNS: ${{ steps.triage_turns.outputs.turns }}
           PR_PRESENT: ${{ steps.verify_pr.outputs.pr-present }}
         run: bash .claude-pipeline/scripts/post-run-report.sh
 
@@ -678,7 +771,7 @@ jobs:
         # for check-merge-envelope.sh to read.
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
-      - name: Checkout agent-pipeline scripts
+      - name: Checkout agent-workflow scripts
         if: ${{ !inputs.local-scripts }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -726,17 +819,17 @@ jobs:
             printf 'PATH=%s/.claude-pipeline/tests/mocks:%s\n' "$WORKSPACE" "$PATH"
             printf 'GH_MOCK_LOG=%s\n' "$log"
             printf 'PIPELINE_PRS_JSON=%s\n' \
-              '[{"number":9999,"isDraft":true,"headRefOid":"stubsha","author":{"login":"github-actions[bot]"}}]'
+              '[{"number":9999,"isDraft":true,"headRefOid":"stubsha","headRefName":"stub-branch","author":{"login":"github-actions[bot]"}}]'
           } >> "$GITHUB_ENV"
 
-      - name: Self-modification guard (ADR-002 — agent-pipeline itself)
+      - name: Self-modification guard (ADR-002 — agent-workflow itself)
         # The pipeline's own scripts/workflows/decisions ARE the pipeline;
         # an auto-merged PR here could change the gates applied to itself.
         # Refuse to promote regardless of input/label state. Hardcoded
         # per ADR-002.
         #
         # Bypassed under stub-review-verdict (Layer-2 act tests) so the
-        # agent-pipeline repo can exercise its own auto-merge paths
+        # agent-workflow repo can exercise its own auto-merge paths
         # without the guard masking every assert. Production callers
         # never set stub-review-verdict — the guard remains effective
         # on every real run.
@@ -745,7 +838,7 @@ jobs:
           REPO: ${{ github.repository }}
           STUB: ${{ inputs.stub-review-verdict }}
         run: |
-          if [[ -z "$STUB" && "$REPO" == 'freaxnx01/agent-pipeline' ]]; then
+          if [[ -z "$STUB" && "$REPO" == 'freaxnx01/agent-workflow' ]]; then
             printf 'self-mod-guard: blocking auto-merge on %s per ADR-002\n' "$REPO"
             printf 'blocked=true\n' >> "$GITHUB_OUTPUT"
           else
@@ -793,6 +886,7 @@ jobs:
           HEAD_SHA: ${{ steps.find_pr.outputs.head-sha }}
           AGENT: claude
           AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
+          MODEL: ${{ inputs.review-model }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: bash .claude-pipeline/scripts/review-pr.sh
 
@@ -902,7 +996,7 @@ jobs:
     # HUMAN merges. No safety envelope and no auto-merge. Because
     # promote-to-ready performs no merge, there is intentionally NO
     # self-modification guard here (unlike auto_review) — promoting a draft
-    # on freaxnx01/agent-pipeline itself is safe, so this repo can dogfood
+    # on freaxnx01/agent-workflow itself is safe, so this repo can dogfood
     # the flow. Non-approve verdict or a missing PR leaves the PR draft and
     # stamps ai:review-blocked. Mutually exclusive with auto_review via the
     # implement-job gate (pre-preview wins when both labels are present).
@@ -922,11 +1016,12 @@ jobs:
     outputs:
       merge-attempted: ${{ steps.verify_mock.outputs.merge-attempted }}
       ready-attempted: ${{ steps.verify_mock.outputs.ready-attempted }}
+      self-fix-iterations-used: ${{ steps.final.outputs.iterations-used }}
     steps:
       - name: Checkout consumer repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
-      - name: Checkout agent-pipeline scripts
+      - name: Checkout agent-workflow scripts
         if: ${{ !inputs.local-scripts }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -964,7 +1059,7 @@ jobs:
             printf 'PATH=%s/.claude-pipeline/tests/mocks:%s\n' "$WORKSPACE" "$PATH"
             printf 'GH_MOCK_LOG=%s\n' "$log"
             printf 'PIPELINE_PRS_JSON=%s\n' \
-              '[{"number":9999,"isDraft":true,"headRefOid":"stubsha","author":{"login":"github-actions[bot]"}}]'
+              '[{"number":9999,"isDraft":true,"headRefOid":"stubsha","headRefName":"stub-branch","author":{"login":"github-actions[bot]"}}]'
           } >> "$GITHUB_ENV"
 
       - name: Find pipeline-opened PR
@@ -994,6 +1089,7 @@ jobs:
           HEAD_SHA: ${{ steps.find_pr.outputs.head-sha }}
           AGENT: claude
           AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
+          MODEL: ${{ inputs.review-model }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: bash .claude-pipeline/scripts/review-pr.sh
 
@@ -1018,10 +1114,46 @@ jobs:
           STUB: ${{ steps.review_stub.outputs.verdict }}
         run: printf 'value=%s\n' "${REAL:-$STUB}" >> "$GITHUB_OUTPUT"
 
+      - name: Self-fix loop (pre-preview optional self-fix pass)
+        if: |
+          steps.find_pr.outputs.found == 'true'
+          && steps.verdict.outputs.value == 'request_changes'
+          && inputs.self-fix
+        id: self_fix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.find_pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.find_pr.outputs.head-sha }}
+          HEAD_REF: ${{ steps.find_pr.outputs.head-ref }}
+          INITIAL_VERDICT: ${{ steps.verdict.outputs.value }}
+          CONCERNS_FILE: ${{ steps.review.outputs.summary-file }}
+          MAX_ITERATIONS: ${{ inputs.self-fix-max-iterations }}
+          AGENT: claude
+          AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
+          FIX_AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude-fix.sh
+          MODEL: ${{ inputs.review-model }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          STUB_VERDICT_SEQUENCE: ${{ inputs.stub-self-fix-verdict-sequence }}
+        run: bash .claude-pipeline/scripts/self-fix-loop.sh
+
+      - name: Resolve final verdict (post self-fix)
+        if: steps.find_pr.outputs.found == 'true'
+        id: final
+        env:
+          LOOP_VERDICT: ${{ steps.self_fix.outputs.verdict }}
+          LOOP_ITERATIONS: ${{ steps.self_fix.outputs.iterations-used }}
+          FIRST_VERDICT: ${{ steps.verdict.outputs.value }}
+        run: |
+          {
+            printf 'verdict=%s\n' "${LOOP_VERDICT:-$FIRST_VERDICT}"
+            printf 'iterations-used=%s\n' "${LOOP_ITERATIONS:-0}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Promote draft to ready (pre-preview — no auto-merge)
         if: |
           steps.find_pr.outputs.found == 'true'
-          && steps.verdict.outputs.value == 'approve'
+          && steps.final.outputs.verdict == 'approve'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -1036,14 +1168,16 @@ jobs:
       - name: Mark issue blocked when review refuses or PR missing
         if: |
           steps.find_pr.outputs.found != 'true'
-          || steps.verdict.outputs.value != 'approve'
+          || steps.final.outputs.verdict != 'approve'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           PR_NUMBER: ${{ steps.find_pr.outputs.pr-number }}
           FOUND: ${{ steps.find_pr.outputs.found }}
-          VERDICT: ${{ steps.verdict.outputs.value }}
+          VERDICT: ${{ steps.final.outputs.verdict }}
+          SELF_FIX_ITERATIONS: ${{ steps.final.outputs.iterations-used }}
+          SELF_FIX_MAX: ${{ inputs.self-fix-max-iterations }}
           MODE: pre-preview
         run: bash .claude-pipeline/scripts/post-auto-review-block.sh
 

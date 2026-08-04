@@ -27,6 +27,10 @@
 #   MODE              Operational mode (default: auto-review).
 #                     "pre-preview" switches the comment prefix to "Pre-review held"
 #                     instead of "Auto-merge held" / "Auto-review held".
+#   SELF_FIX_ITERATIONS  Iterations the pre-preview self-fix loop actually
+#                        used (#81). "0" or unset → unchanged wording.
+#   SELF_FIX_MAX         The self-fix iteration cap, for the "exhausted"
+#                        wording. Only read when SELF_FIX_ITERATIONS != "0".
 #
 # Exit codes:
 #   0  success (refusal surfaced)
@@ -48,6 +52,8 @@ VERDICT="${VERDICT:-}"
 ENVELOPE="${ENVELOPE:-}"
 ENVELOPE_REASON="${ENVELOPE_REASON:-}"
 FAILED_GATES="${FAILED_GATES:-}"
+SELF_FIX_ITERATIONS="${SELF_FIX_ITERATIONS:-0}"
+SELF_FIX_MAX="${SELF_FIX_MAX:-}"
 MODE="${MODE:-auto-review}"
 
 # Comment-prefix wording differs by mode; reason text is identical.
@@ -63,11 +69,15 @@ case "$MODE" in
 esac
 
 if [[ "$SELF_MOD_BLOCKED" == 'true' ]]; then
-  reason='self-modification guard (ADR-002) refused promotion on agent-pipeline itself'
+  reason='self-modification guard (ADR-002) refused promotion on agent-workflow itself'
 elif [[ "$FOUND" != 'true' ]]; then
   reason='auto-review could not find a pipeline-opened draft PR for this issue (expected "Closes #N" in PR body from an allowlisted author)'
 elif [[ "$VERDICT" != 'approve' ]]; then
-  reason="agent review verdict: ${VERDICT:-<none>} (gate 4)"
+  if [[ "$SELF_FIX_ITERATIONS" != '0' ]]; then
+    reason="self-fix exhausted after ${SELF_FIX_ITERATIONS}/${SELF_FIX_MAX} iteration(s) — last verdict: ${VERDICT:-<none>}"
+  else
+    reason="agent review verdict: ${VERDICT:-<none>} (gate 4)"
+  fi
 else
   gate_note=''
   [[ -n "$FAILED_GATES" ]] && gate_note=" (failed gates: $FAILED_GATES)"

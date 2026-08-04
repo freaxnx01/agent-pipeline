@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#
+# tea — minimal stand-in for the Forgejo/Gitea `tea` CLI used by Layer-1 fixture
+# tests. `tea logins list` prints $TEA_MOCK_LOGINS (one login/host per line)
+# instead of querying real config. If $TEA_MOCK_LOG is set, appends each
+# invocation's argv as a space-joined line to it. Exits 0 by default.
+set -euo pipefail
+IFS=$'\n\t'
+
+if [[ -n "${TEA_MOCK_LOG:-}" ]]; then
+  ( IFS=' '; printf '%s\n' "$*" >> "$TEA_MOCK_LOG" )
+fi
+
+if [[ "${1:-}" == "logins" && "${2:-}" == "list" ]]; then
+  printf '%s\n' "${TEA_MOCK_LOGINS:-}"
+  exit 0
+fi
+
+exit 0

@@ -18,7 +18,7 @@ Nygard's pattern, kept terse.
 
 The reusable workflow `agent-implement.yml` is hard-coded to invoke
 `anthropics/claude-code-base-action` and to address Claude model IDs
-(`claude-opus-4-7`, `claude-sonnet-5`, `claude-haiku-4-5`). Epic
+(`claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`). Epic
 [#2](https://github.com/freaxnx01/agent-pipeline/issues/2) adds OpenCode
 
 + OpenRouter (Mistral first) as a second executor without forcing a
@@ -675,3 +675,232 @@ Add a third flow, **pre-preview**, as a `pre_preview` job parallel to
   approach C).
 + The reusable workflow gains `pre-preview` / `stub-pre-preview-enabled` inputs
   and `pre-preview-{merge,ready}-attempted` outputs.
+
+### Addendum — Self-fix pass delivered (2026-07-31)
+
+**Tracking:** [#81](https://github.com/freaxnx01/agent-workflow/issues/81)
+
+The self-fix pass deferred above is delivered. On a `request_changes`
+verdict, opt-in `self-fix: true` runs up to `self-fix-max-iterations`
+(default 2) fix → re-review cycles via `scripts/self-fix-loop.sh` /
+`scripts/self-fix-pr.sh` before falling back to the block path. `block` and
+missing-PR verdicts are unaffected — self-fix only ever runs after
+`request_changes`. Still no merge envelope and no auto-merge; self-fix
+only changes what the human reviewer eventually sees. Cap-exhausted blocks
+get distinct wording in `post-auto-review-block.sh` ("self-fix exhausted
+after N/M iterations") via new `SELF_FIX_ITERATIONS` / `SELF_FIX_MAX` env,
+byte-identical to the original wording when self-fix didn't run.
+
+## ADR-005 — Operator console lives here; user-level vs project-scoped commands (2026-07-12)
+
+### Context
+
+The issue-workflow slash commands (forge routers, `gh:*`, `fj:*`, `enrich`,
+`route`, `work`, `capture-idea`) previously lived in `freaxnx01/config`, a repo
+scoped to "Claude Code configuration." In practice they are the human-facing
+front-end of *this* pipeline — they feed and drive it — so their home was wrong.
+`agent-pipeline` is also intended to become forge-agnostic (GitHub Actions now,
+Forgejo Actions later), which makes the `fj:*` half native to this repo, not
+foreign.
+
+### Decision
+
+1. **`agent-pipeline` = the pipeline end-to-end** — the CI side **plus** the
+   operator console. The console lives in a **new top-level `commands/`** directory.
+2. **Two command surfaces, deliberately distinct:**
+   + `commands/` — **user-level**. Symlinked into `~/.claude/commands/` by
+     `setup/link-commands.sh`; active from **any** repo. This is the console.
+   + `.claude/commands/` — **project-scoped** (`commit`, `push`, `ui-*`); active
+     only inside agent-pipeline. Unchanged.
+   Do not conflate them. A command that should work everywhere goes in `commands/`;
+   one that only makes sense inside this repo goes in `.claude/commands/`.
+3. **`config` stays the single one-URL bootstrap.** Its `setup/01-claude-commands.sh`
+   links the retained generic commands, then clones this repo (if absent) and calls
+   `setup/link-commands.sh`. This repo exposes the link step but does **not** grow a
+   competing machine bootstrap.
+4. Files were **copied** here and `git rm`'d from config (per-file history remains
+   in config's log); no cross-repo history graft.
+
+### Consequences
+
++ `agent-pipeline` now has a user-level surface it didn't before — documented in
+  `commands/README.md` and here so contributors don't confuse the two dirs.
++ The "one curl sets up a machine" promise survives, now spanning two repos; config's
+  bootstrap clones this repo idempotently and surfaces (not swallows) clone failure.
++ Building the Forgejo Actions CI side later has a natural home; the `fj:*` console
+  is already here waiting.
++ **Hazard — the console is coupled to this repo's checked-out branch.** The symlinks
+  point into the *working tree* (`commands/…`), not at a fixed revision, so the
+  user-level console silently becomes whatever the agent-pipeline checkout currently
+  has: editing a command on a feature branch changes it globally, and checking out any
+  branch that predates this ADR makes all 34 commands **dangling symlinks in every
+  repo**. Observed on 2026-07-20: a checkout parked on a pre-move feature branch left
+  33 broken links until `main` was restored and the link step re-run. **Resolved the
+  same day: `setup/link-commands.sh` now defaults to `--copy`**, so the console is
+  pinned at install time and survives any checkout; `--link` opts back into symlinks
+  while actively editing commands. Trade-off accepted: `git pull` here no longer
+  updates the installed commands — re-run the link step. `config`'s command surface
+  was never exposed to this — that repo is effectively always on `main`.
+
+---
+
+## ADR-006 — Rename `agent-pipeline` to `agent-workflow` (2026-07-20)
+
+### Context
+
+ADR-005 reframed this repo as "CI + operator console" but kept the name
+`agent-pipeline`. `docs/superpowers/specs/2026-07-20-consolidate-command-surface-design.md`
+proposes moving the remaining 11 commands here from `freaxnx01/config` —
+`/wt:status`, `/wt:finish`, `/handoff`, `/pickup`, `/wrap-up`, `/loose-ends`
+and friends, which are session-hygiene and git-worktree helpers, in no sense
+a "pipeline." Landing them here would make `agent-pipeline` describe a
+shrinking fraction of its own contents — the same naming failure that spec
+diagnoses in `config` ("Claude Code configuration plus other personal
+config"). This ADR answers that spec's open decision §1 and supersedes
+ADR-005's naming consequence.
+
+### Decision
+
+Rename `freaxnx01/agent-pipeline` to `freaxnx01/agent-workflow`.
+`agent-workflow` covers both halves without strain: the CI that implements
+labeled issues, and the operator console that feeds it.
+
+### Consequences
+
++ GitHub's rename redirect keeps consumer CI working, but it is
+  **transitional only** — it dies silently the moment any repo claims the
+  name `freaxnx01/agent-pipeline`. Every consumer must still be updated
+  explicitly; the redirect buys time, not correctness.
++ Six consumer repos depend on this one across 10 workflow files: flowhub,
+  FlowHub-CAS-AISE, quotes, quicktask-vikunja, bridge,
+  agent-action-sandbox.
++ `.github/actions/dotnet-quality` is a **second public entry point** — a
+  composite action consumed by flowhub and FlowHub-CAS-AISE — that
+  `docs/CONSUMER-SETUP.md` has never documented. The rename must cover it
+  too, not just the reusable workflows.
++ Three consumers pin `@main` (flowhub, FlowHub-CAS-AISE,
+  agent-action-sandbox), contrary to this repo's own CI stack overlay; they
+  follow whatever lands on the branch and are the most exposed to the
+  rename.
++ Per-file git history is unaffected by a GitHub rename — unlike the
+  copy + `git rm` approach ADR-005 §4 used for the console move, no history
+  graft is needed here.
++ Renaming the repo moves the local clone directory, which invalidates the
+  gitdir pointer of any worktree under it — the mechanism that orphaned
+  `.worktrees/misc`, removed under this exact failure on 2026-07-20.
+
+---
+
+## ADR-007 — agent-workflow owns Claude content and its provisioning (2026-07-21)
+
+### Context
+
+ADR-005 moved the operator console here but left `config` as the bootstrap
+orchestrator; #128 moved the remaining commands and the `handoff-resume` hook.
+What stayed behind was the awkward part: `config` held the three CLAUDE.md
+partials and all five setup scripts, so it owned the provisioning contract for a
+surface that lives entirely here. Three of its five scripts existed only to clone
+this repo and call its link steps.
+
+Moving `setup/` alone would not remove that cross-repo clone — it would
+**invert** it: `00-claude-partials.sh` `@`-imports config's own `claude/*.md`, so
+a relocated bootstrap would have to clone `config` to find them. Only moving the
+partials and the bootstrap together eliminates the dependency.
+
+### Decision
+
+1. **`partials/` is a new top-level surface here**, alongside `commands/` and
+   `hooks/`. `setup/link-partials.sh` installs it.
+2. **`setup/bootstrap.sh` moves here** and becomes the one-URL machine entry
+   point. It clones nothing but this repo, and chains four link steps —
+   partials, commands, hooks, skills. The skills content already lived here
+   (`setup/link-skills.sh`, shipped earlier under #132); config's
+   `03-claude-skills.sh` shim merely cloned this repo to run it, so folding it
+   into the unified bootstrap removes the last cross-repo skills clone.
+3. **`config/setup/01-claude-commands.sh`, `02-claude-hooks.sh` and
+   `03-claude-skills.sh` are deleted** — pure shims once `bootstrap.sh` sits
+   beside the link steps they delegated to.
+4. **The old bootstrap URL keeps working** via a deprecation stub in `config` that
+   forwards arguments and prints the new URL. Old notes and muscle memory do not
+   break.
+5. **Files are copied, not history-grafted** — per-file history stays in `config`'s
+   log, as in ADR-005 §4.
+
+### Consequences
+
++ `config` becomes an honest machine-setup repo: shell, prompt, Windows tooling.
+  Its README no longer has to describe two unrelated jobs.
++ **Sequencing is load-bearing.** The `agent-workflow` PR must land before the
+  `config` PR; reversing it leaves a window where no bootstrap works.
++ **Migration is silent if botched.** `link-partials.sh` sweeps the legacy marker
+  block and stray `config/claude` `@`-lines, because the installer only strips
+  markers it matches exactly — and the `config` clone stays on disk, so a
+  surviving old block loads a second, duplicate set of instructions with no error
+  and no missing file. Covered by a migration test; the sweep can be removed once
+  every machine has run the new installer at least once.
++ `setup/` gains its **first test coverage** (24 assertions in
+  `tests/run-script-tests.sh`). It was entirely untested before.
++ **`BASH_SOURCE` is unset under `curl … | bash`.** `link-partials.sh` therefore
+  resolves its source dir relative to `BASH_SOURCE` *with a fallback* to the
+  canonical path. `link-hooks.sh` uses the relative form alone and advertises a
+  `curl` usage in its header — a latent bug, left unfixed here to keep this change
+  scoped; worth a follow-up.
++ **`link-commands.sh` still derives its source dir from `$HOME`**, so it cannot
+  run against a scratch `$HOME`; the bootstrap test symlinks the real checkout in.
+  Also left for a follow-up.
+
+## ADR-008 — Advisor Tool not yet wired into ai-implement (2026-07-24)
+
+### Context
+
+Issue #160 asked whether the "advisor strategy"
+(<https://claude.com/blog/the-advisor-strategy>) can be used with the `ai-implement`
+pipeline's headless Claude runs. The pattern lets a cheap executor model
+(Sonnet/Haiku) call a stronger "advisor" model (Opus) mid-task, within the same
+request, only at decision points it can't resolve on its own — near-Opus judgement
+at near-Sonnet cost. The `implement` job in `agent-implement.yml` runs Claude Code
+headlessly via `anthropics/claude-code-base-action` with a fixed `allowed_tools`
+allowlist (`Edit,Write,Read,Glob,Grep,MultiEdit,TodoWrite,Bash`) and one model per
+run picked up front by `classify-task.sh`. If the advisor tool is reachable from
+that headless run, it's a natural fit for hard mid-implementation calls.
+
+### Decision
+
+**Do not wire the advisor tool into `agent-implement.yml` in this pass.** Static
+research (this session's local `claude --help` on CLI v2.1.218 — the exact version
+`claude-code-base-action`'s `action.yml` pins at SHA
+`2d6abe4aa8adacaa322e24a040787cf155cf1d09` — the public `anthropics/claude-code`
+`CHANGELOG.md`, and the blog post) found:
+
++ **Confirmed:** the advisor tool is a real, shipped Anthropic feature. At the API
+  level it's a beta tool (`anthropic-beta: advisor-tool-2026-03-01` header, `"type":
+  "advisor_20260301"` tool block, per the blog post). The Claude Code CLI has its
+  own integration, first appearing in the public changelog at v2.1.117 ("Advisor
+  Tool (experimental)..."), still labeled experimental through v2.1.214+ — present
+  in the v2.1.218 binary the pipeline installs. The action exposes a `claude_args`
+  passthrough input, not currently used by `agent-implement.yml`, that in principle
+  could carry flags beyond `allowed_tools`.
++ **Not confirmed:** no changelog entry, `--help` output, or reachable docs page
+  describes a headless (`-p`/`--print`) or `settings.json` path to enable/configure
+  the advisor tool. Every changelog mention describes interactive-session UI
+  ("`/advisor` dialog", "advisor picker", "startup notification when enabled") — a
+  human picking an advisor model. The blog post documents the raw Messages API
+  usage only and does not mention the Claude Code CLI, headless execution, or
+  GitHub Actions.
+
+Headless reachability is therefore an open question that only a live test can
+answer; a live pipeline run was out of scope for this evaluation (issue #160).
+
+### Consequences
+
++ The existing `auto-review` / `pre-preview` jobs (`review-pr.sh`) remain the
+  pipeline's only second-opinion mechanism — a separate Claude invocation
+  reviewing the *finished* PR diff after the fact. If the advisor tool ever lands
+  headlessly, it would be complementary rather than a replacement: fine-grained,
+  mid-task, same-context consultation vs. a post-hoc whole-PR gate.
++ Revisit trigger: the next `anthropics/claude-code` `CHANGELOG.md` entry that
+  mentions non-interactive/headless advisor support, or `claude-code-base-action`
+  documenting how to pass advisor-enabling flags through `claude_args`.
++ Follow-up: [#171](https://github.com/freaxnx01/agent-workflow/issues/171)
+  — a scoped sandbox-repo spike to test headless reachability directly, filed
+  rather than executed here.

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#
+# self-fix-agent — self-fix-pr.sh FIX_AGENT_CMD mock for Layer-1 tests
+# (happy path: makes an edit). Contract: FIX_AGENT_CMD <prompt-file>,
+# invoked with CWD set to the checked-out PR branch.
+set -euo pipefail
+IFS=$'\n\t'
+printf 'fixed\n' >> file.txt

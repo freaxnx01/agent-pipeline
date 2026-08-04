@@ -68,14 +68,14 @@ Framework-specific test project layout, mocking library choice, and assertion li
 
 **Never skip phases. Never write component code before wireframe approval.**
 
-| Phase | Skill | Gate |
+| Phase | Command | Gate |
 |---|---|---|
-| 1 — Brainstorm | `/ui-brainstorm` | ASCII wireframe approved |
-| 2 — Flow       | `/ui-flow`       | Mermaid diagrams approved |
-| 3 — Build      | `/ui-build`      | Shell → logic → interactions → polish |
-| 4 — Review     | `/ui-review`     | Checklist passes |
+| 1 — Brainstorm | `/ui:brainstorm` | ASCII wireframe approved |
+| 2 — Flow       | `/ui:flow`       | Mermaid diagrams approved |
+| 3 — Build      | `/ui:build`      | Shell → logic → interactions → polish |
+| 4 — Review     | `/ui:review`     | Checklist passes |
 
-Skill files live in `.ai/skills/`. The skills themselves are stack-neutral — UI component library preferences (e.g. MudBlazor, shadcn/ui, Material, Flutter widgets) are captured in the active stack overlay.
+These commands ship from the global operator console (`agent-workflow`), installed once into `~/.claude/commands/ui/` — they are **not** synced per-project. They are stack-neutral: UI component library preferences (e.g. MudBlazor, shadcn/ui, Material, Flutter widgets) are read from the active stack overlay when one is present, otherwise inferred from the existing codebase.
 
 ### What to check before writing UI code
 
@@ -89,27 +89,9 @@ Skill files live in `.ai/skills/`. The skills themselves are stack-neutral — U
 
 ## Localization (i18n) & Regional Formatting
 
-User-facing apps must support **`de` and `en`**. CI tooling and developer-only utilities are exempt.
+User-facing apps support **`de` and `en`** (CI/dev tooling exempt). Regional formatting follows the **OS region**, not the UI language; `de` with an unknown region falls back to **`de-CH`**. Render via the platform localization API, never `string.Format` / `toString()`.
 
-### Language
-
-- Default language resolved from the OS / browser locale at first launch
-- User can override at runtime via an in-app language switcher
-- The user's choice is persisted (cookie, preferences store, or user profile — stack-specific)
-
-### Regional formatting (decoupled from language)
-
-Regional formatting (date, time, number, currency separators) is selected from the OS region — **not** dictated by the language.
-
-- Auto-detect any `de-*` OS region (`de-CH`, `de-DE`, `de-AT`, …) and use the matching culture
-- If the language is `de` but the OS region is missing or unrecognized: fall back to **`de-CH`**
-- For `en`: use the OS-provided region (typically `en-US` / `en-GB`) — do not force a default
-
-### Rules
-
-- All date / number / currency rendering goes through the platform's localization API — never hand-format with raw `string.Format` / `toString()` / template literals.
-- Do not couple regional formatting to the UI language. A user can read German text with US formatting, or English text with Swiss formatting; both must work.
-- Stack overlays specify the concrete API (`CultureInfo` + `RequestLocalization` for .NET, `flutter_localizations` + `intl` for Flutter, etc.).
+Full rules: [`localization.md`](https://github.com/freaxnx01/ai-instructions/blob/main/.ai/references/base/localization.md)
 
 ---
 
@@ -151,7 +133,7 @@ Full per-factor table: [`.ai/references/base/12-factor.md`](https://github.com/f
 
 ## Branching Strategy (GitHub Flow + protection rules)
 
-```
+```text
 main              ← always deployable, protected
   └── feature/<issue-id>-short-description
   └── fix/<issue-id>-short-description
@@ -163,6 +145,8 @@ main              ← always deployable, protected
 - Branch from `main`, PR back to `main`
 - Delete branch after merge
 - Rebase or squash merge — no merge commits on `main`
+
+All changes go through a PR, including docs-only ones. There is no trivial-edit exception: a direct push to a protected `main` lands before the required checks report, so they become a postmortem instead of a gate, and it leaves open PRs' branches stale.
 
 ---
 
@@ -180,7 +164,7 @@ Agent tooling that automates worktree creation should discover these rules from 
 
 ## Commit Messages (Conventional Commits)
 
-```
+```text
 <type>(<scope>): <short summary>
 
 [optional body]
@@ -191,7 +175,7 @@ Agent tooling that automates worktree creation should discover these rules from 
 **Types:** `feat`, `fix`, `test`, `refactor`, `chore`, `docs`, `ci`, `perf`
 **Scope:** module or layer name, e.g. `orders`, `auth`, `infra`, `ui`
 
-```
+```text
 feat(orders): add order cancellation endpoint
 
 Implements POST /api/v1/orders/{id}/cancel.
@@ -239,14 +223,30 @@ Concrete CI configuration (GitHub Actions YAML, commands, package scanners) live
 
 ---
 
+## Scripting
+
+**PowerShell — customer-delivered scripts target Windows PowerShell 5.1.** Anything a customer runs (`build.ps1`, install/deploy scripts, release artifacts) must run on 5.1 unless the project documents a PS 7+ floor; `pwsh` is not installed there.
+
+- **Never** use `??`, `??=`, ternary `? :`, `?.`, `&&` / `||` chains — *parse* errors on 5.1, so the script dies before its first line — nor `ForEach-Object -Parallel`, `Sort-Object -Stable`, `-SslProtocol`
+- `$IsWindows` / `$IsLinux` / `$IsMacOS` **do not exist** on 5.1 — they are `$null`, so the branch is silently skipped. Use `$env:OS -eq 'Windows_NT'`
+- Pass `-Depth` to `ConvertTo-Json` (defaults to 2, truncates silently) and `-UseBasicParsing` to the web cmdlets (a patched host prompts and hangs)
+- Start with `#requires -Version 5.1`, pin encoding, verify with PSScriptAnalyzer
+- **Exempt:** dev-loop tooling (`justfile` recipes) may require `pwsh`
+
+Full rules: [`powershell-5.1.md`](https://github.com/freaxnx01/ai-instructions/blob/main/.ai/references/base/powershell-5.1.md)
+
+---
+
 ## Documentation Structure
 
 Repo-root `docs/` contains:
+
 - `design/<feature-name>/` — UI wireframes (`wireframe.md`) & Mermaid flows (`flow.md`) per feature
 - `adr/` — Architecture Decision Records
 - `ai-notes/` — AI agent working notes
 
 Rules:
+
 - `README.md` and `CHANGELOG.md` live in the repo root
 - UI design artifacts are saved per feature during the UI workflow phases
 - AI agents write working notes to `docs/ai-notes/`, not `.ai/`
@@ -315,7 +315,7 @@ Use this stack for repos like `claude-pipeline`, homelab tooling, internal actio
 
 ## Project Structure
 
-```
+```text
 .github/workflows/
   <name>.yml              ← public reusable workflows consumers call
   <name>.test.yml         ← act-runnable test workflows (stubbed external steps)
@@ -392,20 +392,26 @@ on:
 
 - **One reusable workflow per public entry point.** Don't multiplex unrelated triggers in one file.
 - **Pin every action by full SHA**, not by tag. Renovate/Dependabot promotes the SHA.
+
   ```yaml
   - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
   ```
+
 - **Concurrency control** on every long-running workflow: cancel in-progress runs of the same ref.
+
   ```yaml
   concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
   ```
+
 - **Permissions: least-privilege.** Top of the workflow:
+
   ```yaml
   permissions:
     contents: read
   ```
+
   Then escalate per-job only where needed (`pull-requests: write`, `issues: write`, `id-token: write`).
 - **`timeout-minutes:` on every job.** Defaults of 6 hours are not safe defaults.
 - **Output extraction in scripts, not inline bash.** Inline bash in YAML is unlinted, untested, hard to read. One-liners excepted.
@@ -434,7 +440,7 @@ Every layer must run in CI; the lower layers also run locally in seconds.
 
 Bash scripts execute against fixture files (`tests/fixtures/*.json`) with external CLIs mocked via `tests/mocks/`. Should run in **<5 seconds** total. No network, no GitHub, no Docker.
 
-```
+```text
 tests/
   fixtures/
     result-success.json
@@ -492,22 +498,26 @@ jobs:
 Pipeline repos using this stack should ship a repo-root `justfile` (using [casey/just](https://github.com/casey/just)) with these canonical recipes. Recipe bodies are project-specific; recipe names are not.
 
 ### Quality
+
 - `lint` — actionlint + shellcheck on workflows and scripts
 - `test` — Layer-1 fixture tests
 - `test-act` — Layer-2 `act` run of `*.test.yml` workflows
 - `format` — formatters where applicable (e.g. `shfmt -w scripts/`)
 
 ### Local development
+
 - `fixtures-update` — regenerate fixtures from a known-good real run (when intentional)
 - `docs` — generate / verify docs (e.g. CHANGELOG via `git-cliff`)
 
 ### Release
+
 - `version` / `version-set 1.2.3` / `bump-major` / `bump-minor` / `bump-patch` / `bump-auto`
 - `changelog` — `git-cliff --output CHANGELOG.md`
 - `release` — tag `v$(just version)`, regenerate changelog, commit, tag (no auto-push)
 - `push-release` — `git push origin main "v$(just version)"`
 
 ### Cleanup
+
 - `clean` — remove generated artifacts (`.act/`, `coverage/`, etc.)
 
 Document each recipe with a leading `# <description>` comment. Set a default recipe `default: @just --list --unsorted` so `just` with no args prints the documented set.

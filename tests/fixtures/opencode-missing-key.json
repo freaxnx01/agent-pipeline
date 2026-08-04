@@ -1,0 +1,1 @@
+{"type":"error","timestamp":0,"sessionID":"opencode-preflight","error":{"name":"AuthError","data":{"message":"AuthError: OPENROUTER_API_KEY is not set for this repository, so opencode cannot register the `openrouter` provider (model: openai/gpt-oss-120b). Add the OPENROUTER_API_KEY secret (see docs/CONSUMER-SETUP.md) or label the issue `agent:claude`."}}}

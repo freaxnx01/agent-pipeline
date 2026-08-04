@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# self-fix-loop-fix-stub — self-fix-loop.sh FIX_CMD mock for Layer-1
+# tests. Contract: FIX_CMD <pr-number> <concerns-json-file>, with
+# ITERATION/REPO/HEAD_REF/AGENT/MODEL in env. Logs each call to $FIX_LOG.
+# Exits 1 if FIX_FAIL=1, simulating a fix-invocation crash.
+set -euo pipefail
+IFS=$'\n\t'
+: "${FIX_LOG:?FIX_LOG must be set}"
+if [[ "${FIX_FAIL:-0}" == "1" ]]; then
+  printf 'self-fix-loop-fix-stub: simulated failure\n' >&2
+  exit 1
+fi
+printf 'pr=%s iteration=%s agent=%s model=%s\n' "$1" "${ITERATION:-}" "${AGENT:-}" "${MODEL:-}" >> "$FIX_LOG"

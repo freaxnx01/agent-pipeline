@@ -16,7 +16,19 @@ globs:
   - "**/*.md"
 
 ignores:
+  # Git worktrees live under .worktrees/ (gitignored, see CLAUDE.md). The config
+  # globs above override any file list passed on the command line, so without
+  # this a local run lints every worktree checkout too — hundreds of phantom
+  # errors that CI never sees, since a fresh checkout has no worktrees.
+  - ".worktrees/**"
   - "CLAUDE.md"
   - "SKILL.md"
   - ".github/copilot-instructions.md"
   - "**/node_modules/**"
+  # Superpowers working docs (specs, plans, SDD scratch) are one-time process
+  # artifacts, not maintained prose — linting them is noise, same rationale as
+  # the generated-file excludes above.
+  - "docs/superpowers/**"
+  # AI agent working notes (see CLAUDE.md "Documentation Structure") — transient
+  # session records, same rationale as the superpowers docs above.
+  - "docs/ai-notes/**"

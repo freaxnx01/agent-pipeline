@@ -7,13 +7,254 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **commands:** Remove `/gh:done` `/gh:enrich` `/gh:enrich-phased` `/gh:issues`
+  `/gh:milestone` `/gh:new` `/gh:parked` `/gh:prs` `/gh:roadmap` `/gh:route`
+  `/gh:triage` `/gh:work` and their `/fj:*` equivalents — merged into the
+  forge-agnostic `/done` `/enrich` `/enrich-phased` `/issues` `/milestone`
+  `/new` `/parked` `/prs` `/roadmap` `/route` `/triage` `/work` commands.
+  **BREAKING CHANGE:** anyone invoking a `gh:x`/`fj:x` name directly for one of
+  these 12 concepts must switch to the prefix-less command; re-run
+  `setup/link-commands.sh` to pick up the change (#198, #199).
+
+### Added
+
+- **enrich:** concurrency lock — `/enrich` claims an `enrichment-ongoing` label
+  plus a timestamped lock comment before brainstorming (Step 2.5), hard-stops
+  when another session holds a lock younger than 4h (Step 1.5), offers a
+  takeover past that threshold, re-checks after acquiring so the session that
+  acquired first wins the race, and releases the label at Step 6 or on any
+  earlier user-initiated abort (#229)
+- **pre-preview:** `self-fix` and `self-fix-max-iterations` workflow
+  inputs — on a `request_changes` verdict, optionally let the agent
+  attempt bounded fix → re-review cycles before falling back to the
+  human-review block path (#81)
+- **commands:** `/milestone triage` — lists open issues with no milestone,
+  excluding `🧊 parked` and `roadmap`, then walks them one at a time to assign
+  one, every write confirmed by read-back (#178)
+- **commands:** `/parked` gains `unpark`, `repark`, and `review` verbs —
+  unparking hands off to `/route`, reparking records a `🧊 parked:` reason
+  comment, and `list` now shows the most recent reason (#174)
+- **commands:** `/roadmap` — lists issues labeled `roadmap`, promotes one into
+  a milestone (schedule first, then unlabel), and records a `roadmap:` reason
+  comment; `/issues` now points here instead of a raw `gh` invocation (#175)
+
+### Changed
+
+- **partials:** `subagent-driven-default.md` now carves out issue-based
+  dispatch — when a plan targets a GitHub issue in a repo with
+  agent-workflow's pipeline wired up, default to `/enrich`'s issue-body +
+  `ai-implement` dispatch instead of local `subagent-driven-development`,
+  even when brainstorming/writing-plans wasn't invoked via `/enrich` itself.
+- **commands:** Extract the duplicated forge host-detection snippet into
+  `scripts/lib/detect-forge.sh`, sourced by the 12 merged commands above (#198,
+  #199).
+- **commands:** `/issues` now also excludes issues labeled `roadmap` (planned
+  for a future milestone, not current work), alongside the existing
+  `🧊 parked` exclusion (#173)
+- **commands:** `/gh:assign` and `/gh:implement` now pick an implementation
+  contract by issue shape — the TDD contract for code changes, a before/after
+  verification contract for docs-only issues — from the new shared
+  `/gh:implementation-contract` (#177)
+
 ### Fixed
 
-- **pipeline:** Runs that complete without opening a PR are no longer reported as `ai:done` — the implement job verifies the PR exists, recovers the orphan branch when possible, and marks `ai:failed` otherwise (#100)
+- **setup:** `setup/link-commands.sh` now prunes command files it previously
+  installed that no longer exist in the repo's `commands/` tree, instead of
+  only ever adding/updating. Previously a re-install after a command was
+  removed or merged elsewhere (e.g. the gh:/fj: -> forge-agnostic
+  consolidation, #198/#199) left the superseded file installed and working
+  indefinitely, alongside its replacement. Scoped to a manifest of this
+  installer's own prior writes — `~/.claude/commands/` is Claude Code's
+  general user-commands directory, not exclusively agent-workflow's, so a
+  file this installer never placed (hand-authored, or from another tool) is
+  never touched.
+
+## [1.11.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.11.0) - 2026-07-27
+
+### Added
+
+- **commands:** Add /milestone across GitHub and Forgejo (#172)
+- **agent-implement:** Expose max_turns as a configurable input
+
+### Fixed
+
+- **gh:enrich:** Resolve spec/plan dirs against gitignore, push to main
+- **handoff:** Key handoff files by branch so worktrees don't collide
+- **claude-implement:** Forward max-turns input to keep shim in lockstep
 
 ### Documentation
 
-- Add living OpenCode × OpenRouter model-comparison report (`docs/model-comparison.md`) and link it from `CONSUMER-SETUP.md`
+- **todo:** Note the missing GLM 5.2 model comparison (#169)
+- **decisions:** Add ADR-008 — advisor tool not yet wired into ai-implement
+- **glossary:** Distinguish milestones, epics, and labels
+- **specs:** Add milestone support design for #172
+- **handoff:** Save phase for resume — #172 milestone support
+- **plans:** Add milestone support implementation plan for #172
+- **plans:** Make #172 plan verification CI-executable
+- Add spec and implementation plan for roadmap-label filter (#173)
+- **plans:** Make #173 verification CI-safe and dry-run validate it
+- Add spec and implementation plan for conditional contract (#177)
+- Add spec and implementation plan for /milestone triage (#178)
+- Add spec and implementation plans for #174 and #175
+- **commands:** Exclude `roadmap` issues from `/gh:issues` and `/fj:issues` (#181)
+- **handoff:** Save queue-drain phase for resume
+- **plans:** Add implementation plan for max-turns input (#166)
+
+### commands
+
+- **gh:** Make pre-dispatch implementation contract conditional (code vs docs-only) (#180)
+
+## [1.10.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.10.0) - 2026-07-26
+
+### Added
+
+- **partials:** `response-formatting` partial, plus a tightened `task-checklist` (#159)
+- **partials:** `scope-boundary` rule separating discovery from action
+- **commands:** `/git-sync` slash command
+- **processing-test-feedback:** `Source` traceability on generated entries
+- **docs:** glossary with a scope-creep entry, and a partials overview table in the root README
+
+### Fixed
+
+- **OpenCode runs now fail fast on a missing `OPENROUTER_API_KEY`** (#164).
+  Previously the run reached `opencode run`, which silently skipped registering the
+  `openrouter` provider and died with a misleading `ProviderModelNotFoundError`
+  that looked like a model-id bug. `scripts/check-opencode-auth.sh` now preflights
+  the secret and emits an actionable `AuthError`, classified `api_auth` (no retry).
+  The `openrouter/` model prefix is unchanged — it was never the cause.
+- **ensure-toolchain:** surface the pinned version in the
+  `opencode-present-different-version` message
+- **test:** stale `[Fact(Skip =` marker whitespace mismatch in the Layer-1 suite
+
+### Changed
+
+- **commands:** stale `claude.yml` references updated to `agent.yml` (#163)
+- **commands:** implementation plans are now inlined into the issue body
+- **commands:** handoff artifacts are committed and pushed by default
+- **chore:** AI instruction files refreshed from `ai-instructions` (base + ci overlay)
+
+## [1.9.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.9.0) - 2026-07-22
+
+### Added
+
+- **commands:** global `ui/` console namespace for the 4-phase UI workflow (#140)
+- **docs:** working note for the 2026-07-21 skills-delivery session under `docs/ai-notes/` (#139)
+- **docs:** #133 provisioning-consolidation completion record in `docs/TODO.md` (#141)
+
+### Changed
+
+- **build:** markdownlint now ignores transient agent working docs — `docs/ai-notes/**` and `docs/superpowers/**` (#139)
+
+## [1.8.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.8.0) - 2026-07-21
+
+### Added — this repo is now the machine bootstrap
+
+**`partials/` and `setup/bootstrap.sh` move here from `freaxnx01/config`**
+(ADR-007, #133). agent-workflow now owns every Claude surface — partials, commands,
+hooks, skills — *and* the provisioning that installs them. No cross-repo clone remains.
+
+New machine, one line:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/freaxnx01/agent-workflow/main/setup/bootstrap.sh | bash
+```
+
+The old `config` URL still works — it forwards, and prints the new one.
+
+**Existing machines:** re-run the bootstrap above (or `/update-commands`). The
+installer sweeps the old `config`-era marker block automatically, so the partials
+do not load twice. No manual edit of `~/.claude/CLAUDE.md` is needed.
+
+- **setup:** `partials/` surface + `link-partials.sh` with legacy-block migration (#133)
+- **setup:** `bootstrap.sh` moves here; verbatim flag passthrough to all link steps (#133)
+- **tests:** first coverage for `setup/` — 24 assertions (#133)
+
+### Changed
+
+- **commands:** `/update-commands` runs this repo's bootstrap, not config's installer (#133)
+- **docs:** README documents the `partials/` surface and the new bootstrap URL (#133)
+
+### Also included since 1.7.0
+
+Merged into this release ahead of the #133 consolidation:
+
+- **commands:** consolidate the full user-level command surface into this repo (#128)
+- **skills:** `processing-test-feedback` skill + `setup/link-skills.sh` installer (#132)
+- **skills:** `/process-feedback` merged into the `processing-test-feedback` skill (#137)
+- **setup:** `link-skills.sh` prunes skills that disappear upstream (#135)
+- **setup:** match the `handoff-resume` hook by basename, not exact command string (#129)
+
+## [1.7.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.7.0) - 2026-07-21
+
+### Changed — repository renamed
+
+**`freaxnx01/agent-pipeline` is now `freaxnx01/agent-workflow`** (ADR-006). The repo
+outgrew its name: it carries the operator console (issue-workflow slash commands)
+alongside the CI, and neither `/wt:status` nor `/wrap-up` is a pipeline.
+
+**Migration.** Update the owner/repo segment of your `uses:` references; keep your
+pin exactly as it is:
+
+```yaml
+# before
+uses: freaxnx01/agent-pipeline/.github/workflows/agent-implement.yml@v1
+# after
+uses: freaxnx01/agent-workflow/.github/workflows/agent-implement.yml@v1
+```
+
+The same applies to the `dotnet-quality` composite action and to any explicit
+`pipeline-repo:` input, whose default is now `freaxnx01/agent-workflow`.
+
+GitHub's rename redirect keeps existing references working, so **nothing breaks
+immediately** — but it is a transitional safety net, not an end state: it stops
+working the moment any repo claims the old name. Update at your convenience.
+
+### Added
+
+- **dotnet-quality:** Composite action + self-validating gate-tests (#88)
+- **lint:** Actionlint gate + selftest fixture in agent-pipeline (#90)
+- **dotnet-quality:** Add run-method-size input to skip Linux-broken metrics step (#93)
+- **classify-task:** Add 5 OpenRouter coding-model labels (#95)
+- **classify-task:** Add 5 tool-use-capable coding-model labels (#98)
+- **models:** Make Claude Sonnet 5 the default model
+- **commands:** Adopt issue-workflow operator console from config
+- **setup:** Add user-level console linker (link-commands.sh)
+- **commands:** Adopt /process-feedback into the console (#118)
+
+### Changed
+
+- **workflows:** Rename `claude-*` workflows to `agent-*` (#106)
+
+### Fixed
+
+- **labels:** Ensure the ai-implement trigger label exists (#82)
+- **classify-task:** Use exact OpenRouter catalog slugs for model labels (#96)
+- **claude-implement:** Pass resolved agent to triage step (#97)
+- **opencode:** Stop leaking .claude-pipeline gitlink into consumer PRs (#99) (#101)
+- **pipeline:** PR-aware run status with recovery (#100) (#104)
+- **setup:** Make --copy idempotent over a prior symlink install
+- **lint:** Clear markdownlint debt blocking every PR (#119)
+- **setup:** Default console install to --copy, not symlink (#117)
+- **rename:** Revert three references missed in #123 (#124)
+
+### Documentation
+
+- **ai:** Regenerate AI instructions from ai-instructions@5e6ab78 (#86)
+- **model-comparison:** Promote OpenCode×OpenRouter report to canonical living doc (#102)
+- **#100:** Spec + implementation plan for PR-aware run status (#103)
+- **specs:** Design for agent-skills workflow plugin
+- **specs:** Add self-improvement loop to agent-skills design
+- **plans:** Phase 0+1 implementation plan for agent-skills
+- **model-comparison:** Add Round 3 — .NET authors endpoint (qwen3.6-27b debut) (#113)
+- Reframe agent-pipeline as CI + operator console (ADR-005)
+- **design:** List top-level commands/ (user console) in repo-structure tree
+- **todo:** Add README documentation tasks
+- **todo:** Add slash-cmd bootstrap and spec-commit TODOs
+- **todo:** Add new-skill idea for workflow-to-repo scaffolding
+- **spec:** Consolidate the personal command surface into one repo (#120)
+- **plan:** Rename agent-pipeline to agent-workflow (#122)
 
 ## [1.6.0](https://github.com/freaxnx01/agent-pipeline/releases/tag/v1.6.0) - 2026-06-05
 

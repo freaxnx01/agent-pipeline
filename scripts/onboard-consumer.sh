@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# onboard-consumer.sh — Bring a consumer repo onto the agent-pipeline in one
+# onboard-consumer.sh — Bring a consumer repo onto the agent-workflow in one
 # command. Automates the §0–§4 checklist in docs/CONSUMER-SETUP.md:
 #
 #   1. Pre-flight   — resolve repo visibility + default branch; refuse to wire
@@ -12,8 +12,11 @@
 #   4. Repo settings— enable "Actions can create PRs"; for --auto-review also
 #                     enable allow-auto-merge + allow-squash-merge.
 #   5. Consumer stub— commit .github/workflows/agent.yml (and chain-dispatch.yml
-#                     with --chain) on a branch and open a PR — via the GitHub
-#                     API, no local clone required. Idempotent.
+#                     with --chain) — via the GitHub API, no local clone
+#                     required. Idempotent. Commits DIRECTLY to the repo's
+#                     default branch by default (this is operator-invoked,
+#                     one-shot infra bootstrapping, not day-to-day app code);
+#                     pass --pr to get the old branch + PR review flow instead.
 #
 # This is HUMAN-INVOKED operator tooling, so it is flag-driven (unlike the
 # env-driven CI scripts in this repo).
@@ -46,16 +49,31 @@
 #       --ref <ref>             Pipeline ref to pin in `uses:` / `pipeline-ref:`.
 #                               Default 'v1'.
 #       --agent claude|opencode Default agent for the stub. Default 'claude'.
-#       --model <model>         default-model input. Default 'claude-opus-4-7'.
+#       --model <model>         default-model input. Default 'claude-sonnet-5'.
 #       --runner-labels '<json>' JSON array of runner labels.
 #                               Default '["ubuntu-latest"]'.
 #       --auto-review           Wire auto-review: true and enable the repo
 #                               settings auto-merge needs (ADR-002 gate 7).
+#                               Mutually exclusive with --pre-preview at
+#                               the per-issue label level (pre-preview
+#                               wins if an issue carries both).
+#       --pre-preview           Wire pre-preview: true (ADR-004) — after the
+#                               pipeline opens a draft PR, an agent reviews
+#                               it (review-model input, default
+#                               claude-opus-5, independent of the
+#                               implementation model) and promotes draft
+#                               to ready on approve. No auto-merge, ever —
+#                               a human still merges. Per-issue opt-in via
+#                               the ai-pre-preview label (not applied here).
 #       --chain                 Also commit chain-dispatch.yml (ADR-003).
-#       --no-stub               Skip the PR; do secret + labels + settings only.
+#       --no-stub               Skip the stub commit entirely; do secret +
+#                               labels + settings only.
 #       --no-settings           Skip repo-settings changes.
-#       --branch <name>         Branch for the stub PR.
-#                               Default 'chore/onboard-agent-pipeline'.
+#       --pr                    Use the branch + PR flow instead of committing
+#                               directly to the default branch (the default).
+#                               Implied by --branch.
+#       --branch <name>         Branch for the stub PR (implies --pr).
+#                               Default 'chore/onboard-agent-workflow'.
 #       --dry-run               Print what would happen; make no changes.
 #
 # SECURITY — "the token should be usable only by me, not my colleagues":
@@ -91,13 +109,16 @@ AGENT='claude'
 MODEL='claude-sonnet-5'
 RUNNER_LABELS='["ubuntu-latest"]'
 AUTO_REVIEW=false
+PRE_PREVIEW=false
 CHAIN=false
 NO_STUB=false
+DIRECT_TO_MAIN=true
 NO_SETTINGS=false
-BRANCH='chore/onboard-agent-pipeline'
+BRANCH='chore/onboard-agent-workflow'
 DRY_RUN=false
 
-PIPELINE_REPO='freaxnx01/agent-pipeline'
+# (plan Task 4). Flip to freaxnx01/agent-workflow once the rename is verified.
+PIPELINE_REPO='freaxnx01/agent-workflow'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---- helpers ---------------------------------------------------------------
@@ -139,10 +160,12 @@ while [[ $# -gt 0 ]]; do
     --model)              MODEL="${2:?}"; shift 2 ;;
     --runner-labels)      RUNNER_LABELS="${2:?}"; shift 2 ;;
     --auto-review)        AUTO_REVIEW=true; shift ;;
+    --pre-preview)        PRE_PREVIEW=true; shift ;;
     --chain)              CHAIN=true; shift ;;
     --no-stub)            NO_STUB=true; shift ;;
     --no-settings)        NO_SETTINGS=true; shift ;;
-    --branch)             BRANCH="${2:?}"; shift 2 ;;
+    --pr)                 DIRECT_TO_MAIN=false; shift ;;
+    --branch)             BRANCH="${2:?}"; DIRECT_TO_MAIN=false; shift 2 ;;
     --dry-run)            DRY_RUN=true; shift ;;
     -h|--help)            sed -n '2,90p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)                    usage_error "unknown argument: $1" ;;
@@ -274,6 +297,7 @@ build_agent_yml() {
   with_block+=$'\n      pipeline-ref: '"$REF"
   [[ "$AGENT" == opencode ]] && with_block+=$'\n      agent: opencode'
   [[ "$AUTO_REVIEW" == true ]] && with_block+=$'\n      auto-review: true'
+  [[ "$PRE_PREVIEW" == true ]] && with_block+=$'\n      pre-preview: true'
 
   cat <<YAML
 name: Claude
@@ -367,17 +391,32 @@ open_pr() {
 }
 
 if [[ "$NO_STUB" == true ]]; then
-  info "Skipping consumer stub PR (--no-stub)"
+  info "Skipping consumer stub (--no-stub)"
+elif [[ "$DIRECT_TO_MAIN" == true ]]; then
+  info "Committing consumer stub directly to $DEFAULT_BRANCH"
+  BRANCH="$DEFAULT_BRANCH"
+  build_agent_yml | put_file ".github/workflows/agent.yml" \
+    "ci(agent-workflow): add consumer stub"
+  if [[ "$CHAIN" == true ]]; then
+    build_chain_yml | put_file ".github/workflows/chain-dispatch.yml" \
+      "ci(agent-workflow): add chain-dispatch stub"
+  fi
 else
   info "Committing consumer stub on branch $BRANCH"
   ensure_branch
   build_agent_yml | put_file ".github/workflows/agent.yml" \
-    "ci(agent-pipeline): add consumer stub"
+    "ci(agent-workflow): add consumer stub"
   if [[ "$CHAIN" == true ]]; then
     build_chain_yml | put_file ".github/workflows/chain-dispatch.yml" \
-      "ci(agent-pipeline): add chain-dispatch stub"
+      "ci(agent-workflow): add chain-dispatch stub"
   fi
-  open_pr "ci: onboard onto agent-pipeline"
+  open_pr "ci: onboard onto agent-workflow"
 fi
 
-info "Done. Next: review the PR, merge it, then label a smoke-test issue 'ai-implement'."
+if [[ "$NO_STUB" == true ]]; then
+  info "Done. Next: label a smoke-test issue 'ai-implement'."
+elif [[ "$DIRECT_TO_MAIN" == true ]]; then
+  info "Done. Consumer stub is live on $DEFAULT_BRANCH. Next: label a smoke-test issue 'ai-implement'."
+else
+  info "Done. Next: review the PR, merge it, then label a smoke-test issue 'ai-implement'."
+fi
