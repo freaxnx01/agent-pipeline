@@ -106,11 +106,57 @@ release.
 
   Forgejo equivalent via `tea labels create --login git-home`.
 
-- Apply the label to the issue.
-- Post the lock comment:
+- Post the lock comment **first**:
   - Fresh acquisition: `🔒 Enrichment lock acquired at <timestamp>`
   - Takeover of a stale lock:
     `🔒 Enrichment lock re-acquired at <timestamp> (previous lock stale, <Xh> old)`
+- *Then* apply the label to the issue.
+- Then re-read the comments and resolve any race (see below).
+
+The comment-before-label ordering matters: the label is what Step 1.5 keys
+on, and the comment is what gives it an age. Applying the label first leaves
+a window in which the issue is labelled with no matching comment — which
+Step 1.5 deliberately treats as *unknown age → stale* and offers to take
+over, defeating the detection it exists for. Posting the comment first means
+the label never appears without an age.
+
+### Closing the detect/acquire race
+
+Step 1.5 (detect) and Step 2.5 (acquire) are not atomic — Step 2 (an LLM
+readiness assessment) and, on the takeover path, a user prompt sit between
+them. Two sessions started close together can both pass Step 1.5 seeing no
+lock, then both acquire and both brainstorm — exactly the duplicated work
+this feature exists to prevent.
+
+The forge API offers no compare-and-swap, so the race is resolved *after*
+acquisition instead, using the lock comments as an ordered log:
+immediately after posting its own lock comment, a session re-fetches the
+comments and looks for any **other** lock comment that
+
+- was **not** present when it read comments in Step 1.5 (i.e. a competitor
+  that acquired during the gap — the pre-existing stale comment on the
+  takeover path is therefore correctly ignored), and
+- carries an **earlier** timestamp than its own (ties broken by comment ID,
+  lowest wins — both forges hand out monotonically increasing IDs).
+
+If such a comment exists, this session lost the race: it stands down and
+stops, without brainstorming. Both sessions run the same check against the
+same ordered log, so exactly one of them wins.
+
+The loser does **not** remove the `enrichment-ongoing` label. The label is a
+single boolean shared by both sessions — the winner needs it, so removing it
+would unlock an issue that is actively being enriched, re-opening the very
+hole this closes. The loser instead posts
+
+```text
+🔓 Enrichment lock released at <timestamp> (lost race to the lock acquired at <winner timestamp>)
+```
+
+so the stand-down is explicit in the audit trail, and the winner's lock and
+its Step 6 release are untouched. `🔓` is a distinct marker from `🔒`, so
+Step 1.5's scan never mistakes a stand-down for an acquisition.
+
+### Releasing the lock
 
 **Step 6** (already clears `needs-enrichment` / `❓ to-be-defined` on
 success): also remove `enrichment-ongoing` here, same
@@ -118,6 +164,15 @@ success): also remove `enrichment-ongoing` here, same
 existing label-PUT rewrite (already reads-modifies-writes the full label set
 to drop the other two) extended to also drop `enrichment-ongoing` for
 Forgejo.
+
+Step 6 only covers the success path, but Step 2.5 is followed by two steps
+that can legitimately stop the command: the brainstorming approval gate in
+Step 3 (the user declines) and Step 5's "verify the push succeeded" stop.
+Aborting there without releasing would leave a lock nobody is holding for the
+full 4h staleness window. So the release is not Step-6-specific: **any
+user-initiated abort after Step 2.5 removes `enrichment-ongoing` before the
+command ends**, using the same commands Step 6 uses. Only a hard crash (which
+staleness expiry already covers) leaves the lock behind.
 
 No comment cleanup on release — the lock comments stay as an audit trail on
 the issue.
@@ -160,10 +215,20 @@ Verification is a manual dry run against a scratch issue:
 3. Run `/enrich` end-to-end on an unlocked issue — confirm the lock label
    and comment appear before brainstorming starts (Step 2.5), and that both
    are cleared at Step 6 while the comment itself remains.
+4. Simulate losing the race: between Step 2.5's comment post and its
+   re-check, add a second lock comment with an *earlier* timestamp by hand —
+   confirm the session stands down (posts the `🔓 … lost race …` comment,
+   leaves the label alone, does not brainstorm).
+5. Abort at Step 3's approval gate (decline the spec) — confirm
+   `enrichment-ongoing` is removed before the command ends, without reaching
+   Step 6.
 
 ## Follow-ups (out of scope here)
 
-- Apply the same lock mechanism to `/enrich-phased`.
+- Apply the same lock mechanism to `/enrich-phased`. **Known gap until then:**
+  `/enrich-phased` neither acquires nor releases `enrichment-ongoing`, so a
+  lock left by `/enrich` is invisible to it (it will happily enrich a locked
+  issue), and it can never release one. Staleness expiry is the only backstop.
 - Consider whether the "same person resuming" self-collision case is worth
   special-casing later (e.g. embedding a session/host identifier in the lock
   comment) if it proves annoying in practice.
