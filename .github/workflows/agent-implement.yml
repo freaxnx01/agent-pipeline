@@ -182,13 +182,14 @@ on:
         default: false
       self-fix:
         description: |
-          Opt-in for pre-preview's self-fix pass (#81 / ADR-004
-          follow-up). When true AND the first review's verdict is
-          `request_changes`, the agent attempts up to
+          Opt-in for the review self-fix pass — pre-preview or auto-review,
+          whichever runs for this issue (#81/#193, ADR-004 follow-up). When
+          true AND the first review's verdict is `request_changes`, the
+          original implementer's agent attempts up to
           `self-fix-max-iterations` fix → re-review cycles before falling
-          back to the block path. Ignored when `pre-preview` is false, or
-          when the first verdict is `approve` (nothing to fix) or `block`
-          (the agent already refused — self-fix never runs after a block).
+          back to the block path. Ignored when the first verdict is
+          `approve` (nothing to fix) or `block` (the agent already refused
+          — self-fix never runs after a block).
         type: boolean
         default: false
       self-fix-max-iterations:
@@ -292,6 +293,12 @@ on:
           ran). Populated only when `stub-review-verdict` /
           `stub-self-fix-verdict-sequence` is set.
         value: ${{ jobs.pre_preview.outputs.self-fix-iterations-used }}
+      auto-review-self-fix-iterations-used:
+        description: |
+          Iterations actually used by the auto-review self-fix loop (0 if
+          it never ran). Populated only when `stub-review-verdict` /
+          `stub-self-fix-verdict-sequence` is set.
+        value: ${{ jobs.auto_review.outputs.self-fix-iterations-used }}
 
 permissions:
   contents: read
@@ -764,7 +771,8 @@ jobs:
       pull-requests: write
       issues: write
     outputs:
-      merge-attempted: ${{ steps.verify_mock.outputs.merge-attempted }}
+      merge-attempted:         ${{ steps.verify_mock.outputs.merge-attempted }}
+      self-fix-iterations-used: ${{ steps.final.outputs.iterations-used }}
     steps:
       - name: Checkout consumer repo
         # Needed so .claude-auto-merge-blocklist (if present) is on disk
@@ -919,11 +927,74 @@ jobs:
           STUB: ${{ steps.review_stub.outputs.verdict }}
         run: printf 'value=%s\n' "${REAL:-$STUB}" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure OpenCode toolchain (self-fix)
+        # See the equivalent step in pre_preview (#193) — same reasoning.
+        if: |
+          steps.self_mod_guard.outputs.blocked != 'true'
+          && steps.find_pr.outputs.found == 'true'
+          && steps.verdict.outputs.value == 'request_changes'
+          && inputs.self-fix
+          && needs.implement.outputs.agent == 'opencode'
+        env:
+          AGENT: opencode
+        run: bash .claude-pipeline/scripts/ensure-toolchain.sh
+
+      - name: Self-fix loop (auto-review optional self-fix pass)
+        if: |
+          steps.self_mod_guard.outputs.blocked != 'true'
+          && steps.find_pr.outputs.found == 'true'
+          && steps.verdict.outputs.value == 'request_changes'
+          && inputs.self-fix
+        id: self_fix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.find_pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.find_pr.outputs.head-sha }}
+          HEAD_REF: ${{ steps.find_pr.outputs.head-ref }}
+          INITIAL_VERDICT: ${{ steps.verdict.outputs.value }}
+          CONCERNS_FILE: ${{ steps.review.outputs.summary-file }}
+          MAX_ITERATIONS: ${{ inputs.self-fix-max-iterations }}
+          AGENT: claude
+          AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
+          MODEL: ${{ inputs.review-model }}
+          FIX_AGENT: ${{ needs.implement.outputs.agent }}
+          FIX_MODEL: ${{ needs.implement.outputs.model }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          STUB_VERDICT_SEQUENCE: ${{ inputs.stub-self-fix-verdict-sequence }}
+        run: bash .claude-pipeline/scripts/self-fix-loop.sh
+
+      - name: Resolve final verdict (post self-fix)
+        if: |
+          steps.self_mod_guard.outputs.blocked != 'true'
+          && steps.find_pr.outputs.found == 'true'
+        id: final
+        env:
+          LOOP_VERDICT: ${{ steps.self_fix.outputs.verdict }}
+          LOOP_ITERATIONS: ${{ steps.self_fix.outputs.iterations-used }}
+          FIRST_VERDICT: ${{ steps.verdict.outputs.value }}
+        run: |
+          {
+            printf 'verdict=%s\n' "${LOOP_VERDICT:-$FIRST_VERDICT}"
+            printf 'iterations-used=%s\n' "${LOOP_ITERATIONS:-0}"
+          } >> "$GITHUB_OUTPUT"
+
+      # KNOWN GAP (issue #193 follow-up, deliberately deferred): when
+      # self-fix pushes a new commit and that fix is then approved, this
+      # envelope check runs almost immediately after — CI on the fresh
+      # commit has usually not finished yet. check-merge-envelope.sh
+      # treats a pending required check the same as a failing one (see
+      # ADR-002 §2.5, docs/DECISIONS.md), so this path commonly ends in
+      # `ai:review-blocked` rather than merging, even when the fix is
+      # good. Fixing this (e.g. a brief poll for check completion right
+      # after a self-fix approve) is a known follow-up, not done in this
+      # phase.
       - name: Check merge envelope
         if: |
           steps.self_mod_guard.outputs.blocked != 'true'
           && steps.find_pr.outputs.found == 'true'
-          && steps.verdict.outputs.value == 'approve'
+          && steps.final.outputs.verdict == 'approve'
         id: envelope
         env:
           GH_TOKEN: ${{ github.token }}
@@ -946,7 +1017,7 @@ jobs:
         if: |
           steps.self_mod_guard.outputs.blocked != 'true'
           && steps.find_pr.outputs.found == 'true'
-          && steps.verdict.outputs.value == 'approve'
+          && steps.final.outputs.verdict == 'approve'
           && steps.envelope.outputs.envelope == 'pass'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -958,25 +1029,28 @@ jobs:
 
       - name: Mark issue blocked when review or envelope refuses
         # Fires on every refusal path: self-mod guard, missing PR,
-        # non-approve verdict, or envelope failure. post-auto-review-
-        # block.sh picks the right reason and either comments on the
-        # PR (when known) or falls back to the issue.
+        # non-approve FINAL verdict (post self-fix, if it ran), or
+        # envelope failure. post-auto-review-block.sh picks the right
+        # reason and either comments on the PR (when known) or falls
+        # back to the issue.
         if: |
           steps.self_mod_guard.outputs.blocked == 'true'
           || steps.find_pr.outputs.found != 'true'
-          || steps.verdict.outputs.value != 'approve'
-          || (steps.verdict.outputs.value == 'approve' && steps.envelope.outputs.envelope != 'pass')
+          || steps.final.outputs.verdict != 'approve'
+          || (steps.final.outputs.verdict == 'approve' && steps.envelope.outputs.envelope != 'pass')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           PR_NUMBER: ${{ steps.find_pr.outputs.pr-number }}
           FOUND: ${{ steps.find_pr.outputs.found }}
-          VERDICT: ${{ steps.verdict.outputs.value }}
+          VERDICT: ${{ steps.final.outputs.verdict }}
           ENVELOPE: ${{ steps.envelope.outputs.envelope }}
           ENVELOPE_REASON: ${{ steps.envelope.outputs.reason }}
           FAILED_GATES: ${{ steps.envelope.outputs.failed-gates }}
           SELF_MOD_BLOCKED: ${{ steps.self_mod_guard.outputs.blocked }}
+          SELF_FIX_ITERATIONS: ${{ steps.final.outputs.iterations-used }}
+          SELF_FIX_MAX: ${{ inputs.self-fix-max-iterations }}
         run: bash .claude-pipeline/scripts/post-auto-review-block.sh
 
       - name: Verify gh mock log (test mode)
@@ -1114,6 +1188,20 @@ jobs:
           STUB: ${{ steps.review_stub.outputs.verdict }}
         run: printf 'value=%s\n' "${REAL:-$STUB}" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure OpenCode toolchain (self-fix)
+        # Mirrors the implement job's own conditional OpenCode install
+        # (#62) — the base toolchain step doesn't know the fix agent
+        # ahead of time, so install opencode here once FIX_AGENT is
+        # known, only when it's actually opencode.
+        if: |
+          steps.find_pr.outputs.found == 'true'
+          && steps.verdict.outputs.value == 'request_changes'
+          && inputs.self-fix
+          && needs.implement.outputs.agent == 'opencode'
+        env:
+          AGENT: opencode
+        run: bash .claude-pipeline/scripts/ensure-toolchain.sh
+
       - name: Self-fix loop (pre-preview optional self-fix pass)
         if: |
           steps.find_pr.outputs.found == 'true'
@@ -1131,9 +1219,11 @@ jobs:
           MAX_ITERATIONS: ${{ inputs.self-fix-max-iterations }}
           AGENT: claude
           AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
-          FIX_AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude-fix.sh
           MODEL: ${{ inputs.review-model }}
+          FIX_AGENT: ${{ needs.implement.outputs.agent }}
+          FIX_MODEL: ${{ needs.implement.outputs.model }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           STUB_VERDICT_SEQUENCE: ${{ inputs.stub-self-fix-verdict-sequence }}
         run: bash .claude-pipeline/scripts/self-fix-loop.sh
 
