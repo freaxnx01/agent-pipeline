@@ -1114,6 +1114,20 @@ jobs:
           STUB: ${{ steps.review_stub.outputs.verdict }}
         run: printf 'value=%s\n' "${REAL:-$STUB}" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure OpenCode toolchain (self-fix)
+        # Mirrors the implement job's own conditional OpenCode install
+        # (#62) — the base toolchain step doesn't know the fix agent
+        # ahead of time, so install opencode here once FIX_AGENT is
+        # known, only when it's actually opencode.
+        if: |
+          steps.find_pr.outputs.found == 'true'
+          && steps.verdict.outputs.value == 'request_changes'
+          && inputs.self-fix
+          && needs.implement.outputs.agent == 'opencode'
+        env:
+          AGENT: opencode
+        run: bash .claude-pipeline/scripts/ensure-toolchain.sh
+
       - name: Self-fix loop (pre-preview optional self-fix pass)
         if: |
           steps.find_pr.outputs.found == 'true'
@@ -1131,9 +1145,11 @@ jobs:
           MAX_ITERATIONS: ${{ inputs.self-fix-max-iterations }}
           AGENT: claude
           AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude.sh
-          FIX_AGENT_CMD: ${{ github.workspace }}/.claude-pipeline/scripts/lib/agent-cmd-claude-fix.sh
           MODEL: ${{ inputs.review-model }}
+          FIX_AGENT: ${{ needs.implement.outputs.agent }}
+          FIX_MODEL: ${{ needs.implement.outputs.model }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           STUB_VERDICT_SEQUENCE: ${{ inputs.stub-self-fix-verdict-sequence }}
         run: bash .claude-pipeline/scripts/self-fix-loop.sh
 
