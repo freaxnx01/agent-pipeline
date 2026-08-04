@@ -68,13 +68,19 @@ require_env HEAD_REF
 require_env ITERATION
 
 AGENT="${AGENT:-claude}"
-case "$AGENT" in
-  claude|opencode) ;;
-  *)
-    printf 'error: AGENT must be one of: claude | opencode (got %q)\n' "$AGENT" >&2
-    exit 2
-    ;;
-esac
+# Only validated when it actually drives wrapper resolution below -- an
+# explicit FIX_AGENT_CMD bypasses AGENT entirely (per the header comment),
+# so an unrelated/nonstandard AGENT value must not block a caller who
+# overrode the wrapper directly.
+if [[ -z "${FIX_AGENT_CMD:-}" ]]; then
+  case "$AGENT" in
+    claude|opencode) ;;
+    *)
+      printf 'error: AGENT must be one of: claude | opencode (got %q)\n' "$AGENT" >&2
+      exit 2
+      ;;
+  esac
+fi
 
 if [[ ! -r "$CONCERNS_FILE" ]]; then
   printf 'error: concerns file not readable: %s\n' "$CONCERNS_FILE" >&2
