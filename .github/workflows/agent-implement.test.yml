@@ -402,6 +402,48 @@ jobs:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: not-used-by-stub
 
+  call-auto-review-self-fix-approve:
+    name: Reusable workflow — auto-review self-fix fixes then approves
+    uses: ./.github/workflows/agent-implement.yml
+    with:
+      issue-number: 9020
+      timeout-minutes: 10
+      local-scripts: true
+      stub-claude: true
+      stub-fixture: success
+      auto-review: true
+      dry-run: true
+      stub-auto-review-enabled: true
+      stub-review-verdict: request_changes
+      stub-pr-files: |
+        src/foo.ts
+      self-fix: true
+      self-fix-max-iterations: 3
+      stub-self-fix-verdict-sequence: "request_changes,approve"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: not-used-by-stub
+
+  call-auto-review-self-fix-exhausted:
+    name: Reusable workflow — auto-review self-fix cap exhausted
+    uses: ./.github/workflows/agent-implement.yml
+    with:
+      issue-number: 9021
+      timeout-minutes: 10
+      local-scripts: true
+      stub-claude: true
+      stub-fixture: success
+      auto-review: true
+      dry-run: true
+      stub-auto-review-enabled: true
+      stub-review-verdict: request_changes
+      stub-pr-files: |
+        src/foo.ts
+      self-fix: true
+      self-fix-max-iterations: 2
+      stub-self-fix-verdict-sequence: "request_changes,request_changes"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: not-used-by-stub
+
   verify-auto-review-approve-safe:
     name: Assert approve + safe → merge attempted
     needs: call-auto-review-approve-safe
@@ -566,3 +608,41 @@ jobs:
           [[ "$ITERATIONS" == "2" ]]    || { echo "::error::self-fix-iterations-used=$ITERATIONS (want 2 — cap reached)"; fail=1; }
           (( fail == 0 )) || exit 1
           echo "self-fix cap-exhausted OK: ready=$READY merge=$ATTEMPTED iterations=$ITERATIONS"
+
+  verify-auto-review-self-fix-approve:
+    name: Assert auto-review self-fix fixes then approves → merge attempted
+    needs: call-auto-review-self-fix-approve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      ATTEMPTED:  ${{ needs.call-auto-review-self-fix-approve.outputs.auto-review-merge-attempted }}
+      ITERATIONS: ${{ needs.call-auto-review-self-fix-approve.outputs.auto-review-self-fix-iterations-used }}
+    steps:
+      - name: Assert merge attempted after 2 self-fix iterations
+        run: |
+          fail=0
+          [[ "$ATTEMPTED" == "true" ]] || { echo "::error::merge-attempted=$ATTEMPTED (want true — self-fix approve + safe envelope must merge)"; fail=1; }
+          [[ "$ITERATIONS" == "2" ]]   || { echo "::error::self-fix-iterations-used=$ITERATIONS (want 2)"; fail=1; }
+          (( fail == 0 )) || exit 1
+          echo "auto-review self-fix approve OK: merge=$ATTEMPTED iterations=$ITERATIONS"
+
+  verify-auto-review-self-fix-exhausted:
+    name: Assert auto-review self-fix cap exhausted → no merge
+    needs: call-auto-review-self-fix-exhausted
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      ATTEMPTED:  ${{ needs.call-auto-review-self-fix-exhausted.outputs.auto-review-merge-attempted }}
+      ITERATIONS: ${{ needs.call-auto-review-self-fix-exhausted.outputs.auto-review-self-fix-iterations-used }}
+    steps:
+      - name: Assert no merge after cap exhausted
+        run: |
+          fail=0
+          [[ "$ATTEMPTED" == "false" ]] || { echo "::error::merge-attempted=$ATTEMPTED (want false — cap-exhausted must NOT merge)"; fail=1; }
+          [[ "$ITERATIONS" == "2" ]]    || { echo "::error::self-fix-iterations-used=$ITERATIONS (want 2 — cap reached)"; fail=1; }
+          (( fail == 0 )) || exit 1
+          echo "auto-review self-fix cap-exhausted OK: merge=$ATTEMPTED iterations=$ITERATIONS"
