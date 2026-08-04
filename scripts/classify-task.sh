@@ -20,6 +20,12 @@
 #      DESIGN target is a Haiku-powered classifier; that's a future
 #      swap-in. Until then the heuristic + the override label are
 #      good enough and cost nothing to run.
+#      The keyword escalation targets (claude-opus-5 / claude-haiku-4-5)
+#      are Claude-family model ids, so escalation only fires when
+#      `AGENT == claude`; any other agent stays on DEFAULT_MODEL
+#      (escalating would hand e.g. opencode/OpenRouter an unresolvable
+#      model id and fail the run at zero tokens). Use an explicit
+#      `model:*` override label to pick a specific OpenRouter model.
 #
 # Required environment variables:
 #   ISSUE_NUMBER  GitHub issue number
@@ -102,7 +108,7 @@ while IFS= read -r label; do
       ;;
   esac
   case "$label" in
-    model:opus)           chosen=claude-opus-4-7;                 reason='label model:opus' ;;
+    model:opus)           chosen=claude-opus-5;                 reason='label model:opus' ;;
     model:sonnet)         chosen=claude-sonnet-5;                 reason='label model:sonnet' ;;
     model:haiku)          chosen=claude-haiku-4-5;                reason='label model:haiku' ;;
     model:mistral-large)  chosen=mistralai/mistral-large;          reason='label model:mistral-large' ;;
@@ -128,8 +134,18 @@ if [[ -z "$chosen" ]]; then
     ISSUE_BODY="$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json title,body --jq '.title + "\n" + .body')"
   fi
 
-  if   printf '%s' "$ISSUE_BODY" | grep -qiE 'refactor|redesign|architecture|migrat[ei]|complex|cross-cutting'; then
-    chosen=claude-opus-4-7
+  # The two escalation targets below (claude-opus-5 / claude-haiku-4-5) are
+  # Claude-family model ids with no established OpenRouter equivalent. On a
+  # non-Claude agent they're not just wrong, they're fatal: opencode dies at
+  # zero tokens trying to resolve them via OpenRouter. Only AGENT=claude may
+  # escalate off keywords; every other agent stays on DEFAULT_MODEL, same as
+  # the no-match branch. An explicit `model:*` override label (section 1
+  # above) is still the way to pick a specific OpenRouter model.
+  if [[ "$AGENT" != "claude" ]]; then
+    chosen="$DEFAULT_MODEL"
+    reason="heuristic: default (AGENT=$AGENT, keyword escalation is claude-only)"
+  elif printf '%s' "$ISSUE_BODY" | grep -qiE 'refactor|redesign|architecture|migrat[ei]|complex|cross-cutting'; then
+    chosen=claude-opus-5
     reason='heuristic: refactor/architecture keywords'
   elif printf '%s' "$ISSUE_BODY" | grep -qiE 'typo|spelling|grammar|wording|rename|comment-only'; then
     chosen=claude-haiku-4-5

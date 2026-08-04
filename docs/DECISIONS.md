@@ -18,7 +18,7 @@ Nygard's pattern, kept terse.
 
 The reusable workflow `agent-implement.yml` is hard-coded to invoke
 `anthropics/claude-code-base-action` and to address Claude model IDs
-(`claude-opus-4-7`, `claude-sonnet-5`, `claude-haiku-4-5`). Epic
+(`claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`). Epic
 [#2](https://github.com/freaxnx01/agent-pipeline/issues/2) adds OpenCode
 
 + OpenRouter (Mistral first) as a second executor without forcing a
@@ -676,6 +676,21 @@ Add a third flow, **pre-preview**, as a `pre_preview` job parallel to
 + The reusable workflow gains `pre-preview` / `stub-pre-preview-enabled` inputs
   and `pre-preview-{merge,ready}-attempted` outputs.
 
+### Addendum — Self-fix pass delivered (2026-07-31)
+
+**Tracking:** [#81](https://github.com/freaxnx01/agent-workflow/issues/81)
+
+The self-fix pass deferred above is delivered. On a `request_changes`
+verdict, opt-in `self-fix: true` runs up to `self-fix-max-iterations`
+(default 2) fix → re-review cycles via `scripts/self-fix-loop.sh` /
+`scripts/self-fix-pr.sh` before falling back to the block path. `block` and
+missing-PR verdicts are unaffected — self-fix only ever runs after
+`request_changes`. Still no merge envelope and no auto-merge; self-fix
+only changes what the human reviewer eventually sees. Cap-exhausted blocks
+get distinct wording in `post-auto-review-block.sh` ("self-fix exhausted
+after N/M iterations") via new `SELF_FIX_ITERATIONS` / `SELF_FIX_MAX` env,
+byte-identical to the original wording when self-fix didn't run.
+
 ## ADR-005 — Operator console lives here; user-level vs project-scoped commands (2026-07-12)
 
 ### Context
@@ -833,3 +848,59 @@ partials and the bootstrap together eliminates the dependency.
 + **`link-commands.sh` still derives its source dir from `$HOME`**, so it cannot
   run against a scratch `$HOME`; the bootstrap test symlinks the real checkout in.
   Also left for a follow-up.
+
+## ADR-008 — Advisor Tool not yet wired into ai-implement (2026-07-24)
+
+### Context
+
+Issue #160 asked whether the "advisor strategy"
+(<https://claude.com/blog/the-advisor-strategy>) can be used with the `ai-implement`
+pipeline's headless Claude runs. The pattern lets a cheap executor model
+(Sonnet/Haiku) call a stronger "advisor" model (Opus) mid-task, within the same
+request, only at decision points it can't resolve on its own — near-Opus judgement
+at near-Sonnet cost. The `implement` job in `agent-implement.yml` runs Claude Code
+headlessly via `anthropics/claude-code-base-action` with a fixed `allowed_tools`
+allowlist (`Edit,Write,Read,Glob,Grep,MultiEdit,TodoWrite,Bash`) and one model per
+run picked up front by `classify-task.sh`. If the advisor tool is reachable from
+that headless run, it's a natural fit for hard mid-implementation calls.
+
+### Decision
+
+**Do not wire the advisor tool into `agent-implement.yml` in this pass.** Static
+research (this session's local `claude --help` on CLI v2.1.218 — the exact version
+`claude-code-base-action`'s `action.yml` pins at SHA
+`2d6abe4aa8adacaa322e24a040787cf155cf1d09` — the public `anthropics/claude-code`
+`CHANGELOG.md`, and the blog post) found:
+
++ **Confirmed:** the advisor tool is a real, shipped Anthropic feature. At the API
+  level it's a beta tool (`anthropic-beta: advisor-tool-2026-03-01` header, `"type":
+  "advisor_20260301"` tool block, per the blog post). The Claude Code CLI has its
+  own integration, first appearing in the public changelog at v2.1.117 ("Advisor
+  Tool (experimental)..."), still labeled experimental through v2.1.214+ — present
+  in the v2.1.218 binary the pipeline installs. The action exposes a `claude_args`
+  passthrough input, not currently used by `agent-implement.yml`, that in principle
+  could carry flags beyond `allowed_tools`.
++ **Not confirmed:** no changelog entry, `--help` output, or reachable docs page
+  describes a headless (`-p`/`--print`) or `settings.json` path to enable/configure
+  the advisor tool. Every changelog mention describes interactive-session UI
+  ("`/advisor` dialog", "advisor picker", "startup notification when enabled") — a
+  human picking an advisor model. The blog post documents the raw Messages API
+  usage only and does not mention the Claude Code CLI, headless execution, or
+  GitHub Actions.
+
+Headless reachability is therefore an open question that only a live test can
+answer; a live pipeline run was out of scope for this evaluation (issue #160).
+
+### Consequences
+
++ The existing `auto-review` / `pre-preview` jobs (`review-pr.sh`) remain the
+  pipeline's only second-opinion mechanism — a separate Claude invocation
+  reviewing the *finished* PR diff after the fact. If the advisor tool ever lands
+  headlessly, it would be complementary rather than a replacement: fine-grained,
+  mid-task, same-context consultation vs. a post-hoc whole-PR gate.
++ Revisit trigger: the next `anthropics/claude-code` `CHANGELOG.md` entry that
+  mentions non-interactive/headless advisor support, or `claude-code-base-action`
+  documenting how to pass advisor-enabling flags through `claude_args`.
++ Follow-up: [#171](https://github.com/freaxnx01/agent-workflow/issues/171)
+  — a scoped sandbox-repo spike to test headless reachability directly, filed
+  rather than executed here.

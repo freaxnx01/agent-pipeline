@@ -29,7 +29,7 @@ acting before the human has seen the plan.
 - Resuming a triage batch started in an earlier session.
 
 **Not for:** a single well-formed bug report (just file it), or writing an issue body
-(that's `/gh:enrich` / `/fj:enrich`).
+(that's `/enrich`).
 
 **Invoked with no notes** (e.g. a bare `/processing-test-feedback`): don't ask for input
 yet — first scan `docs/ai-notes/feedback/` for a worklog with unfinished entries and
@@ -101,7 +101,7 @@ Do **not** create issues, edit TODO.md, or write code yet.
 Only after the human approves (they may edit dispositions first), act per entry via the
 right channel, and mark each entry `done` in the worklog as you go:
 
-- **Issue** → `/gh:new` (or `/fj:new`): label `needs-enrichment` + the matching `area:*`
+- **Issue** → `/new`: label `needs-enrichment` + the matching `area:*`
   label. One issue per entry. Use a Conventional-Commits-style title (`fix(...)`,
   `feat(...)`). Embed each attachment in the body (`![](<committed asset path>)` for images,
   a link for videos); if the tracker needs a true upload, flag it for the human to drag in.

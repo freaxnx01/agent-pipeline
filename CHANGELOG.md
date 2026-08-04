@@ -7,6 +7,105 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **commands:** Remove `/gh:done` `/gh:enrich` `/gh:enrich-phased` `/gh:issues`
+  `/gh:milestone` `/gh:new` `/gh:parked` `/gh:prs` `/gh:roadmap` `/gh:route`
+  `/gh:triage` `/gh:work` and their `/fj:*` equivalents — merged into the
+  forge-agnostic `/done` `/enrich` `/enrich-phased` `/issues` `/milestone`
+  `/new` `/parked` `/prs` `/roadmap` `/route` `/triage` `/work` commands.
+  **BREAKING CHANGE:** anyone invoking a `gh:x`/`fj:x` name directly for one of
+  these 12 concepts must switch to the prefix-less command; re-run
+  `setup/link-commands.sh` to pick up the change (#198, #199).
+
+### Added
+
+- **enrich:** concurrency lock — `/enrich` claims an `enrichment-ongoing` label
+  plus a timestamped lock comment before brainstorming (Step 2.5), hard-stops
+  when another session holds a lock younger than 4h (Step 1.5), offers a
+  takeover past that threshold, re-checks after acquiring so the session that
+  acquired first wins the race, and releases the label at Step 6 or on any
+  earlier user-initiated abort (#229)
+- **pre-preview:** `self-fix` and `self-fix-max-iterations` workflow
+  inputs — on a `request_changes` verdict, optionally let the agent
+  attempt bounded fix → re-review cycles before falling back to the
+  human-review block path (#81)
+- **commands:** `/milestone triage` — lists open issues with no milestone,
+  excluding `🧊 parked` and `roadmap`, then walks them one at a time to assign
+  one, every write confirmed by read-back (#178)
+- **commands:** `/parked` gains `unpark`, `repark`, and `review` verbs —
+  unparking hands off to `/route`, reparking records a `🧊 parked:` reason
+  comment, and `list` now shows the most recent reason (#174)
+- **commands:** `/roadmap` — lists issues labeled `roadmap`, promotes one into
+  a milestone (schedule first, then unlabel), and records a `roadmap:` reason
+  comment; `/issues` now points here instead of a raw `gh` invocation (#175)
+
+### Changed
+
+- **partials:** `subagent-driven-default.md` now carves out issue-based
+  dispatch — when a plan targets a GitHub issue in a repo with
+  agent-workflow's pipeline wired up, default to `/enrich`'s issue-body +
+  `ai-implement` dispatch instead of local `subagent-driven-development`,
+  even when brainstorming/writing-plans wasn't invoked via `/enrich` itself.
+- **commands:** Extract the duplicated forge host-detection snippet into
+  `scripts/lib/detect-forge.sh`, sourced by the 12 merged commands above (#198,
+  #199).
+- **commands:** `/issues` now also excludes issues labeled `roadmap` (planned
+  for a future milestone, not current work), alongside the existing
+  `🧊 parked` exclusion (#173)
+- **commands:** `/gh:assign` and `/gh:implement` now pick an implementation
+  contract by issue shape — the TDD contract for code changes, a before/after
+  verification contract for docs-only issues — from the new shared
+  `/gh:implementation-contract` (#177)
+
+### Fixed
+
+- **setup:** `setup/link-commands.sh` now prunes command files it previously
+  installed that no longer exist in the repo's `commands/` tree, instead of
+  only ever adding/updating. Previously a re-install after a command was
+  removed or merged elsewhere (e.g. the gh:/fj: -> forge-agnostic
+  consolidation, #198/#199) left the superseded file installed and working
+  indefinitely, alongside its replacement. Scoped to a manifest of this
+  installer's own prior writes — `~/.claude/commands/` is Claude Code's
+  general user-commands directory, not exclusively agent-workflow's, so a
+  file this installer never placed (hand-authored, or from another tool) is
+  never touched.
+
+## [1.11.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.11.0) - 2026-07-27
+
+### Added
+
+- **commands:** Add /milestone across GitHub and Forgejo (#172)
+- **agent-implement:** Expose max_turns as a configurable input
+
+### Fixed
+
+- **gh:enrich:** Resolve spec/plan dirs against gitignore, push to main
+- **handoff:** Key handoff files by branch so worktrees don't collide
+- **claude-implement:** Forward max-turns input to keep shim in lockstep
+
+### Documentation
+
+- **todo:** Note the missing GLM 5.2 model comparison (#169)
+- **decisions:** Add ADR-008 — advisor tool not yet wired into ai-implement
+- **glossary:** Distinguish milestones, epics, and labels
+- **specs:** Add milestone support design for #172
+- **handoff:** Save phase for resume — #172 milestone support
+- **plans:** Add milestone support implementation plan for #172
+- **plans:** Make #172 plan verification CI-executable
+- Add spec and implementation plan for roadmap-label filter (#173)
+- **plans:** Make #173 verification CI-safe and dry-run validate it
+- Add spec and implementation plan for conditional contract (#177)
+- Add spec and implementation plan for /milestone triage (#178)
+- Add spec and implementation plans for #174 and #175
+- **commands:** Exclude `roadmap` issues from `/gh:issues` and `/fj:issues` (#181)
+- **handoff:** Save queue-drain phase for resume
+- **plans:** Add implementation plan for max-turns input (#166)
+
+### commands
+
+- **gh:** Make pre-dispatch implementation contract conditional (code vs docs-only) (#180)
+
 ## [1.10.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.10.0) - 2026-07-26
 
 ### Added

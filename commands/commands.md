@@ -40,17 +40,17 @@ labels (gh vs fj) to whichever families are present.
 
 Use these as the baseline set:
 
-- **Issue pipeline (GitHub):** `/gh:new` → `/gh:triage` → `/gh:route` → `/gh:enrich` → `/gh:work` → `/gh:review` → `/gh:prs` → `/gh:done`
+- **Issue pipeline:** `/new` → `/triage` → `/route` → `/enrich` → `/work` → `/gh:review` → `/prs` → `/done`
   _Capture an idea, prioritize, decide how to build it, spec it, implement, review, merge, archive._
-- **Delegate to an AI agent:** `/gh:route` → `/gh:enrich-phased` → `/gh:assign` (or `/gh:implement`) → `/gh:review`
+- **Delegate to an AI agent:** `/route` → `/enrich-phased` → `/gh:assign` (or `/gh:implement`) → `/gh:review`
   _Hand a well-specced issue to @copilot/@claude or the agent-workflow instead of building it locally._
-- **Forgejo pipeline:** `/fj:new` → `/fj:triage` → `/fj:route` → `/fj:enrich` → `/fj:work` → `/fj:prs` → `/fj:done`
-  _Same flow as GitHub, on the self-hosted Forgejo instance._
+- **Release-scoped work:** `/milestone new <name> due <date>` → `/new` → `/milestone assign <issue> to <name>` → `/milestone list`
+  _Open a milestone, file work into it, then see everything still open for that ship date._
 - **Session continuity (clear & resume):** `/loose-ends` → `/clear-check` → `/handoff` → `/clear` → `/pickup`
   _Wrap up mid-task, confirm it's safe to clear, save state, then resume in a fresh context._
 - **Session wrap / next day:** `/wrap-up` → (`/clear` or new session) → `/todo`
   _End a session into TODO.md, then re-orient the next session around what's pending._
-- **Worktree feature work:** `/wt:status` → `/gh:work` (or `/fj:work`) → `/wt:finish`
+- **Worktree feature work:** `/wt:status` → `/work` → `/wt:finish`
   _Check the tree is clean, do isolated feature work, then commit/merge/clean up._
 
 Keep this section concise — it's a cheat-sheet, not documentation. Note that `/clear`

@@ -220,10 +220,10 @@ assert_contains "$out" '| Input tokens | 1 |' "no exec log → result.json usage
 
 section "resolved model + agent in the report (#59)"
 
-out="$(MODEL=claude-opus-4-7 AGENT=claude RENDER_ONLY=1 \
+out="$(MODEL=claude-opus-5 AGENT=claude RENDER_ONLY=1 \
        RESULT_FILE="$FIXTURES/result-success-cheap.json" \
        ISSUE_NUMBER=1 WORKFLOW_RUN_URL=u bash "$SCRIPT")"
-assert_contains "$out" '**Model:** claude-opus-4-7 · **Agent:** claude' \
+assert_contains "$out" '**Model:** claude-opus-5 · **Agent:** claude' \
   "MODEL+AGENT env → Model·Agent line rendered"
 
 out="$(render_only result-success-cheap.json)"
@@ -254,7 +254,7 @@ CLASSIFY="$ROOT/scripts/classify-task.sh"
 # Override: model:opus label
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement
 model:opus' bash "$CLASSIFY")"
-assert_contains "$out" 'chosen: claude-opus-4-7 (label model:opus)'   "label model:opus → opus"
+assert_contains "$out" 'chosen: claude-opus-5 (label model:opus)'   "label model:opus → opus"
 
 # Override: model:haiku
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='model:haiku' bash "$CLASSIFY")"
@@ -367,12 +367,34 @@ assert_contains "$out" 'warn: label model:opus incompatible with AGENT=opencode'
 # Heuristic: refactor keyword → opus
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' \
        ISSUE_BODY='Refactor the auth middleware' bash "$CLASSIFY")"
-assert_contains "$out" 'claude-opus-4-7 (heuristic: refactor/architecture keywords)' "refactor keyword → opus"
+assert_contains "$out" 'claude-opus-5 (heuristic: refactor/architecture keywords)' "refactor keyword → opus"
 
 # Heuristic: typo keyword → haiku
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' \
        ISSUE_BODY='Fix typo in the README' bash "$CLASSIFY")"
 assert_contains "$out" 'claude-haiku-4-5 (heuristic: trivial-edit keywords)' "typo keyword → haiku"
+
+# Heuristic escalation is Claude-only: refactor/architecture keywords must
+# NOT hand a non-Claude agent a claude-* model id (opencode/OpenRouter has
+# no such model and dies at zero tokens) — falls back to DEFAULT_MODEL.
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode ISSUE_LABELS='ai-implement' \
+       ISSUE_BODY='Refactor the auth middleware' DEFAULT_MODEL=z-ai/glm-5.2 bash "$CLASSIFY")"
+assert_contains "$out" 'z-ai/glm-5.2 (heuristic: default (AGENT=opencode' \
+  "refactor keyword + agent=opencode → DEFAULT_MODEL, not claude-opus-5"
+
+# Same for the trivial-edit branch.
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode ISSUE_LABELS='ai-implement' \
+       ISSUE_BODY='Fix typo in the README' DEFAULT_MODEL=z-ai/glm-5.2 bash "$CLASSIFY")"
+assert_contains "$out" 'z-ai/glm-5.2 (heuristic: default (AGENT=opencode' \
+  "typo keyword + agent=opencode → DEFAULT_MODEL, not claude-haiku-4-5"
+
+# An explicit OpenRouter override label still wins over the AGENT=opencode
+# fallback above (override path is untouched by this fix).
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode \
+       ISSUE_LABELS=$'ai-implement\nmodel:qwen3-coder' \
+       ISSUE_BODY='Refactor the auth middleware' bash "$CLASSIFY")"
+assert_contains "$out" 'chosen: qwen/qwen3-coder-30b-a3b-instruct (label model:qwen3-coder)' \
+  "override label still wins over agent=opencode heuristic fallback"
 
 # Default: nothing matches
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' \
@@ -393,6 +415,77 @@ out="$(ISSUE_NUMBER=1 REPO=o/r \
        ISSUE_LABELS=$'ai-implement\nmodel:haiku' \
        ISSUE_BODY='Refactor the auth middleware' bash "$CLASSIFY")"
 assert_contains "$out" 'claude-haiku-4-5 (label model:haiku)' "override label beats heuristic"
+
+section "classify-turns — explicit override labels + task-count heuristic"
+
+CLASSIFY_TURNS="$ROOT/scripts/classify-turns.sh"
+
+# Override: turns:80 label
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement
+turns:80' bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 80 (label turns:80)' "label turns:80 → 80"
+
+# Override: turns:120 label
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='turns:120' bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 120 (label turns:120)' "label turns:120 → 120"
+
+# Heuristic: 6+ "### Task N" headings under "## Implementation Plan" → 160
+body6="## Implementation Plan
+### Task 1: a
+### Task 2: b
+### Task 3: c
+### Task 4: d
+### Task 5: e
+### Task 6: f"
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body6" bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 160 (heuristic: 6 plan tasks)' "6 tasks → 160"
+
+# Heuristic: 4-5 tasks → 120
+body4="## Implementation Plan
+### Task 1: a
+### Task 2: b
+### Task 3: c
+### Task 4: d"
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body4" bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 120 (heuristic: 4 plan tasks)' "4 tasks → 120"
+
+# Heuristic: 2-3 tasks → 80
+body2="## Implementation Plan
+### Task 1: a
+### Task 2: b"
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body2" bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 80 (heuristic: 2 plan tasks)' "2 tasks → 80"
+
+# Regression: an "## Implementation Plan" section whose task headings are
+# NOT "### Task N" (e.g. "## Task N", a different heading level, or plain
+# prose) must fall through to DEFAULT_MAX_TURNS, not crash. grep -c exits 1
+# on zero matches; under set -euo pipefail an unguarded `grep -c` inside a
+# command substitution kills the whole script before it prints anything —
+# this is exactly what happened on issue #193's Phase 1 dispatch
+# (2026-08-04): the body used "## Task N" (H2) instead of "### Task N" (H3),
+# classify-turns.sh silently exited 1, and the whole implement job aborted
+# before ever running the implementer.
+body_wrong_heading="## Implementation Plan
+## Task 1: a
+## Task 2: b"
+ec="$(run_capture_ec env ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body_wrong_heading" bash "$CLASSIFY_TURNS")"
+assert_equals "$ec" "0" "Implementation Plan present but zero '### Task N' matches → exit 0, no crash"
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body_wrong_heading" bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 50 (heuristic: 0 plan task(s), default budget enough)' \
+  "zero task-heading matches → falls through to DEFAULT_MAX_TURNS, not a crash"
+
+# No "## Implementation Plan" section at all → default
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY='Add a hello.md file' bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 50 (heuristic: no Implementation Plan section found)' "no plan section → default"
+
+# DEFAULT_MAX_TURNS env override applied on the no-plan-section default branch
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY='Add a hello.md file' \
+       DEFAULT_MAX_TURNS=30 bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 30 (heuristic: no Implementation Plan section found)' "DEFAULT_MAX_TURNS env override applied"
+
+# Missing ISSUE_NUMBER → exit 2
+ec="$(run_capture_ec env REPO=o/r bash "$CLASSIFY_TURNS")"
+assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
 
 section "classify-agent — label override + input fallback (ADR-001)"
 
@@ -977,6 +1070,26 @@ calls="$(cat "$LOG")"; rm -f "$LOG"
 assert_contains     "$calls" 'pr comment 100 --repo o/r --body Pre-review held: agent review verdict: block (gate 4)' "MODE=pre-preview → 'Pre-review held' PR comment"
 assert_not_contains "$calls" 'Auto-merge held'                                                                        "MODE=pre-preview → no 'Auto-merge held' wording"
 
+# SELF_FIX_ITERATIONS > 0 → distinct "self-fix exhausted" wording
+LOG="$(mktemp)"
+PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
+REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true \
+VERDICT=request_changes MODE=pre-preview \
+SELF_FIX_ITERATIONS=2 SELF_FIX_MAX=2 \
+  bash "$POST_BLOCK" >/dev/null
+calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_contains     "$calls" 'self-fix exhausted after 2/2 iteration(s) — last verdict: request_changes' "self-fix exhausted → distinct wording"
+assert_not_contains "$calls" 'agent review verdict: request_changes (gate 4)'                              "self-fix wording replaces the plain verdict reason"
+
+# SELF_FIX_ITERATIONS unset/0 → unchanged wording (byte-identical to today)
+LOG="$(mktemp)"
+PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
+REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true \
+VERDICT=block MODE=pre-preview \
+  bash "$POST_BLOCK" >/dev/null
+calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_contains "$calls" 'agent review verdict: block (gate 4)' "SELF_FIX_ITERATIONS unset → plain wording unchanged"
+
 # Envelope fail → reason includes the gate IDs from check-merge-envelope.sh
 LOG="$(mktemp)"
 PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
@@ -993,6 +1106,359 @@ assert_contains "$calls" 'failed gates: 6'                      "failed-gate IDs
 ec="$(run_capture_ec env REPO=o/r bash "$POST_BLOCK")"
 assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
 
+section "self-fix-pr — checkout, fix, commit (local repo simulation)"
+
+SELF_FIX_PR="$ROOT/scripts/self-fix-pr.sh"
+
+make_self_fix_repo() {
+  local dir; dir="$(mktemp -d)"
+  git -C "$dir" init --quiet -b main
+  git -C "$dir" config user.email test@example.com
+  git -C "$dir" config user.name test
+  printf 'hello\n' > "$dir/file.txt"
+  git -C "$dir" add file.txt
+  git -C "$dir" commit --quiet -m init
+  printf '%s' "$dir"
+}
+
+CONCERNS="$(mktemp --suffix=.json)"
+printf '{"verdict":"request_changes","summary":"x","concerns":[{"severity":"high","message":"fix the bug"}]}' > "$CONCERNS"
+
+# Happy path: mock agent edits a file → committed (push skipped in tests)
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "agent edit → fixed=true"
+commit_msg="$(git -C "$REPO_DIR" log -1 --format=%s)"
+assert_equals "$commit_msg" "address self-review (iteration 1)" "commit message includes iteration number"
+rm -rf "$REPO_DIR"
+
+# Agent creates a new untracked file (not editing the tracked file) →
+# must still be detected as a change, committed, fixed=true (#81 review fix:
+# `git diff --quiet` is blind to untracked files, git status --porcelain isn't)
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent-newfile" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "agent creates new untracked file → fixed=true"
+assert_equals "$(git -C "$REPO_DIR" show --stat -1 --format= | grep -c untracked.txt)" "1" "new untracked file committed"
+rm -rf "$REPO_DIR"
+
+# Agent makes no changes → exit 1, no new commit
+REPO_DIR="$(make_self_fix_repo)"
+before_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
+ec="$(run_capture_ec env WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+        REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+        FIX_AGENT_CMD="$MOCKS/self-fix-agent-noop" \
+        bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "1" "agent makes no changes → exit 1"
+after_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
+assert_equals "$after_sha" "$before_sha" "no new commit created"
+rm -rf "$REPO_DIR"
+
+# Fix agent crashes → exit 1
+REPO_DIR="$(make_self_fix_repo)"
+ec="$(run_capture_ec env WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+        REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+        FIX_AGENT_CMD="$MOCKS/self-fix-agent-fail" \
+        bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "1" "fix agent crash → exit 1"
+rm -rf "$REPO_DIR"
+
+# Error paths
+ec="$(run_capture_ec bash "$SELF_FIX_PR")"
+assert_equals "$ec" "2" "missing pr-number/concerns args → exit 2"
+
+ec="$(run_capture_ec env REPO=o/r HEAD_REF=x ITERATION=1 bash "$SELF_FIX_PR" 99 /no/such/file.json)"
+assert_equals "$ec" "2" "unreadable concerns file → exit 2"
+
+ec="$(run_capture_ec env HEAD_REF=x ITERATION=1 bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "2" "missing REPO → exit 2"
+
+# Real self-fix-pr.sh, no ambient git identity (repo has none, global/system
+# config nulled out) — locks in the `-c user.name=... -c user.email=...`
+# fix on the commit call (#81 review finding 2): on a real runner, a fresh
+# `gh repo clone` has no identity configured and a bare `git commit` fails
+# with "fatal: empty ident name".
+make_self_fix_repo_no_identity() {
+  local dir; dir="$(mktemp -d)"
+  git -C "$dir" init --quiet -b main
+  printf 'hello\n' > "$dir/file.txt"
+  git -C "$dir" add file.txt
+  # Identity for the *setup* commit only, passed via -c so it never lands
+  # in the repo's own .git/config — the repo genuinely has no ambient
+  # identity afterward.
+  git -C "$dir" -c user.email=setup@example.com -c user.name=setup \
+    commit --quiet -m init
+  printf '%s' "$dir"
+}
+
+REPO_DIR="$(make_self_fix_repo_no_identity)"
+out="$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+       WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "no ambient git identity → commit still succeeds (fixed=true)"
+commit_msg="$(git -C "$REPO_DIR" log -1 --format=%s)"
+assert_equals "$commit_msg" "address self-review (iteration 1)" "no ambient git identity → correct commit message"
+rm -rf "$REPO_DIR"
+
+# AGENT-based default resolution: claude → agent-cmd-claude-fix.sh (via FIX_LIB_DIR test seam)
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=claude \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "AGENT=claude resolves a working wrapper"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed-by-claude' "AGENT=claude resolves agent-cmd-claude-fix.sh specifically"
+rm -rf "$REPO_DIR"
+
+# AGENT-based default resolution: opencode → agent-cmd-opencode-fix.sh
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=opencode \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "AGENT=opencode resolves a working wrapper"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed-by-opencode' "AGENT=opencode resolves agent-cmd-opencode-fix.sh specifically"
+rm -rf "$REPO_DIR"
+
+# Default AGENT (unset) behaves as claude
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed-by-claude' "AGENT unset → defaults to claude"
+rm -rf "$REPO_DIR"
+
+# Explicit FIX_AGENT_CMD still overrides AGENT-based resolution. AGENT=opencode
+# would resolve to the FIX_LIB_DIR opencode mock (which writes
+# 'fixed-by-opencode') if FIX_AGENT_CMD weren't taking precedence -- assert
+# exact file content, not a substring, since 'fixed-by-opencode' also
+# contains 'fixed' and would silently pass a substring check either way.
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=opencode \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "explicit FIX_AGENT_CMD still works"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_equals "$edited" "$(printf 'hello\nfixed')" \
+  "explicit FIX_AGENT_CMD overrides AGENT-based resolution (not the opencode mock)"
+rm -rf "$REPO_DIR"
+
+# Invalid AGENT → exit 2
+ec="$(run_capture_ec env REPO=o/r HEAD_REF=x ITERATION=1 AGENT=gpt5 bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "2" "invalid AGENT → exit 2"
+
+# Invalid AGENT is ignored when FIX_AGENT_CMD is set explicitly -- the doc
+# comment already promises this ("ignored when FIX_AGENT_CMD is set
+# explicitly"); the validation must actually honor it (PR #232 review
+# finding: the code validated unconditionally, contradicting the comment).
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=gpt5 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "invalid AGENT is ignored when FIX_AGENT_CMD is set explicitly"
+rm -rf "$REPO_DIR"
+
+section "agent-cmd-opencode-fix — model prefixing + empty-MODEL branch (#193 review finding)"
+
+OPENCODE_FIX="$ROOT/scripts/lib/agent-cmd-opencode-fix.sh"
+
+opencode_fix_run() {
+  # args: <model-env-or-empty>
+  local model="$1"
+  local log; log="$(mktemp)"
+  local tmp_runner; tmp_runner="$(mktemp -d)"
+  local prompt; prompt="$(mktemp)"
+  printf 'fix these findings' > "$prompt"
+  PATH="$MOCKS:$PATH" OPENCODE_MOCK_LOG="$log" RUNNER_TEMP="$tmp_runner" \
+    MODEL="$model" bash "$OPENCODE_FIX" "$prompt" >/dev/null
+  cat "$log"
+  rm -rf "$log" "$tmp_runner" "$prompt"
+}
+
+# MODEL unset → no --model flag at all
+call="$(opencode_fix_run '')"
+assert_equals "$call" 'run --format json --print-logs -- fix these findings' \
+  "MODEL unset → opencode invoked without --model"
+
+# MODEL without a provider prefix → openrouter/ prepended
+call="$(opencode_fix_run 'mistralai/mistral-large')"
+assert_equals "$call" 'run --format json --print-logs --model openrouter/mistralai/mistral-large -- fix these findings' \
+  "MODEL without openrouter/ prefix → prefix prepended"
+
+# MODEL already prefixed with openrouter/ → passed through unchanged (not double-prefixed)
+call="$(opencode_fix_run 'openrouter/openai/gpt-oss-120b')"
+assert_equals "$call" 'run --format json --print-logs --model openrouter/openai/gpt-oss-120b -- fix these findings' \
+  "MODEL already openrouter/-prefixed → unchanged, not double-prefixed"
+
+section "self-fix-loop — bounded fix→re-review cycles"
+
+SELF_FIX_LOOP="$ROOT/scripts/self-fix-loop.sh"
+FIX_STUB="$MOCKS/self-fix-loop-fix-stub"
+REVIEW_STUB="$MOCKS/self-fix-loop-review-stub"
+
+LOOP_CONCERNS="$(mktemp --suffix=.json)"
+printf '{"verdict":"request_changes","summary":"x","concerns":[]}' > "$LOOP_CONCERNS"
+
+loop_run() {
+  # args: <fix-log> <review-verdicts-csv> [extra env assignments...]
+  local fix_log="$1" verdicts="$2"; shift 2
+  local go; go="$(mktemp)"
+  GITHUB_OUTPUT="$go" \
+  PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+  INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" \
+  MAX_ITERATIONS=3 \
+  FIX_CMD="$FIX_STUB" FIX_LOG="$fix_log" \
+  REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS="$verdicts" \
+  NEW_HEAD_SHA=newsha \
+  "$@" \
+    bash "$SELF_FIX_LOOP" >/dev/null
+  cat "$go"
+  rm -f "$go"
+}
+
+# Fix succeeds, second re-review approves → stop at iteration 2
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'request_changes,approve')"
+assert_contains "$out" 'verdict=approve'   "fix→approve within cap → verdict=approve"
+assert_contains "$out" 'iterations-used=2' "stops at iteration 2 (the approving one)"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$(printf '%s\n' "$fix_calls" | grep -c .)" "2" "FIX_CMD invoked exactly twice"
+
+# Cap exhausted without approve
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'request_changes,request_changes,request_changes')"
+assert_contains "$out" 'verdict=request_changes' "cap exhausted → final verdict still request_changes"
+assert_contains "$out" 'iterations-used=3'        "used all 3 iterations"
+rm -f "$LOG"
+
+# Fix succeeds but re-review blocks → stop immediately, don't burn remaining iterations
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'block')"
+assert_contains "$out" 'verdict=block'      "re-review block → stops with verdict=block"
+assert_contains "$out" 'iterations-used=1'  "stops after 1 iteration on block"
+rm -f "$LOG"
+
+# FIX_CMD itself fails → loop aborts, keeps last known verdict, 0 completed iterations
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'approve' env FIX_FAIL=1)"
+assert_contains "$out" 'verdict=request_changes' "FIX_CMD failure → verdict stays at INITIAL_VERDICT"
+assert_contains "$out" 'iterations-used=0'        "FIX_CMD failure on first attempt → 0 completed iterations"
+rm -f "$LOG"
+
+# REVIEW_SCRIPT itself fails mid-loop → loop stops gracefully with the
+# last known verdict, not a crash (set -e would otherwise kill the whole
+# script before it writes anything to $GITHUB_OUTPUT — #81 review finding 4).
+LOG="$(mktemp)"
+out="$(loop_run "$LOG" 'CRASH')"
+assert_contains "$out" 'verdict=request_changes' "REVIEW_SCRIPT crash → verdict stays at INITIAL_VERDICT (no re-review completed)"
+assert_contains "$out" 'iterations-used=1'        "REVIEW_SCRIPT crash → the fix itself still counted as completed"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$(printf '%s\n' "$fix_calls" | grep -c .)" "1" "FIX_CMD invoked once before the re-review crash"
+
+# Stub verdict sequence path (Layer-2 test seam) — bypasses FIX_CMD/REVIEW_SCRIPT entirely
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes MAX_ITERATIONS=3 \
+STUB_VERDICT_SEQUENCE='request_changes,approve' \
+  bash "$SELF_FIX_LOOP" >/dev/null
+out="$(cat "$go")"; rm -f "$go"
+assert_contains "$out" 'verdict=approve'   "stub sequence → verdict=approve"
+assert_contains "$out" 'iterations-used=2' "stub sequence consumes 2 entries"
+
+# FIX_AGENT/FIX_MODEL are forwarded to FIX_CMD as AGENT/MODEL, distinct
+# from this script's own inherited AGENT (which must stay claude for the
+# re-review call — see self-fix-loop-review-stub, which doesn't read
+# AGENT/MODEL at all and so can't observe a collision directly; this
+# assertion checks the FIX_CMD side, which does observe it). Exact-line
+# match (not assert_contains) — a substring match here would also pass
+# for e.g. 'model=some-model-typo', hiding a real mismatch.
+LOG="$(mktemp)"
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 \
+FIX_CMD="$FIX_STUB" FIX_LOG="$LOG" FIX_AGENT=opencode FIX_MODEL=some-model \
+REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS='approve' NEW_HEAD_SHA=newsha \
+AGENT=claude MODEL=review-model-value \
+  bash "$SELF_FIX_LOOP" >/dev/null
+rm -f "$go"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$fix_calls" 'pr=42 iteration=1 agent=opencode model=some-model' \
+  "explicit FIX_AGENT/FIX_MODEL forwarded to FIX_CMD as AGENT/MODEL, overriding the inherited MODEL"
+
+# Regression guard: FIX_MODEL unset but the script's own MODEL (the caller's
+# review-model, used for re-review) IS set → the fix call must still receive
+# that MODEL, not empty. The workflow's existing pre_preview self-fix step
+# (agent-implement.yml) sets MODEL: ${{ inputs.review-model }} but doesn't
+# set FIX_MODEL — before this default, the fix agent silently ran with no
+# --model flag instead of inheriting review-model, a real production
+# regression caught in PR #232's review.
+LOG="$(mktemp)"
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 \
+FIX_CMD="$FIX_STUB" FIX_LOG="$LOG" \
+REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS='approve' NEW_HEAD_SHA=newsha \
+MODEL=review-model-value \
+  bash "$SELF_FIX_LOOP" >/dev/null
+rm -f "$go"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$fix_calls" 'pr=42 iteration=1 agent=claude model=review-model-value' \
+  "FIX_MODEL unset → fix call inherits the caller's own MODEL, not empty"
+
+# Defaults: FIX_AGENT/FIX_MODEL/MODEL all unset → FIX_CMD sees AGENT=claude, MODEL=(empty)
+LOG="$(mktemp)"
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 \
+FIX_CMD="$FIX_STUB" FIX_LOG="$LOG" \
+REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS='approve' NEW_HEAD_SHA=newsha \
+  bash "$SELF_FIX_LOOP" >/dev/null
+rm -f "$go"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$fix_calls" 'pr=42 iteration=1 agent=claude model=' \
+  "FIX_AGENT/FIX_MODEL/MODEL all unset → defaults to claude, empty model, forwarded to FIX_CMD"
+
+# Error paths
+ec="$(run_capture_ec env REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "missing PR_NUMBER → exit 2"
+
+# MAX_ITERATIONS=0 is not an error — a misconfigured consumer
+# (self-fix-max-iterations: 0 while self-fix: true) gets self-fix
+# trivially exhausted, not a red CI job (#81 review finding 12).
+go="$(mktemp)"
+ec="$(run_capture_ec env GITHUB_OUTPUT="$go" PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=0 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "0" "MAX_ITERATIONS=0 → exit 0 (graceful no-op)"
+out="$(cat "$go")"; rm -f "$go"
+assert_contains "$out" 'verdict=request_changes' "MAX_ITERATIONS=0 → verdict unchanged (INITIAL_VERDICT)"
+assert_contains "$out" 'iterations-used=0'        "MAX_ITERATIONS=0 → iterations-used=0"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=-1 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "MAX_ITERATIONS=-1 (genuinely invalid) → exit 2"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=abc bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "MAX_ITERATIONS=abc (non-numeric) → exit 2"
+
+ec="$(run_capture_ec env PR_NUMBER=1 REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes MAX_ITERATIONS=2 bash "$SELF_FIX_LOOP")"
+assert_equals "$ec" "2" "missing CONCERNS_FILE (no STUB_VERDICT_SEQUENCE) → exit 2"
+
 section "find-pipeline-pr — discover the draft PR opened for an issue"
 
 FIND_PR="$ROOT/scripts/find-pipeline-pr.sh"
@@ -1007,10 +1473,11 @@ find_pr_run() {
 
 # One draft PR closing the issue → found
 out="$(find_pr_run env ISSUE_NUMBER=42 REPO=o/r \
-        PIPELINE_PRS_JSON='[{"number":17,"isDraft":true,"headRefOid":"deadbeef","author":{"login":"github-actions[bot]"}}]')"
+        PIPELINE_PRS_JSON='[{"number":17,"isDraft":true,"headRefOid":"deadbeef","headRefName":"feat/fix-thing","author":{"login":"github-actions[bot]"}}]')"
 assert_contains "$out" 'found=true'         "single draft PR → found=true"
 assert_contains "$out" 'pr-number=17'       "emits pr-number"
 assert_contains "$out" 'head-sha=deadbeef'  "emits head-sha"
+assert_contains "$out" 'head-ref=feat/fix-thing' "emits head-ref (branch name)"
 
 # Multiple drafts (e.g. stale + fresh) → highest-numbered wins
 out="$(find_pr_run env ISSUE_NUMBER=42 REPO=o/r \
@@ -1584,6 +2051,9 @@ assert_contains "$log" 'label create ai:chain-paused --repo owner/repo' "creates
 # Outcome label (auto-review epic #3 — ADR-002 §2)
 assert_contains "$log" 'label create ai:review-blocked --repo owner/repo' "creates ai:review-blocked"
 
+# Coordination label (read/written by /enrich's concurrency lock)
+assert_contains "$log" 'label create enrichment-ongoing --repo owner/repo' "creates enrichment-ongoing"
+
 ec="$(run_capture_ec env bash "$ROOT/scripts/ensure-issue-labels.sh")"
 assert_equals "$ec" "2" "missing REPO → exit 2"
 
@@ -1874,6 +2344,73 @@ cp "$LINK_PARTIALS" "$lp_scratch/setup/link-partials.sh"
 lp_home3="$(mktemp -d)"
 lp_ec="$(run_capture_ec env HOME="$lp_home3" bash "$lp_scratch/setup/link-partials.sh" --no-sync)"
 assert_equals "$lp_ec" "1" "empty partials/ -> hard fail, not silent success"
+
+# --- setup/link-commands.sh --------------------------------------------------
+
+section "setup/link-commands.sh"
+
+LINK_COMMANDS="$ROOT/setup/link-commands.sh"
+
+# link-commands.sh resolves its source from $HOME (not BASH_SOURCE), so a scratch
+# HOME needs the canonical path to point back at the real checkout.
+lc_home="$(mktemp -d)"
+mkdir -p "$lc_home/repos/github/freaxnx01/public"
+ln -s "$ROOT" "$lc_home/repos/github/freaxnx01/public/agent-workflow"
+
+# Baseline install.
+env HOME="$lc_home" bash "$LINK_COMMANDS" --no-sync >/dev/null
+
+# Seed a stale command file that no longer exists in the repo's commands/ tree —
+# simulating a machine that installed an older revision before some commands
+# were removed (e.g. the gh:/fj: -> forge-agnostic merge, #198/#199). Recording
+# it in the manifest too is what marks it as "this installer's own prior work"
+# rather than a foreign file — pruning is scoped to the manifest, never to
+# "any *.md under DEST_DIR" (see the scope-guard test below).
+mkdir -p "$lc_home/.claude/commands/gh"
+echo "stale content" > "$lc_home/.claude/commands/gh/stale-removed-command.md"
+echo "gh/stale-removed-command.md" >> "$lc_home/.claude/.agent-workflow-commands-manifest"
+
+# Re-running the installer must prune it, not just leave it alongside the
+# current set — a stale command left installed silently shadows nothing (it's
+# just extra), but for a removed/renamed command it means the old, superseded
+# behavior keeps working forever instead of actually going away.
+env HOME="$lc_home" bash "$LINK_COMMANDS" --no-sync >/dev/null
+assert_equals "$([ -e "$lc_home/.claude/commands/gh/stale-removed-command.md" ] && echo yes || echo no)" \
+  "no" "re-install prunes a command file no longer in source"
+
+# Non-destructive: real, current commands from the repo survive re-install.
+assert_equals "$([ -e "$lc_home/.claude/commands/issues.md" ] && echo yes || echo no)" \
+  "yes" "re-install -> current command file still present"
+
+# The same pruning must catch a stale command left over from a --link install
+# (a symlink, and a dangling one at that once its source file is gone) — a
+# plain `find -type f` silently skips broken symlinks, so this needs its own
+# scratch HOME rather than reusing lc_home's copy-mode state.
+lc_link_home="$(mktemp -d)"
+mkdir -p "$lc_link_home/repos/github/freaxnx01/public"
+ln -s "$ROOT" "$lc_link_home/repos/github/freaxnx01/public/agent-workflow"
+env HOME="$lc_link_home" bash "$LINK_COMMANDS" --no-sync --link >/dev/null
+mkdir -p "$lc_link_home/.claude/commands/fj"
+ln -sfn /nonexistent "$lc_link_home/.claude/commands/fj/stale-removed-command.md"
+echo "fj/stale-removed-command.md" >> "$lc_link_home/.claude/.agent-workflow-commands-manifest"
+env HOME="$lc_link_home" bash "$LINK_COMMANDS" --no-sync --link >/dev/null
+assert_equals "$([ -L "$lc_link_home/.claude/commands/fj/stale-removed-command.md" ] && echo yes || echo no)" \
+  "no" "re-install (--link) prunes a dangling stale symlink"
+
+# Scope guard: pruning must never touch a file this installer never placed.
+# ~/.claude/commands/ is Claude Code's general user-commands directory, not
+# exclusively agent-workflow's — a file a user authored by hand (or another
+# tool installed) must survive, even though it's not part of the current
+# agent-workflow commands/ tree.
+lc_foreign_home="$(mktemp -d)"
+mkdir -p "$lc_foreign_home/repos/github/freaxnx01/public"
+ln -s "$ROOT" "$lc_foreign_home/repos/github/freaxnx01/public/agent-workflow"
+env HOME="$lc_foreign_home" bash "$LINK_COMMANDS" --no-sync >/dev/null
+mkdir -p "$lc_foreign_home/.claude/commands/my-own-namespace"
+echo "not agent-workflow's" > "$lc_foreign_home/.claude/commands/my-own-namespace/personal.md"
+env HOME="$lc_foreign_home" bash "$LINK_COMMANDS" --no-sync >/dev/null
+assert_equals "$([ -e "$lc_foreign_home/.claude/commands/my-own-namespace/personal.md" ] && echo yes || echo no)" \
+  "yes" "re-install never prunes a file this installer didn't place"
 
 # --- setup/bootstrap.sh -----------------------------------------------------
 
