@@ -130,8 +130,13 @@ brainstorming's approval gate in Step 3, or the push verification failing in
 Step 5 — release the lock before ending:
 
 ```bash
-gh issue edit $ARGUMENTS --remove-label enrichment-ongoing 2>/dev/null || true
+gh issue edit $ARGUMENTS --remove-label enrichment-ongoing
 ```
+
+No `2>/dev/null || true` on this one: this run applied that label itself, so a
+non-zero exit is a real failure, not a missing repo convention. If it fails, tell
+the user the lock is still held and has to be removed by hand — otherwise it
+blocks the issue for the full 4 hours.
 
 ### Step 3 — Brainstorm spec
 
@@ -223,17 +228,21 @@ mean "not ready yet," and the issue now is. Leaving either on is a silent trap:
 ```bash
 gh issue edit $ARGUMENTS --remove-label needs-enrichment 2>/dev/null || true
 gh issue edit $ARGUMENTS --remove-label "❓ to-be-defined" 2>/dev/null || true
-gh issue edit $ARGUMENTS --remove-label enrichment-ongoing 2>/dev/null || true
+gh issue edit $ARGUMENTS --remove-label enrichment-ongoing
 ```
 
 The third line releases the Step 2.5 lock — enrichment is done, so the issue is
 free for another session. The lock *comment* stays as an audit trail; only the
-label is removed.
+label is removed. The readiness labels go first on purpose: the lock release can
+then never be what leaves the issue in `/gh:implement`'s hard-stop state.
 
 `--remove-label` on a label the issue doesn't carry is a no-op, but on a label
 that doesn't exist **anywhere in the repo** it errors — many repos only define
-some of these conventions. Run each on its own line with `|| true` so a
-missing repo label doesn't abort the step.
+some of these conventions. So the first two run on their own lines with
+`|| true`. The lock release doesn't: this run applied `enrichment-ongoing`
+itself, so a non-zero exit is a real failure — tell the user the lock is still
+held and has to be removed by hand, otherwise it blocks the issue for the full
+4 hours.
 
 ### Step 7 — Confirm
 
@@ -348,10 +357,13 @@ tea api --login git-home -X POST "repos/$repo/issues/$ARGUMENTS/comments" \
 Note the exact timestamp you posted — the re-check below compares against it. Then
 apply the label. `tea` has no per-issue label add/remove subcommand, so read the
 current labels and PUT back the set with `enrichment-ongoing` added (the same
-pattern Step 6 uses to remove labels):
+pattern Step 6 uses to remove labels) — guarding the read, because if it fails or
+comes back empty, `locked` ends up empty and the `PUT` wipes **every** label on
+the issue:
 
 ```bash
 current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+[[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
 locked=$(echo "$current" | jq -c '. + ["enrichment-ongoing"] | unique')
 tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$locked" >/dev/null
 ```
@@ -389,9 +401,13 @@ Step 5 — release the lock before ending:
 
 ```bash
 current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+[[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
 kept=$(echo "$current" | jq -c '[.[] | select(. != "enrichment-ongoing")]')
 tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$kept" >/dev/null
 ```
+
+If either command fails, tell me the lock is still held and has to be removed by
+hand — otherwise it blocks the issue for the full 4 hours.
 
 ### Step 3 — Brainstorm spec
 
@@ -453,13 +469,19 @@ issue's current labels and PUT back the set with those names — plus the
 
 ```bash
 current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+[[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
 kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined" and . != "enrichment-ongoing")]')
 tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$kept" >/dev/null
 ```
 
+The guard on the read matters here too: an empty `current` would PUT an empty set
+and wipe **every** label on the issue, `ai-implement` included.
+
 `enrichment-ongoing` goes with them — enrichment is done, so the Step 2.5 lock is
-released here. The lock comment posted in Step 2.5 is left in place as an audit
-trail; only the label is removed.
+released here. All three clear in one write, so a failure can't release the lock
+while leaving a readiness label on. The lock comment posted in Step 2.5 is left
+in place as an audit trail; only the label is removed. If the write fails, say so
+— the lock is still held and has to be removed by hand.
 
 (This is best-effort against Forgejo's labels API, which has had both name- and
 ID-keyed variants across versions — if the `PUT` errors, check `tea api
