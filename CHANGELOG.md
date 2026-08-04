@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   takeover past that threshold, re-checks after acquiring so the session that
   acquired first wins the race, and releases the label at Step 6 or on any
   earlier user-initiated abort (#229)
+- **enrich-phased:** the same concurrency lock, adapted to the phased flow —
+  Phase `spec` detects an existing `enrichment-ongoing` lock (24h staleness
+  instead of `/enrich`'s 4h, since phased runs legitimately pause between
+  `/clear` boundaries), acquires and race-re-checks before brainstorming, and
+  only then writes the resume state file, so a hard stop or a lost race leaves
+  nothing for a resume to pick up; Phase `issue` releases the label on success.
+  An issue locked by either command is detected by the other (#237)
 - **pre-preview:** `self-fix` and `self-fix-max-iterations` workflow
   inputs — on a `request_changes` verdict, optionally let the agent
   attempt bounded fix → re-review cycles before falling back to the
