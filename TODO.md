@@ -14,11 +14,11 @@
       `enrichment-ongoing` label, race re-check-after-acquire. Issue #229, merged
       `bf01ae3`.
 - [x] Cosmetic review nits filed as follow-up issue #236, cross-linked on PR #233.
-- [ ] `/enrich-phased` still never releases the `enrichment-ongoing` lock if a
+- [x] `/enrich-phased` still never releases the `enrichment-ongoing` lock if a
       lock acquired via `/enrich` is finished off via `/enrich-phased` instead —
       out of scope for #229, called out as a known gap in
       `docs/superpowers/specs/2026-08-04-enrich-lock-design.md`'s Follow-ups
-      section, no issue filed yet.
+      section. Filed as issue #237.
 - [ ] Discovered `main`'s branch protection has no `required_pull_request_reviews`
       configured, despite `CLAUDE.md`'s "at least 1 PR review" convention
       (`gh api repos/freaxnx01/agent-workflow/branches/main/protection` — only
