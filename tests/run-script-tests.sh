@@ -1207,6 +1207,54 @@ commit_msg="$(git -C "$REPO_DIR" log -1 --format=%s)"
 assert_equals "$commit_msg" "address self-review (iteration 1)" "no ambient git identity → correct commit message"
 rm -rf "$REPO_DIR"
 
+# AGENT-based default resolution: claude → agent-cmd-claude-fix.sh (via FIX_LIB_DIR test seam)
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=claude \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "AGENT=claude resolves a working wrapper"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed-by-claude' "AGENT=claude resolves agent-cmd-claude-fix.sh specifically"
+rm -rf "$REPO_DIR"
+
+# AGENT-based default resolution: opencode → agent-cmd-opencode-fix.sh
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=opencode \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "AGENT=opencode resolves a working wrapper"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed-by-opencode' "AGENT=opencode resolves agent-cmd-opencode-fix.sh specifically"
+rm -rf "$REPO_DIR"
+
+# Default AGENT (unset) behaves as claude
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed-by-claude' "AGENT unset → defaults to claude"
+rm -rf "$REPO_DIR"
+
+# Explicit FIX_AGENT_CMD still overrides AGENT-based resolution
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=opencode \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "explicit FIX_AGENT_CMD still works"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed' "explicit FIX_AGENT_CMD overrides AGENT-based resolution"
+rm -rf "$REPO_DIR"
+
+# Invalid AGENT → exit 2
+ec="$(run_capture_ec env REPO=o/r HEAD_REF=x ITERATION=1 AGENT=gpt5 bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "2" "invalid AGENT → exit 2"
+
 section "self-fix-loop — bounded fix→re-review cycles"
 
 SELF_FIX_LOOP="$ROOT/scripts/self-fix-loop.sh"
