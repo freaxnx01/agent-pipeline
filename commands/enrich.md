@@ -24,6 +24,36 @@ gh issue view $ARGUMENTS --comments
 
 If the issue is closed, already has `ai-implement` label, or is `🧊 parked`, stop and say so.
 
+### Step 1.5 — Check for an existing enrichment lock
+
+If the issue carries the `enrichment-ongoing` label, another session may already be
+enriching it. Scan the comments already fetched in Step 1 for the most recent line
+matching:
+
+```text
+🔒 Enrichment lock (re-)acquired at <timestamp>
+```
+
+Compute its age against the current UTC time:
+
+```bash
+date -u +%Y-%m-%dT%H:%M:%SZ
+```
+
+- No `enrichment-ongoing` label → continue to Step 2.
+- Label present, a matching comment found, age < 4 hours → **stop**. Tell the user
+  the issue is already being enriched (show the age) and end the command — do not
+  run Step 2 or start brainstorming.
+- Label present, age ≥ 4 hours, **or** no matching comment found (treat unknown age
+  as stale) → tell the user the lock looks abandoned (show age and the 4h
+  threshold) and ask whether to take over.
+  - No → stop.
+  - Yes → continue to Step 2; Step 2.5 will re-acquire the lock and note the
+    takeover.
+
+Remember which lock comments you saw here — Step 2.5's race re-check needs to tell
+them apart from ones posted after this point.
+
 ### Step 2 — Assess readiness
 
 Judge whether the issue already has all three:
@@ -33,6 +63,75 @@ Judge whether the issue already has all three:
 - **No blocking unknowns** — no open design questions or TBDs the agent can't resolve from the codebase
 
 If the issue is already complete, tell the user and suggest running `/gh:implement $ARGUMENTS` directly. Stop here.
+
+### Step 2.5 — Acquire the enrichment lock
+
+Before starting brainstorming — the expensive shared resource two sessions could
+collide on — claim the lock so a second session can detect this one. Make sure the
+label exists first:
+
+```bash
+gh label create enrichment-ongoing --color FBCA04 \
+  --description "Another /enrich session is actively enriching this issue — do not start a second one" \
+  2>/dev/null || true
+```
+
+**Post the timestamp comment before applying the label.** The label is what Step 1.5
+keys on and the comment is what gives it an age, so a label without a matching
+comment reads as "unknown age → stale" and invites a takeover — exactly the
+detection this is meant to provide. Fresh acquisition (Step 1.5 found no lock):
+
+```bash
+gh issue comment $ARGUMENTS --body "🔒 Enrichment lock acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+```
+
+Takeover of a stale lock (Step 1.5 found one and the user agreed to take over —
+substitute the actual age you showed the user for `<Xh>`):
+
+```bash
+gh issue comment $ARGUMENTS --body "🔒 Enrichment lock re-acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ) (previous lock stale, <Xh> old)"
+```
+
+Note the exact timestamp you posted — the re-check below compares against it. Then
+apply the label:
+
+```bash
+gh issue edit $ARGUMENTS --add-label enrichment-ongoing
+```
+
+**Then re-check for a competitor.** Step 1.5 and this step are not atomic — Step 2's
+readiness assessment (and, on the takeover path, a user prompt) sits between them,
+so a second session can have passed Step 1.5 and acquired in that gap. Both sessions
+would otherwise brainstorm the same issue. Re-fetch the comments:
+
+```bash
+gh issue view $ARGUMENTS --comments
+```
+
+Look for a `🔒 Enrichment lock (re-)acquired` comment that is **not** the one you
+just posted and was **not** already present in Step 1.5. If one exists and its
+timestamp is **earlier** than yours (same second → the one listed first wins), you
+lost the race. Stand down:
+
+```bash
+gh issue comment $ARGUMENTS --body "🔓 Enrichment lock released at $(date -u +%Y-%m-%dT%H:%M:%SZ) (lost race to the lock acquired at <winner timestamp>)"
+```
+
+Leave the `enrichment-ongoing` label in place — it's a single boolean the winning
+session now depends on, so removing it would unlock an issue that is actively being
+enriched. Tell the user another session won the race, and end the command without
+brainstorming.
+
+Otherwise the lock is yours — continue to Step 3.
+
+**Releasing early.** From here the lock is held until Step 6 clears it. If the
+command stops before reaching Step 6 for any reason the user drives — declining
+brainstorming's approval gate in Step 3, or the push verification failing in
+Step 5 — release the lock before ending:
+
+```bash
+gh issue edit $ARGUMENTS --remove-label enrichment-ongoing 2>/dev/null || true
+```
 
 ### Step 3 — Brainstorm spec
 
@@ -124,11 +223,16 @@ mean "not ready yet," and the issue now is. Leaving either on is a silent trap:
 ```bash
 gh issue edit $ARGUMENTS --remove-label needs-enrichment 2>/dev/null || true
 gh issue edit $ARGUMENTS --remove-label "❓ to-be-defined" 2>/dev/null || true
+gh issue edit $ARGUMENTS --remove-label enrichment-ongoing 2>/dev/null || true
 ```
+
+The third line releases the Step 2.5 lock — enrichment is done, so the issue is
+free for another session. The lock *comment* stays as an audit trail; only the
+label is removed.
 
 `--remove-label` on a label the issue doesn't carry is a no-op, but on a label
 that doesn't exist **anywhere in the repo** it errors — many repos only define
-one of the two conventions. Run each on its own line with `|| true` so a
+some of these conventions. Run each on its own line with `|| true` so a
 missing repo label doesn't abort the step.
 
 ### Step 7 — Confirm
@@ -169,6 +273,36 @@ tea api --login git-home "repos/$repo/issues/$ARGUMENTS/comments"
 
 If the issue is closed or `🧊 parked`, stop and say so.
 
+### Step 1.5 — Check for an existing enrichment lock
+
+If the issue carries the `enrichment-ongoing` label, another session may already be
+enriching it. Scan the comments already fetched in Step 1 for the most recent line
+matching:
+
+```text
+🔒 Enrichment lock (re-)acquired at <timestamp>
+```
+
+Compute its age against the current UTC time:
+
+```bash
+date -u +%Y-%m-%dT%H:%M:%SZ
+```
+
+- No `enrichment-ongoing` label → continue to Step 2.
+- Label present, a matching comment found, age < 4 hours → **stop**. Tell the user
+  the issue is already being enriched (show the age) and end the command — do not
+  run Step 2 or start brainstorming.
+- Label present, age ≥ 4 hours, **or** no matching comment found (treat unknown age
+  as stale) → tell the user the lock looks abandoned (show age and the 4h
+  threshold) and ask whether to take over.
+  - No → stop.
+  - Yes → continue to Step 2; Step 2.5 will re-acquire the lock and note the
+    takeover.
+
+Remember which lock comments you saw here — Step 2.5's race re-check needs to tell
+them apart from ones posted after this point.
+
 ### Step 2 — Assess readiness
 
 Judge whether the issue already has all three:
@@ -180,6 +314,84 @@ Judge whether the issue already has all three:
 
 If it's already complete, tell me and suggest running `/work $ARGUMENTS` directly.
 Stop here.
+
+### Step 2.5 — Acquire the enrichment lock
+
+Before starting brainstorming — the expensive shared resource two sessions could
+collide on — claim the lock so a second session can detect this one. Make sure the
+label exists first:
+
+```bash
+tea labels create --login git-home --name enrichment-ongoing --color "#fbca04" \
+  --description "Another /enrich session is actively enriching this issue — do not start a second one" \
+  2>/dev/null || true
+```
+
+**Post the timestamp comment before applying the label.** The label is what Step 1.5
+keys on and the comment is what gives it an age, so a label without a matching
+comment reads as "unknown age → stale" and invites a takeover — exactly the
+detection this is meant to provide. Fresh acquisition (Step 1.5 found no lock):
+
+```bash
+tea api --login git-home -X POST "repos/$repo/issues/$ARGUMENTS/comments" \
+  -f body="🔒 Enrichment lock acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+```
+
+Takeover of a stale lock (Step 1.5 found one and the user agreed to take over —
+substitute the actual age you showed the user for `<Xh>`):
+
+```bash
+tea api --login git-home -X POST "repos/$repo/issues/$ARGUMENTS/comments" \
+  -f body="🔒 Enrichment lock re-acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ) (previous lock stale, <Xh> old)"
+```
+
+Note the exact timestamp you posted — the re-check below compares against it. Then
+apply the label. `tea` has no per-issue label add/remove subcommand, so read the
+current labels and PUT back the set with `enrichment-ongoing` added (the same
+pattern Step 6 uses to remove labels):
+
+```bash
+current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+locked=$(echo "$current" | jq -c '. + ["enrichment-ongoing"] | unique')
+tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$locked" >/dev/null
+```
+
+**Then re-check for a competitor.** Step 1.5 and this step are not atomic — Step 2's
+readiness assessment (and, on the takeover path, a user prompt) sits between them,
+so a second session can have passed Step 1.5 and acquired in that gap. Both sessions
+would otherwise brainstorm the same issue. Re-fetch the comments:
+
+```bash
+tea api --login git-home "repos/$repo/issues/$ARGUMENTS/comments"
+```
+
+Look for a `🔒 Enrichment lock (re-)acquired` comment that is **not** the one you
+just posted and was **not** already present in Step 1.5. If one exists and its
+timestamp is **earlier** than yours (same second → lowest comment `id` wins), you
+lost the race. Stand down:
+
+```bash
+tea api --login git-home -X POST "repos/$repo/issues/$ARGUMENTS/comments" \
+  -f body="🔓 Enrichment lock released at $(date -u +%Y-%m-%dT%H:%M:%SZ) (lost race to the lock acquired at <winner timestamp>)"
+```
+
+Leave the `enrichment-ongoing` label in place — it's a single boolean the winning
+session now depends on, so removing it would unlock an issue that is actively being
+enriched. Tell me another session won the race, and end the command without
+brainstorming.
+
+Otherwise the lock is yours — continue to Step 3.
+
+**Releasing early.** From here the lock is held until Step 6 clears it. If the
+command stops before reaching Step 6 for any reason I drive — declining
+brainstorming's approval gate in Step 3, or the push verification failing in
+Step 5 — release the lock before ending:
+
+```bash
+current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+kept=$(echo "$current" | jq -c '[.[] | select(. != "enrichment-ongoing")]')
+tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$kept" >/dev/null
+```
 
 ### Step 3 — Brainstorm spec
 
@@ -236,13 +448,18 @@ The new body has:
 **Also clear the readiness labels** — `needs-enrichment` and `❓ to-be-defined` mean
 "not ready yet," and the issue now is. `tea` has no per-issue label add/remove
 subcommand (`tea labels` only manages repo-level label *definitions*), so read the
-issue's current labels and PUT back the set with those two names filtered out:
+issue's current labels and PUT back the set with those names — plus the
+`enrichment-ongoing` lock — filtered out:
 
 ```bash
 current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
-kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined")]')
+kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined" and . != "enrichment-ongoing")]')
 tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$kept" >/dev/null
 ```
+
+`enrichment-ongoing` goes with them — enrichment is done, so the Step 2.5 lock is
+released here. The lock comment posted in Step 2.5 is left in place as an audit
+trail; only the label is removed.
 
 (This is best-effort against Forgejo's labels API, which has had both name- and
 ID-keyed variants across versions — if the `PUT` errors, check `tea api
