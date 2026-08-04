@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **enrich:** concurrency lock — `/enrich` claims an `enrichment-ongoing` label
+  plus a timestamped lock comment before brainstorming (Step 2.5), hard-stops
+  when another session holds a lock younger than 4h (Step 1.5), offers a
+  takeover past that threshold, re-checks after acquiring so the session that
+  acquired first wins the race, and releases the label at Step 6 or on any
+  earlier user-initiated abort (#229)
 - **pre-preview:** `self-fix` and `self-fix-max-iterations` workflow
   inputs — on a `request_changes` verdict, optionally let the agent
   attempt bounded fix → re-review cycles before falling back to the
