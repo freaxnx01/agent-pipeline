@@ -254,7 +254,11 @@ of truth for which phase runs next.
 On invocation:
 
 1. If an issue number was passed as an argument (strip any leading `#`), start a new
-   run: write `issue=<N>` and `phase=spec`.
+   run: carry that number through this invocation and dispatch to Phase `spec`.
+   **Do not write the state file here** — Phase `spec` writes it only once it holds
+   the enrichment lock. A run that stops at the lock check must leave nothing behind,
+   because a later no-argument resume deliberately skips the lock check and would
+   otherwise walk straight past a live lock.
 2. Else read `.claude/fj-enrich-phased.state` and continue from its `phase`. If no
    argument and no state file, tell the user there's nothing to resume and stop.
 
@@ -265,14 +269,110 @@ Then dispatch to the matching phase below.
 1. `tea issues <issue> --login git-home` + `tea api --login git-home
    "repos/$repo/issues/<issue>/comments"`. If the issue is closed or `🧊 parked`,
    stop and say so.
-2. Assess readiness (acceptance criteria + scope + no blocking unknowns). If it's
-   already complete, say so, suggest `/work <issue>`, clear the state file, and
-   stop.
-3. Invoke **superpowers:brainstorming** with the issue as context. Follow it
+2. **Check for an existing enrichment lock — only on a new run** (an issue number
+   was passed as this invocation's argument, per *On invocation* step 1 above; skip
+   this step entirely when resuming from the state file, since that is the same run
+   continuing, not a second session). If the issue carries the `enrichment-ongoing`
+   label, scan the comments already fetched in step 1 for the most recent
+   `🔒 Enrichment lock (re-)acquired at <timestamp>` line and compute its age:
+   - No `enrichment-ongoing` label → continue to step 3.
+   - Label present, a matching comment found, age < 24 hours → **stop**. Tell the
+     user the issue is already being enriched (show the age) and end the command —
+     do not write the state file, do not run step 3 or start brainstorming.
+   - Label present, age ≥ 24 hours, or no matching comment found (treat unknown age
+     as stale) → tell the user the lock looks abandoned (show age and the 24h
+     threshold) and ask whether to take over.
+     - No → stop, same as above.
+     - Yes → continue to step 3; step 4 will re-acquire the lock and note the
+       takeover.
+3. Assess readiness (acceptance criteria + scope + no blocking unknowns). If it's
+   already complete, say so, suggest `/work <issue>`, and stop (nothing to clear —
+   the state file isn't written until step 4).
+4. **Acquire the enrichment lock** — before starting brainstorming. `tea` has no
+   per-issue label add/remove subcommand, so read the current labels and PUT back
+   the set with `enrichment-ongoing` added (same pattern `/enrich`'s Forgejo
+   section and this file's own Phase `issue` label-clearing step use):
+
+   ```bash
+   tea labels create --login git-home --name enrichment-ongoing --color "#fbca04" \
+     --description "Another /enrich session is actively enriching this issue — do not start a second one" \
+     2>/dev/null || true
+   ```
+
+   Post the timestamp comment before applying the label — a label with no matching
+   comment reads as "unknown age → stale" to step 2's check, defeating detection.
+   Fresh acquisition (step 2 found no lock):
+
+   ```bash
+   tea api --login git-home -X POST "repos/$repo/issues/<issue>/comments" \
+     -f body="🔒 Enrichment lock acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   ```
+
+   Takeover of a stale lock (step 2 found one and the user agreed to take over —
+   substitute the actual age you showed the user for `<Xh>`):
+
+   ```bash
+   tea api --login git-home -X POST "repos/$repo/issues/<issue>/comments" \
+     -f body="🔒 Enrichment lock re-acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ) (previous lock stale, <Xh> old)"
+   ```
+
+   Note the exact timestamp you posted, then apply the label. Guard the read: an
+   empty or failed `current` would PUT an empty label set and wipe every label on
+   the issue.
+
+   ```bash
+   current=$(tea api --login git-home "repos/$repo/issues/<issue>" | jq -r '[.labels[].name]')
+   [[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
+   locked=$(echo "$current" | jq -c '. + ["enrichment-ongoing"] | unique')
+   tea api --login git-home -X PUT "repos/$repo/issues/<issue>/labels" -f labels="$locked" >/dev/null
+   ```
+
+   **Then re-check for a competitor** — step 2 and this step are not atomic (the
+   readiness check, and on the takeover path a user prompt, sit between them).
+   Re-fetch comments:
+
+   ```bash
+   tea api --login git-home "repos/$repo/issues/<issue>/comments"
+   ```
+
+   Look for a `🔒 Enrichment lock (re-)acquired` comment that is **not** the one you
+   just posted and was **not** already present at step 2. If one exists and its
+   timestamp is earlier than yours (same second → lowest comment `id` wins), you
+   lost the race. Stand down:
+
+   ```bash
+   tea api --login git-home -X POST "repos/$repo/issues/<issue>/comments" \
+     -f body="🔓 Enrichment lock released at $(date -u +%Y-%m-%dT%H:%M:%SZ) (lost race to the lock acquired at <winner timestamp>)"
+   ```
+
+   Leave the `enrichment-ongoing` label in place — the winning session depends on
+   it. Tell the user another session won the race, do not write the state file, and
+   end the command without brainstorming.
+
+   Otherwise the lock is yours. **Now** create `.claude/fj-enrich-phased.state` (and
+   `.claude/` if needed) with `issue=<N>` and `phase=spec` — this is the first and
+   only place a new run writes it, so that every stop path above leaves nothing for
+   a later resume to pick up. Continue to step 5.
+5. Invoke **superpowers:brainstorming** with the issue as context. Follow it
    end-to-end — clarifying questions, approaches, design sections, the spec
    self-review, and the **user approval gate**. Save the spec to the repo's tracked
    specs dir (see *Choosing a tracked path*), commit it, and record `spec=<path>`.
-4. **Phase boundary** (see *Between phases*): set `phase=plan`, hand off, stop.
+
+   **If the user declines the approval gate** (does not approve the spec), release
+   the lock and delete `.claude/fj-enrich-phased.state` before stopping — the run is
+   over, and step 4 wrote that file, so leaving it behind would advertise a
+   resumable run that holds no lock:
+
+   ```bash
+   current=$(tea api --login git-home "repos/$repo/issues/<issue>" | jq -r '[.labels[].name]')
+   [[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
+   kept=$(echo "$current" | jq -c '[.[] | select(. != "enrichment-ongoing")]')
+   tea api --login git-home -X PUT "repos/$repo/issues/<issue>/labels" -f labels="$kept" >/dev/null
+   ```
+
+   If the PUT fails, say so — the lock stays held for the full 24h otherwise, so
+   tell the user to remove the label by hand.
+6. **Phase boundary** (see *Between phases*): set `phase=plan`, hand off, stop.
 
 ### Phase `plan`
 
@@ -299,14 +399,20 @@ Then dispatch to the matching phase below.
      `spec=` and `plan=`, plus: *"Read the plan before writing any code — it contains
      the full task breakdown, file structure, TDD steps, and exact code."*
 2. Clear the readiness labels — `needs-enrichment` and `❓ to-be-defined` mean "not
-   ready yet," and the issue now is. `tea` has no per-issue label add/remove
-   subcommand, so read-filter-PUT:
+   ready yet," and the issue now is. Also release the enrichment lock acquired
+   back in Phase `spec` — the run is done, nothing else will clear it. `tea` has
+   no per-issue label add/remove subcommand, so read-filter-PUT, guarding the read
+   so a failed or empty fetch can't PUT an empty set and wipe every label:
 
    ```bash
    current=$(tea api --login git-home "repos/$repo/issues/<issue>" | jq -r '[.labels[].name]')
-   kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined")]')
+   [[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
+   kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined" and . != "enrichment-ongoing")]')
    tea api --login git-home -X PUT "repos/$repo/issues/<issue>/labels" -f labels="$kept" >/dev/null
    ```
+
+   If the PUT fails, say so rather than continuing quietly — `enrichment-ongoing`
+   would otherwise stay held for the full 24h staleness window.
 
 3. Push if anything else is pending.
 4. **Done:** delete `.claude/fj-enrich-phased.state` and `.claude/handoff.md`. Print
