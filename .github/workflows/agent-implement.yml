@@ -765,7 +765,7 @@ jobs:
       && needs.implement.outputs.auto-review-enabled == 'true'
       && needs.implement.outputs.pre-preview-enabled != 'true'
     runs-on: ${{ fromJSON(inputs.runner-labels) }}
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write
@@ -980,16 +980,41 @@ jobs:
             printf 'iterations-used=%s\n' "${LOOP_ITERATIONS:-0}"
           } >> "$GITHUB_OUTPUT"
 
-      # KNOWN GAP (issue #193 follow-up, deliberately deferred): when
-      # self-fix pushes a new commit and that fix is then approved, this
-      # envelope check runs almost immediately after — CI on the fresh
-      # commit has usually not finished yet. check-merge-envelope.sh
-      # treats a pending required check the same as a failing one (see
-      # ADR-002 §2.5, docs/DECISIONS.md), so this path commonly ends in
-      # `ai:review-blocked` rather than merging, even when the fix is
-      # good. Fixing this (e.g. a brief poll for check completion right
-      # after a self-fix approve) is a known follow-up, not done in this
-      # phase.
+      - name: Wait for required checks (post self-fix approve)
+        # Fix for the KNOWN GAP noted below (#238): self-fix pushes a
+        # fresh commit seconds before this point, so required checks on
+        # it have almost never finished yet -- gate 5
+        # (check-merge-envelope.sh) treats pending the same as failing
+        # (ADR-002 §2.5), so the approve path commonly dead-ended at
+        # ai:review-blocked even when the fix was good. This step gives
+        # checks a bounded window to finish. `gh pr checks --watch`
+        # polls until all required checks reach a terminal state (or
+        # this step's own timeout-minutes fires first) --
+        # continue-on-error + `|| true` mean this step can NEVER fail
+        # the job: on timeout or any gh error, execution falls straight
+        # through to the unmodified "Check merge envelope" step below,
+        # which does its own live query and fails gate 5 exactly as it
+        # did before this fix. Worst case is unchanged; best case the
+        # checks finish in time and the PR actually merges. Scoped
+        # narrowly to the post-self-fix approve path only (iterations-used
+        # != '0') -- the plain approve path has enough natural wall-clock
+        # gap that this hasn't been observed to race, and stub-review-verdict
+        # already fully stubs gate 5's check-status seam for Layer-2 tests,
+        # so a real gh call here would just be noise under act.
+        if: |
+          steps.self_mod_guard.outputs.blocked != 'true'
+          && steps.find_pr.outputs.found == 'true'
+          && steps.final.outputs.verdict == 'approve'
+          && steps.final.outputs.iterations-used != '0'
+          && inputs.stub-review-verdict == ''
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.find_pr.outputs.pr-number }}
+        run: gh pr checks "$PR_NUMBER" --repo "$REPO" --required --watch --interval 15 || true
+
       - name: Check merge envelope
         if: |
           steps.self_mod_guard.outputs.blocked != 'true'
