@@ -418,7 +418,7 @@ even though the underlying fix was good.
 This is a known, accepted limitation for now — not a regression, and not
 blocking Phase 2's merge. A fix (e.g. a brief poll/wait for required-check
 completion before the envelope check, scoped to the self-fix-approved
-path specifically) is tracked as a follow-up.
+path specifically) is tracked as a follow-up: [#238](https://github.com/freaxnx01/agent-workflow/issues/238).
 
 ---
 
@@ -719,7 +719,7 @@ wrapper regardless of which agent actually implemented the issue.
 
 + `auto_review` (ADR-002) gains the identical embedded self-fix step
   `pre_preview` already had — same shape, not a shared job. On `approve`
-  (first-pass or post-self-fix), the merge envelope is (re-)evaluated
+  (first-pass or post-self-fix), the merge envelope is evaluated
   against the final HEAD before auto-merge, same as any other approve path.
   See ADR-002's own addendum (2026-08-04) for a known limitation on this
   path: a self-fix-approved PR commonly still lands in `ai:review-blocked`
