@@ -628,6 +628,34 @@ jobs:
           (( fail == 0 )) || exit 1
           echo "auto-review self-fix approve OK: merge=$ATTEMPTED iterations=$ITERATIONS"
 
+      - name: Checkout agent-implement.yml for a static guard check
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          sparse-checkout: |
+            .github/workflows/agent-implement.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Assert the wait step still guards against stub mode
+        # Static check, not a runtime behavior check (#238 final review):
+        # a runtime hang inside the wait step would be bounded by the
+        # CALLED workflow's own auto_review job timeout (15 min), not by
+        # this verify job's timeout-minutes (5, above) -- this job only
+        # starts after that job finishes, so it structurally cannot
+        # observe a hang there. Instead, check the source directly: the
+        # "Wait for required checks" step's `if:` must still contain
+        # `inputs.stub-review-verdict == ''`, which is exactly what makes
+        # it skip in every stub-mode scenario, including this one. If a
+        # future edit drops that clause, this assertion fails immediately
+        # with a clear reason instead of the regression going unnoticed
+        # (a real run would eventually hit the 15-minute job timeout, much
+        # later and with a confusing failure mode).
+        run: |
+          if ! grep -A 40 "name: Wait for required checks" .github/workflows/agent-implement.yml | grep -q "inputs.stub-review-verdict == ''"; then
+            echo "::error::the 'Wait for required checks' step's if: no longer guards against stub-review-verdict -- this would break every stub-mode Layer-2 scenario by calling a real gh command against a nonexistent stub PR"
+            exit 1
+          fi
+          echo "guard clause present -- wait step still correctly skips under stub-review-verdict"
+
   verify-auto-review-self-fix-exhausted:
     name: Assert auto-review self-fix cap exhausted → no merge
     needs: call-auto-review-self-fix-exhausted

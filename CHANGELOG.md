@@ -74,6 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   general user-commands directory, not exclusively agent-workflow's, so a
   file this installer never placed (hand-authored, or from another tool) is
   never touched.
+- **auto-review self-fix:** the post-self-fix approve path now waits (bounded, up to 3 minutes) for required checks to complete before the merge-envelope re-check, instead of routinely dead-ending at `ai:review-blocked` because checks on the freshly-pushed fix commit hadn't finished yet (#238).
 
 ## [1.11.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.11.0) - 2026-07-27
 

@@ -420,6 +420,8 @@ blocking Phase 2's merge. A fix (e.g. a brief poll/wait for required-check
 completion before the envelope check, scoped to the self-fix-approved
 path specifically) is tracked as a follow-up: [#238](https://github.com/freaxnx01/agent-workflow/issues/238).
 
+**Resolved (2026-08-04):** A bounded wait — `gh pr checks --required --watch`, capped at 3 minutes via `continue-on-error: true` + the step's own `timeout-minutes` — now runs after a self-fix approve and before this envelope re-check, giving required checks on the fresh commit a real chance to finish. Gate 5's semantics are unchanged (pending still fails); the wait just buys the pending state more time to resolve before the decision is made. On timeout, execution falls through to the same envelope re-check and block path described above, unchanged. Scoped to the post-self-fix approve path only — the plain (non-self-fix) approve path is untouched.
+
 ---
 
 ## ADR-003 — Issue-chain dispatch on auto-merge (2026-05-24)
