@@ -104,7 +104,8 @@ Concretely, within Phase `spec`'s existing steps
    detect an existing lock exactly as `/enrich`'s Step 1.5 does, but using
    the 24h threshold. No `enrichment-ongoing` label → continue. Label
    present, comment found, age < 24h → hard stop, tell the user, do not
-   start this run at all (don't even write `phase=spec` to the state file).
+   start this run at all (don't even write `phase=spec` to the state file —
+   see *Deferring the state-file write* below for why that is achievable).
    Age ≥ 24h or no matching comment → offer takeover; no → stop; yes →
    continue, noting the takeover for the acquisition step below.
 2. **New step, between the existing readiness-assessment step and the
@@ -115,22 +116,76 @@ Concretely, within Phase `spec`'s existing steps
    stand down (post a `🔓 … lost race …` comment, leave the label in place
    since the winner depends on it), tell the user, and end the command
    without starting brainstorming or writing any state file. Otherwise the
-   lock is held — continue to brainstorming as today.
-3. **Releasing early**: if the run ends before Phase `issue` for a
-   user-driven reason — declining brainstorming's approval gate within
-   Phase `spec`, or Phase `plan`'s existing push-verification failure —
-   release the lock (`--remove-label enrichment-ongoing 2>/dev/null ||
-   true`) before stopping. This mirrors `/enrich`'s "Releasing early"
-   behavior and is the only lock-related addition to Phase `plan`.
+   lock is held — write the state file (`issue=<N>`, `phase=spec`) and
+   continue to brainstorming as today.
+3. **Releasing early**: if the run ends before Phase `issue` because the
+   user declines brainstorming's approval gate within Phase `spec`, release
+   the lock (`--remove-label enrichment-ongoing`) and delete the state file
+   before stopping. This mirrors `/enrich`'s "Releasing early" behavior.
+   Deleting the state file matters here because by that point step 2 has
+   written it: leaving it behind would advertise a resumable run that no
+   longer holds a lock.
 
 **Phase `issue`**'s existing label-clearing step (which already removes
 `needs-enrichment` / `❓ to-be-defined`) also removes `enrichment-ongoing`
 there — the final release, matching `/enrich`'s Step 6.
 
+**Phase `plan` is not touched at all.** `/enrich` releases the lock when its
+Step 5 push verification fails, but `/enrich-phased` is a resumable state
+machine: the documented recovery from a failed push is to fix it and resume
+with no argument, not to abandon the run. Since resumes deliberately skip
+both detection and acquisition, releasing on push failure would leave the
+resumed run holding no lock through Phase `plan` and Phase `issue`, free for
+a second session to acquire and enrich the same issue concurrently. A
+genuinely abandoned run is covered by the 24h staleness window instead.
+
 Mirrored identically in the Forgejo section of `commands/enrich-phased.md`,
 using the same `tea labels create` / read-filter-PUT pattern `/enrich`'s
 Forgejo section and `/enrich-phased`'s existing Phase `issue` label-clearing
 step already use.
+
+### Deferring the state-file write
+
+`/enrich-phased`'s *On invocation* step 1 writes `issue=<N>` and
+`phase=spec` to the state file the moment an issue argument is seen — before
+Phase `spec`, and therefore before any lock check, ever runs. Left as-is,
+every "stop without writing the state file" instruction above would be
+unreachable: after a hard stop or a lost race the file would still say
+`phase=spec`, and the documented resume gesture (`/enrich-phased` with no
+argument) skips detection by design — so brainstorming would start on an
+issue another session holds a fresh lock on, the exact bypass this feature
+exists to prevent.
+
+So *On invocation* step 1 changes: a new run carries the issue number
+through this invocation in memory and dispatches straight into Phase `spec`
+without writing anything. The write moves into Phase `spec`'s acquisition
+step, immediately after the race re-check confirms the lock is held. All
+three stop paths (hard stop, takeover declined, lost race) then genuinely
+never touch the state file. The *Between phases* protocol is unaffected — by
+the time it updates the file with the next phase, acquisition has already
+created it.
+
+### Guarding the Forgejo label read-modify-write
+
+The Forgejo label operations are read-modify-PUT: read the issue's current
+labels with `tea api … | jq -r '[.labels[].name]'`, compute the new set,
+`PUT` it back. If the read fails or returns empty, the computed set is empty
+and the `PUT` wipes *every* label on the issue — including `ai-implement` and
+the readiness labels. Every such snippet therefore guards the read before
+computing anything:
+
+```bash
+[[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
+```
+
+### Surfacing failed lock releases
+
+The `2>/dev/null || true` pattern is right for `needs-enrichment` /
+`❓ to-be-defined`, which a given repo may legitimately not define. It is
+wrong for `enrichment-ongoing`: this run is known to have applied it, so a
+failed removal means the lock silently stays held for the full 24h with no
+signal. The `enrichment-ongoing` release commands check their exit code and
+tell the user when removal fails.
 
 ### Crash recovery
 
@@ -167,6 +222,10 @@ issue:
    boundary (normal handoff), `/clear`, resume with no argument. Confirm
    Phase `plan` does **not** re-run the detection step (no lock-related
    output) and simply proceeds.
+6. Push-failure check: make Phase `plan`'s `git push` fail (e.g. point
+   `origin` at an unreachable remote). Confirm the run stops there with
+   `enrichment-ongoing` still applied, and that fixing the remote and
+   resuming with no argument carries on holding the same lock.
 
 ## Follow-ups (out of scope here)
 
