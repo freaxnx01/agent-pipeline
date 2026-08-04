@@ -317,6 +317,8 @@ jobs:
       retry-decision:      ${{ steps.retry.outputs.decision }}
       auto-review-enabled: ${{ steps.auto_review_gate.outputs.enabled || steps.auto_review_gate_stub.outputs.enabled }}
       pre-preview-enabled: ${{ steps.preview_gate.outputs.enabled || steps.preview_gate_stub.outputs.enabled }}
+      agent:               ${{ steps.classify_agent.outputs.agent || inputs.agent }}
+      model:               ${{ steps.triage.outputs.model || inputs.default-model }}
     env:
       # Optional GitHub App for PR creation (#55). Exposed as an env var so the
       # mint step's `if:` can test it (the `secrets` context isn't available in
