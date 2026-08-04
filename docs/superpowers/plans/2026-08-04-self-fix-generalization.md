@@ -22,7 +22,7 @@
 
 ---
 
-## Task 1: `self-fix-pr.sh` — `AGENT`-based fix-wrapper routing
+### Task 1: `self-fix-pr.sh` — `AGENT`-based fix-wrapper routing
 
 **Files:**
 
@@ -242,7 +242,7 @@ git commit -m "feat(self-fix): AGENT-based fix-wrapper routing in self-fix-pr.sh
 
 ---
 
-## Task 2: `scripts/lib/agent-cmd-opencode-fix.sh` (new)
+### Task 2: `scripts/lib/agent-cmd-opencode-fix.sh` (new)
 
 **Files:**
 
@@ -315,7 +315,7 @@ git commit -m "feat(self-fix): OpenCode fix wrapper (#193)"
 
 ---
 
-## Task 3: `self-fix-loop.sh` — `FIX_AGENT`/`FIX_MODEL` forwarding
+### Task 3: `self-fix-loop.sh` — `FIX_AGENT`/`FIX_MODEL` forwarding
 
 **Files:**
 
@@ -507,7 +507,7 @@ git commit -m "feat(self-fix): forward FIX_AGENT/FIX_MODEL to the fix call in se
 
 ---
 
-## Task 4: `implement` job exposes `agent`/`model` outputs
+### Task 4: `implement` job exposes `agent`/`model` outputs
 
 **Files:**
 
@@ -568,7 +568,7 @@ git commit -m "feat(workflow): implement job exposes agent/model outputs (#193)"
 
 ---
 
-## Task 5: `pre_preview`'s self-fix step — hardcoded → dynamic agent/model
+### Task 5: `pre_preview`'s self-fix step — hardcoded → dynamic agent/model
 
 **Files:**
 
@@ -648,7 +648,7 @@ git commit -m "feat(workflow): pre_preview self-fix routes to the original imple
 
 ---
 
-## Task 6: `auto_review` gains the self-fix block
+### Task 6: `auto_review` gains the self-fix block
 
 **Files:**
 
@@ -861,7 +861,7 @@ git commit -m "feat(workflow): auto_review gains the self-fix pass (#193)"
 
 ---
 
-## Task 7: Layer-2 act scenarios for `auto_review` self-fix
+### Task 7: Layer-2 act scenarios for `auto_review` self-fix
 
 **Files:**
 
@@ -983,7 +983,7 @@ git commit -m "test(act): auto-review self-fix approve/cap-exhausted scenarios (
 
 ---
 
-## Task 8: Docs — ADR-004 addendum, CONSUMER-SETUP.md, CHANGELOG.md
+### Task 8: Docs — ADR-004 addendum, CONSUMER-SETUP.md, CHANGELOG.md
 
 **Files:**
 
@@ -1058,7 +1058,7 @@ git commit -m "docs: self-fix generalization — ADR-004 addendum, CONSUMER-SETU
 
 ---
 
-## Task 9: Push, open PR, confirm CI green, update issue #193
+### Task 9: Push, open PR, confirm CI green, update issue #193
 
 **Files:** none (integration)
 

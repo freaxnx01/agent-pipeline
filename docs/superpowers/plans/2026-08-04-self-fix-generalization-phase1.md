@@ -26,7 +26,7 @@
 
 ---
 
-## Task 1: `self-fix-pr.sh` — `AGENT`-based fix-wrapper routing
+### Task 1: `self-fix-pr.sh` — `AGENT`-based fix-wrapper routing
 
 **Files:**
 
@@ -246,7 +246,7 @@ git commit -m "feat(self-fix): AGENT-based fix-wrapper routing in self-fix-pr.sh
 
 ---
 
-## Task 2: `scripts/lib/agent-cmd-opencode-fix.sh` (new)
+### Task 2: `scripts/lib/agent-cmd-opencode-fix.sh` (new)
 
 **Files:**
 
@@ -319,7 +319,7 @@ git commit -m "feat(self-fix): OpenCode fix wrapper (#193)"
 
 ---
 
-## Task 3: `self-fix-loop.sh` — `FIX_AGENT`/`FIX_MODEL` forwarding
+### Task 3: `self-fix-loop.sh` — `FIX_AGENT`/`FIX_MODEL` forwarding
 
 **Files:**
 
@@ -511,7 +511,7 @@ git commit -m "feat(self-fix): forward FIX_AGENT/FIX_MODEL to the fix call in se
 
 ---
 
-## Task 4: `implement` job exposes `agent`/`model` outputs
+### Task 4: `implement` job exposes `agent`/`model` outputs
 
 **Files:**
 
