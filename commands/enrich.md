@@ -24,6 +24,33 @@ gh issue view $ARGUMENTS --comments
 
 If the issue is closed, already has `ai-implement` label, or is `🧊 parked`, stop and say so.
 
+### Step 1.5 — Check for an existing enrichment lock
+
+If the issue carries the `enrichment-ongoing` label, another session may already be
+enriching it. Scan the comments already fetched in Step 1 for the most recent line
+matching:
+
+```text
+🔒 Enrichment lock (re-)acquired at <timestamp>
+```
+
+Compute its age against the current UTC time:
+
+```bash
+date -u +%Y-%m-%dT%H:%M:%SZ
+```
+
+- No `enrichment-ongoing` label → continue to Step 2.
+- Label present, a matching comment found, age < 4 hours → **stop**. Tell the user
+  the issue is already being enriched (show the age) and end the command — do not
+  run Step 2 or start brainstorming.
+- Label present, age ≥ 4 hours, **or** no matching comment found (treat unknown age
+  as stale) → tell the user the lock looks abandoned (show age and the 4h
+  threshold) and ask whether to take over.
+  - No → stop.
+  - Yes → continue to Step 2; Step 2.5 will re-acquire the lock and note the
+    takeover.
+
 ### Step 2 — Assess readiness
 
 Judge whether the issue already has all three:
@@ -33,6 +60,31 @@ Judge whether the issue already has all three:
 - **No blocking unknowns** — no open design questions or TBDs the agent can't resolve from the codebase
 
 If the issue is already complete, tell the user and suggest running `/gh:implement $ARGUMENTS` directly. Stop here.
+
+### Step 2.5 — Acquire the enrichment lock
+
+Before starting brainstorming — the expensive shared resource two sessions could
+collide on — claim the lock so a second session can detect this one:
+
+```bash
+gh label create enrichment-ongoing --color FBCA04 \
+  --description "Another /enrich session is actively enriching this issue — do not start a second one" \
+  2>/dev/null || true
+gh issue edit $ARGUMENTS --add-label enrichment-ongoing
+```
+
+Post the timestamp comment. Fresh acquisition (Step 1.5 found no lock):
+
+```bash
+gh issue comment $ARGUMENTS --body "🔒 Enrichment lock acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+```
+
+Takeover of a stale lock (Step 1.5 found one and the user agreed to take over —
+substitute the actual age you showed the user for `<Xh>`):
+
+```bash
+gh issue comment $ARGUMENTS --body "🔒 Enrichment lock re-acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ) (previous lock stale, <Xh> old)"
+```
 
 ### Step 3 — Brainstorm spec
 
@@ -124,12 +176,14 @@ mean "not ready yet," and the issue now is. Leaving either on is a silent trap:
 ```bash
 gh issue edit $ARGUMENTS --remove-label needs-enrichment 2>/dev/null || true
 gh issue edit $ARGUMENTS --remove-label "❓ to-be-defined" 2>/dev/null || true
+gh issue edit $ARGUMENTS --remove-label enrichment-ongoing 2>/dev/null || true
 ```
 
 `--remove-label` on a label the issue doesn't carry is a no-op, but on a label
 that doesn't exist **anywhere in the repo** it errors — many repos only define
-one of the two conventions. Run each on its own line with `|| true` so a
-missing repo label doesn't abort the step.
+some of these conventions. Run each on its own line with `|| true` so a
+missing repo label doesn't abort the step. The lock comment posted in Step 2.5
+is left in place as an audit trail — only the label is removed.
 
 ### Step 7 — Confirm
 
