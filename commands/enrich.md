@@ -223,6 +223,33 @@ tea api --login git-home "repos/$repo/issues/$ARGUMENTS/comments"
 
 If the issue is closed or `🧊 parked`, stop and say so.
 
+### Step 1.5 — Check for an existing enrichment lock
+
+If the issue carries the `enrichment-ongoing` label, another session may already be
+enriching it. Scan the comments already fetched in Step 1 for the most recent line
+matching:
+
+```text
+🔒 Enrichment lock (re-)acquired at <timestamp>
+```
+
+Compute its age against the current UTC time:
+
+```bash
+date -u +%Y-%m-%dT%H:%M:%SZ
+```
+
+- No `enrichment-ongoing` label → continue to Step 2.
+- Label present, a matching comment found, age < 4 hours → **stop**. Tell the user
+  the issue is already being enriched (show the age) and end the command — do not
+  run Step 2 or start brainstorming.
+- Label present, age ≥ 4 hours, **or** no matching comment found (treat unknown age
+  as stale) → tell the user the lock looks abandoned (show age and the 4h
+  threshold) and ask whether to take over.
+  - No → stop.
+  - Yes → continue to Step 2; Step 2.5 will re-acquire the lock and note the
+    takeover.
+
 ### Step 2 — Assess readiness
 
 Judge whether the issue already has all three:
@@ -234,6 +261,39 @@ Judge whether the issue already has all three:
 
 If it's already complete, tell me and suggest running `/work $ARGUMENTS` directly.
 Stop here.
+
+### Step 2.5 — Acquire the enrichment lock
+
+Before starting brainstorming — the expensive shared resource two sessions could
+collide on — claim the lock so a second session can detect this one. `tea` has no
+per-issue label add/remove subcommand, so read the current labels and PUT back the
+set with `enrichment-ongoing` added (same pattern Step 6 already uses to remove
+labels):
+
+```bash
+tea labels create --login git-home --name enrichment-ongoing --color "#fbca04" \
+  --description "Another /enrich session is actively enriching this issue — do not start a second one" \
+  2>/dev/null || true
+
+current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+locked=$(echo "$current" | jq -c '. + ["enrichment-ongoing"] | unique')
+tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$locked" >/dev/null
+```
+
+Post the timestamp comment. Fresh acquisition (Step 1.5 found no lock):
+
+```bash
+tea api --login git-home -X POST "repos/$repo/issues/$ARGUMENTS/comments" \
+  -f body="🔒 Enrichment lock acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+```
+
+Takeover of a stale lock (Step 1.5 found one and the user agreed to take over —
+substitute the actual age you showed the user for `<Xh>`):
+
+```bash
+tea api --login git-home -X POST "repos/$repo/issues/$ARGUMENTS/comments" \
+  -f body="🔒 Enrichment lock re-acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ) (previous lock stale, <Xh> old)"
+```
 
 ### Step 3 — Brainstorm spec
 
@@ -294,7 +354,7 @@ issue's current labels and PUT back the set with those two names filtered out:
 
 ```bash
 current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
-kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined")]')
+kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined" and . != "enrichment-ongoing")]')
 tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$kept" >/dev/null
 ```
 
@@ -302,6 +362,9 @@ tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels
 ID-keyed variants across versions — if the `PUT` errors, check `tea api
 --login git-home "repos/$repo/issues/$ARGUMENTS/labels"` for the shape this
 instance expects and fix this step for the future.)
+
+The lock comment posted in Step 2.5 is left in place as an audit trail — only the
+label is removed here.
 
 ### Step 7 — Confirm
 
