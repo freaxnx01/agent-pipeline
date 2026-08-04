@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **enrich:** concurrency lock — `/enrich` claims an `enrichment-ongoing` label
+  plus a timestamped lock comment before brainstorming starts (Step 2.5),
+  detects an existing lock up front (Step 1.5) and hard-stops on one younger
+  than 4 hours, offers a takeover past that threshold, and releases the label in
+  Step 6; mirrored across the GitHub and Forgejo sections, with the label
+  registered by `scripts/ensure-issue-labels.sh` (#229)
 - **pre-preview:** `self-fix` and `self-fix-max-iterations` workflow
   inputs — on a `request_changes` verdict, optionally let the agent
   attempt bounded fix → re-review cycles before falling back to the
