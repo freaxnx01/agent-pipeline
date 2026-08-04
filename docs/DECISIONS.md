@@ -402,6 +402,24 @@ here.)
   pipeline ever forks, the fork's first task is to update the guard.
   Prose alone is insufficient — the guard MUST exist in code.
 
+### Addendum — Self-fix + pending-checks interaction (2026-08-04)
+
+**Tracking:** [#193](https://github.com/freaxnx01/agent-workflow/issues/193)
+
+Issue #193's Phase 2 generalizes the self-fix pass (see ADR-004's addendum)
+to `auto_review`, not just pre-preview. That surfaces an interaction with
+gate 5 above: when a self-fix iteration pushes a fresh commit and the
+re-review approves it, the "Check merge envelope" step runs right after —
+almost certainly before CI on that new commit has finished. §2.5 treats a
+pending required check the same as a failing one, so a self-fix-approved
+PR commonly still lands in `ai:review-blocked` today rather than merging,
+even though the underlying fix was good.
+
+This is a known, accepted limitation for now — not a regression, and not
+blocking Phase 2's merge. A fix (e.g. a brief poll/wait for required-check
+completion before the envelope check, scoped to the self-fix-approved
+path specifically) is tracked as a follow-up.
+
 ---
 
 ## ADR-003 — Issue-chain dispatch on auto-merge (2026-05-24)

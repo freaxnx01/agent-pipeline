@@ -182,13 +182,14 @@ on:
         default: false
       self-fix:
         description: |
-          Opt-in for pre-preview's self-fix pass (#81 / ADR-004
-          follow-up). When true AND the first review's verdict is
-          `request_changes`, the agent attempts up to
+          Opt-in for the review self-fix pass — pre-preview or auto-review,
+          whichever runs for this issue (#81/#193, ADR-004 follow-up). When
+          true AND the first review's verdict is `request_changes`, the
+          original implementer's agent attempts up to
           `self-fix-max-iterations` fix → re-review cycles before falling
-          back to the block path. Ignored when `pre-preview` is false, or
-          when the first verdict is `approve` (nothing to fix) or `block`
-          (the agent already refused — self-fix never runs after a block).
+          back to the block path. Ignored when the first verdict is
+          `approve` (nothing to fix) or `block` (the agent already refused
+          — self-fix never runs after a block).
         type: boolean
         default: false
       self-fix-max-iterations:
@@ -979,6 +980,16 @@ jobs:
             printf 'iterations-used=%s\n' "${LOOP_ITERATIONS:-0}"
           } >> "$GITHUB_OUTPUT"
 
+      # KNOWN GAP (issue #193 follow-up, deliberately deferred): when
+      # self-fix pushes a new commit and that fix is then approved, this
+      # envelope check runs almost immediately after — CI on the fresh
+      # commit has usually not finished yet. check-merge-envelope.sh
+      # treats a pending required check the same as a failing one (see
+      # ADR-002 §2.5, docs/DECISIONS.md), so this path commonly ends in
+      # `ai:review-blocked` rather than merging, even when the fix is
+      # good. Fixing this (e.g. a brief poll for check completion right
+      # after a self-fix approve) is a known follow-up, not done in this
+      # phase.
       - name: Check merge envelope
         if: |
           steps.self_mod_guard.outputs.blocked != 'true'
