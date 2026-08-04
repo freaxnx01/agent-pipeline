@@ -66,6 +66,7 @@ in the round write-up before proceeding.
 ### Task 1: Author the two benchmark spec bodies
 
 **Files:**
+
 - Create: `scratchpad/bench-bugfix.md` (Shape A spec body)
 - Create: `scratchpad/bench-refactor.md` (Shape B spec body)
 
@@ -207,6 +208,7 @@ Expected: 6 draft PRs open on `quotes`, 3 per model.
 ### Task 4: Shape A — score, aggregate, record Round 4
 
 **Files:**
+
 - Modify: `docs/model-comparison.md` (append `## Round 4`)
 
 - [ ] **Step 1: Fetch each PR diff and the post-fix file**
@@ -222,8 +224,7 @@ GH_TOKEN="${GH_TOKEN}" gh pr diff <PR> --repo freaxnx01/quotes'
   - **AC points (0–4):** last quote reachable; empty-table graceful; single-quote shape kept; compiles/clean.
   - **Tiebreak:** idiom (e.g. shared `Random`, guard clause vs exception, minimal diff).
 
-- [ ] **Step 3: Aggregate per model** — pass-rate = (# of the 3 runs clean through both gates
-  + all 4 AC) and mean score (mean AC points across 3 runs).
+- [ ] **Step 3: Aggregate per model** — pass-rate = (# of the 3 runs clean through both gates plus all 4 AC) and mean score (mean AC points across 3 runs).
 
 - [ ] **Step 4: Append `## Round 4 — .NET bugfix (GET /Api/random off-by-one)`** to
   `docs/model-comparison.md`, newest-first (above Round 3), in the existing Round format:
@@ -260,6 +261,7 @@ Expected: 6 more draft PRs, 3 per model.
 ### Task 6: Shape B — score, aggregate, record Round 5
 
 **Files:**
+
 - Modify: `docs/model-comparison.md` (append `## Round 5`)
 
 - [ ] **Step 1: Fetch each PR diff** (as Task 4 Step 1).
@@ -280,6 +282,7 @@ Expected: 6 more draft PRs, 3 per model.
 ### Task 7: Decision gate + close-out
 
 **Files:**
+
 - Modify (only on a **promote** verdict): `docs/model-comparison.md` (selection-policy table),
   `~/.claude/commands/gh/route.md` **and** its source
   `~/repos/github/freaxnx01/public/config/claude/commands/gh/route.md` (Step 4b table).
