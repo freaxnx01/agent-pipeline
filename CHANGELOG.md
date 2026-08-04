@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **enrich-phased:** concurrency lock — Phase `spec` now detects an existing
+  `enrichment-ongoing` lock and acquires its own before brainstorming, using a
+  24h staleness window (vs `/enrich`'s 4h) to absorb the `/clear` boundaries a
+  phased run legitimately pauses across. Both steps run on a new run only, never
+  on a resume, and the state file is written only once the lock is confirmed
+  held — so a hard-stop or a lost race leaves nothing resumable behind. Phase
+  `issue` releases the label on the success path. Same label and comment format
+  as `/enrich`, so a lock set by either command is seen by the other (#237)
 - **enrich:** concurrency lock — `/enrich` claims an `enrichment-ongoing` label
   plus a timestamped lock comment before brainstorming (Step 2.5), hard-stops
   when another session holds a lock younger than 4h (Step 1.5), offers a
@@ -64,6 +72,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **enrich:** the `enrichment-ongoing` release no longer swallows its own
+  failure with `2>/dev/null || true` — that pattern is for labels a repo may
+  not define, and hiding a failed release leaves the lock held for the full
+  staleness window with no signal. Every Forgejo read-modify-PUT of the label
+  set now also guards its read: an empty or failed read used to PUT an empty
+  set, wiping every label on the issue including `ai-implement` (#237)
 - **setup:** `setup/link-commands.sh` now prunes command files it previously
   installed that no longer exist in the repo's `commands/` tree, instead of
   only ever adding/updating. Previously a re-install after a command was
