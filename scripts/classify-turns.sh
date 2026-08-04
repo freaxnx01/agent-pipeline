@@ -83,7 +83,13 @@ if [[ -z "$chosen" ]]; then
   fi
 
   if printf '%s' "$ISSUE_BODY" | grep -qi '^## Implementation Plan'; then
-    task_count="$(printf '%s' "$ISSUE_BODY" | grep -cE '^### Task [0-9]+')"
+    # `grep -c` exits 1 on zero matches (a heading level other than "### Task
+    # N", or a plan with no numbered task headings at all) -- under
+    # set -euo pipefail that would kill this whole script silently before it
+    # writes anything to $GITHUB_OUTPUT, aborting the implement job before
+    # the implementer ever runs. `-c` still prints "0" on no match; the
+    # `|| true` only neutralizes the exit code.
+    task_count="$(printf '%s' "$ISSUE_BODY" | grep -cE '^### Task [0-9]+' || true)"
     if   (( task_count >= 6 )); then chosen=160; reason="heuristic: ${task_count} plan tasks"
     elif (( task_count >= 4 )); then chosen=120; reason="heuristic: ${task_count} plan tasks"
     elif (( task_count >= 2 )); then chosen=80;  reason="heuristic: ${task_count} plan tasks"
