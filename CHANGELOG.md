@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **enrich-phased:** concurrency lock — Phase `spec` detects an existing
+  `enrichment-ongoing` lock on a new run (24h staleness window, vs `/enrich`'s
+  4h, since phased runs legitimately pause across `/clear` boundaries) and
+  acquires it with the same label and comment format `/enrich` uses, so a lock
+  set by either command is seen by the other; Phase `plan` releases it if the
+  push fails and Phase `issue` releases it on success (#237)
 - **enrich:** concurrency lock — `/enrich` claims an `enrichment-ongoing` label
   plus a timestamped lock comment before brainstorming (Step 2.5), hard-stops
   when another session holds a lock younger than 4h (Step 1.5), offers a

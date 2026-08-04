@@ -123,6 +123,7 @@ Then dispatch to the matching phase below.
    ```bash
    gh issue edit <issue> --remove-label enrichment-ongoing 2>/dev/null || true
    ```
+
 6. **Phase boundary** (see *Between phases*): set `phase=plan`, hand off, stop.
 
 ### Phase `plan`
@@ -144,6 +145,7 @@ Then dispatch to the matching phase below.
    ```bash
    gh issue edit <issue> --remove-label enrichment-ongoing 2>/dev/null || true
    ```
+
 4. **Phase boundary:** set `phase=issue`, hand off, stop.
 
 ### Phase `issue`
@@ -348,6 +350,7 @@ Then dispatch to the matching phase below.
    kept=$(echo "$current" | jq -c '[.[] | select(. != "enrichment-ongoing")]')
    tea api --login git-home -X PUT "repos/$repo/issues/<issue>/labels" -f labels="$kept" >/dev/null
    ```
+
 6. **Phase boundary** (see *Between phases*): set `phase=plan`, hand off, stop.
 
 ### Phase `plan`
@@ -371,6 +374,7 @@ Then dispatch to the matching phase below.
    kept=$(echo "$current" | jq -c '[.[] | select(. != "enrichment-ongoing")]')
    tea api --login git-home -X PUT "repos/$repo/issues/<issue>/labels" -f labels="$kept" >/dev/null
    ```
+
 4. **Phase boundary:** set `phase=issue`, hand off, stop.
 
 ### Phase `issue`
