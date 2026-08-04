@@ -40,14 +40,90 @@ Then dispatch to the matching phase below.
 
 1. `gh issue view <issue> --comments`. If the issue is closed, already has
    `ai-implement`, or is `🧊 parked`, stop and say so.
-2. Assess readiness (acceptance criteria + scope + no blocking unknowns). If it's
+2. **Check for an existing enrichment lock — only on a new run** (an issue number
+   was passed as this invocation's argument, per *On invocation* step 1 above; skip
+   this step entirely when resuming from the state file, since that is the same run
+   continuing, not a second session). If the issue carries the `enrichment-ongoing`
+   label, scan the comments already fetched in step 1 for the most recent
+   `🔒 Enrichment lock (re-)acquired at <timestamp>` line and compute its age:
+   - No `enrichment-ongoing` label → continue to step 3.
+   - Label present, a matching comment found, age < 24 hours → **stop**. Tell the
+     user the issue is already being enriched (show the age) and end the command —
+     do not write `issue=`/`phase=` to the state file, do not run step 3 or start
+     brainstorming.
+   - Label present, age ≥ 24 hours, or no matching comment found (treat unknown age
+     as stale) → tell the user the lock looks abandoned (show age and the 24h
+     threshold) and ask whether to take over.
+     - No → stop, same as above.
+     - Yes → continue to step 3; step 4 will re-acquire the lock and note the
+       takeover.
+3. Assess readiness (acceptance criteria + scope + no blocking unknowns). If it's
    already complete, say so, suggest `/gh:implement <issue>`, clear the state file,
    and stop.
-3. Invoke **superpowers:brainstorming** with the issue as context. Follow it
+4. **Acquire the enrichment lock** — before starting brainstorming, the expensive
+   shared resource two sessions could collide on. Make sure the label exists first:
+
+   ```bash
+   gh label create enrichment-ongoing --color FBCA04 \
+     --description "Another /enrich session is actively enriching this issue — do not start a second one" \
+     2>/dev/null || true
+   ```
+
+   Post the timestamp comment before applying the label — a label with no matching
+   comment reads as "unknown age → stale" to step 2's check, defeating detection.
+   Fresh acquisition (step 2 found no lock):
+
+   ```bash
+   gh issue comment <issue> --body "🔒 Enrichment lock acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   ```
+
+   Takeover of a stale lock (step 2 found one and the user agreed to take over —
+   substitute the actual age you showed the user for `<Xh>`):
+
+   ```bash
+   gh issue comment <issue> --body "🔒 Enrichment lock re-acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ) (previous lock stale, <Xh> old)"
+   ```
+
+   Note the exact timestamp you posted, then apply the label:
+
+   ```bash
+   gh issue edit <issue> --add-label enrichment-ongoing
+   ```
+
+   **Then re-check for a competitor** — step 2 and this step are not atomic (the
+   readiness check, and on the takeover path a user prompt, sit between them).
+   Re-fetch comments:
+
+   ```bash
+   gh issue view <issue> --comments
+   ```
+
+   Look for a `🔒 Enrichment lock (re-)acquired` comment that is **not** the one you
+   just posted and was **not** already present at step 2. If one exists and its
+   timestamp is earlier than yours (same second → the one listed first wins), you
+   lost the race. Stand down:
+
+   ```bash
+   gh issue comment <issue> --body "🔓 Enrichment lock released at $(date -u +%Y-%m-%dT%H:%M:%SZ) (lost race to the lock acquired at <winner timestamp>)"
+   ```
+
+   Leave the `enrichment-ongoing` label in place — the winning session depends on
+   it. Tell the user another session won the race, do not write `issue=`/`phase=` to
+   the state file, and end the command without brainstorming.
+
+   Otherwise the lock is yours — continue to step 5.
+5. Invoke **superpowers:brainstorming** with the issue as context. Follow it
    end-to-end — clarifying questions, approaches, design sections, the spec
    self-review, and the **user approval gate**. Save the spec to the repo's tracked
    specs dir (see *Choosing a tracked path*), commit it, and record `spec=<path>`.
-4. **Phase boundary** (see *Between phases*): set `phase=plan`, hand off, stop.
+
+   **If the user declines the approval gate** (does not approve the spec), release
+   the lock before stopping:
+
+   ```bash
+   gh issue edit <issue> --remove-label enrichment-ongoing 2>/dev/null || true
+   ```
+6. **Phase boundary** (see *Between phases*): set `phase=plan`, hand off, stop.
 
 ### Phase `plan`
 
@@ -61,7 +137,13 @@ Then dispatch to the matching phase below.
    don't wait for an answer, don't execute the plan. Treat it as written the
    moment the skill exits and continue to step 3.
 3. **Push** so both spec and plan are on the remote (the agent-workflow checks them
-   out): `git push`. Verify it succeeded.
+   out): `git push`. Verify it succeeded. **If the push fails and you stop here**,
+   release the enrichment lock before ending — it was acquired back in Phase
+   `spec` and nothing else will release it if this run doesn't continue:
+
+   ```bash
+   gh issue edit <issue> --remove-label enrichment-ongoing 2>/dev/null || true
+   ```
 4. **Phase boundary:** set `phase=issue`, hand off, stop.
 
 ### Phase `issue`
@@ -76,15 +158,18 @@ Then dispatch to the matching phase below.
      markdown) — human/reviewer reference only, not needed by the implementing agent.
 2. Clear the readiness labels — `needs-enrichment` and `❓ to-be-defined` mean
    "not ready yet," and the issue now is. `/gh:implement` treats either as a
-   hard stop regardless of body content, so leaving one on is a silent trap:
+   hard stop regardless of body content, so leaving one on is a silent trap.
+   Also release the enrichment lock acquired back in Phase `spec` — the run is
+   done, nothing else will clear it:
 
    ```bash
    gh issue edit <issue> --remove-label needs-enrichment 2>/dev/null || true
    gh issue edit <issue> --remove-label "❓ to-be-defined" 2>/dev/null || true
+   gh issue edit <issue> --remove-label enrichment-ongoing 2>/dev/null || true
    ```
 
    (run each on its own line with `|| true` — a repo that doesn't define one of
-   the two label conventions would otherwise error on the `--remove-label`)
+   these label conventions would otherwise error on the `--remove-label`)
 3. Push if anything else is pending.
 4. **Done:** delete `.claude/enrich-phased.state` and `.claude/handoff.md`. Print the
    issue URL, the spec and plan paths, and: *"Issue is ready — run
