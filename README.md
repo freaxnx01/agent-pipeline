@@ -176,7 +176,7 @@ files dropped into `partials/` are picked up automatically on the next install.
 |---|---|
 | [`task-checklist.md`](partials/task-checklist.md) | Getting action items back as `- [ ]` Markdown checkboxes instead of prose, so they're easy to tick off and reference by number. |
 | [`skill-authoring.md`](partials/skill-authoring.md) | Making self-authored skills self-improving — each one is told to fix its own blockers and write the fix back into `SKILL.md` for next time. |
-| [`subagent-driven-default.md`](partials/subagent-driven-default.md) | Defaulting implementation-plan execution to `superpowers:subagent-driven-development` instead of inline work, without having to ask for it each time. |
+| [`subagent-driven-default.md`](partials/subagent-driven-default.md) | Defaulting implementation-plan execution to `superpowers:subagent-driven-development` instead of inline work, without having to ask for it each time — except issue-based plans in agent-workflow-enabled repos, which dispatch via `/gh:implement` instead. |
 | [`scope-boundary.md`](partials/scope-boundary.md) | Avoiding scope creep — state scope up front, treat incidental findings as discoveries to capture (not auto-tasks), and ask before a fix chain drifts into a different project. |
 
 See [`partials/README.md`](partials/README.md) for setup and verification steps —

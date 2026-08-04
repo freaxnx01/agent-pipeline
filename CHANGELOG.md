@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **partials:** `subagent-driven-default.md` now carves out issue-based
+  dispatch — when a plan targets a GitHub issue in a repo with
+  agent-workflow's pipeline wired up, default to `/enrich`'s issue-body +
+  `ai-implement` dispatch instead of local `subagent-driven-development`,
+  even when brainstorming/writing-plans wasn't invoked via `/enrich` itself.
 - **commands:** Extract the duplicated forge host-detection snippet into
   `scripts/lib/detect-forge.sh`, sourced by the 12 merged commands above (#198,
   #199).
