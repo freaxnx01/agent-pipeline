@@ -350,7 +350,8 @@ The new body has:
 **Also clear the readiness labels** — `needs-enrichment` and `❓ to-be-defined` mean
 "not ready yet," and the issue now is. `tea` has no per-issue label add/remove
 subcommand (`tea labels` only manages repo-level label *definitions*), so read the
-issue's current labels and PUT back the set with those two names filtered out:
+issue's current labels and PUT back the set with those names — plus the
+`enrichment-ongoing` lock from Step 2.5 — filtered out:
 
 ```bash
 current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
