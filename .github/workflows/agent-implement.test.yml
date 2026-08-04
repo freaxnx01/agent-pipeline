@@ -650,7 +650,7 @@ jobs:
         # (a real run would eventually hit the 15-minute job timeout, much
         # later and with a confusing failure mode).
         run: |
-          if ! grep -A 10 "name: Wait for required checks" .github/workflows/agent-implement.yml | grep -q "inputs.stub-review-verdict == ''"; then
+          if ! grep -A 40 "name: Wait for required checks" .github/workflows/agent-implement.yml | grep -q "inputs.stub-review-verdict == ''"; then
             echo "::error::the 'Wait for required checks' step's if: no longer guards against stub-review-verdict -- this would break every stub-mode Layer-2 scenario by calling a real gh command against a nonexistent stub PR"
             exit 1
           fi
