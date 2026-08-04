@@ -1898,6 +1898,9 @@ assert_contains "$log" 'label create ai:chain-paused --repo owner/repo' "creates
 # Outcome label (auto-review epic #3 — ADR-002 §2)
 assert_contains "$log" 'label create ai:review-blocked --repo owner/repo' "creates ai:review-blocked"
 
+# Coordination label (read/written by /enrich's concurrency lock)
+assert_contains "$log" 'label create enrichment-ongoing --repo owner/repo' "creates enrichment-ongoing"
+
 ec="$(run_capture_ec env bash "$ROOT/scripts/ensure-issue-labels.sh")"
 assert_equals "$ec" "2" "missing REPO → exit 2"
 
