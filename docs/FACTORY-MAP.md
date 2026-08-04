@@ -249,12 +249,19 @@ grep -rn 'claude-pipeline\|agent-pipeline\|claude\.yml\|claude-implement' . --ex
 | `update_repo` — repo metadata writes | freaxnx01/bridge#219 |
 | `list_tree` — directory listing | freaxnx01/bridge#220 |
 | `search_code` — cross-repo grep (forge parity problem; design decision needed) | freaxnx01/bridge#221 |
-| `create_branch` / `put_file` / `create_pull_request` — gated tree writes | freaxnx01/bridge#223 |
 | Non-breaking rename sweep | freaxnx01/agent-workflow#205 |
 | Stub-name warning | freaxnx01/agent-workflow#206 |
 | v2 breaking renames (tracking) | freaxnx01/agent-workflow#207 |
 | Execute ADR-F001 rename | — |
 | Execute ADR-F002 archive | — |
+
+`put_file` (gated direct-to-default writes within a path allowlist) shipped —
+freaxnx01/bridge#223, closed by PR #228.
+
+Every open issue title across the factory (except `ideas-lab`'s raw
+`Game idea: ...` capture titles, kept as-is by design) now follows
+Conventional Commits (`ai-instructions`' new Issue Title Conventions
+section).
 
 ### Known `bridge` quirks
 
