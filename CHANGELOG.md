@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inputs — on a `request_changes` verdict, optionally let the agent
   attempt bounded fix → re-review cycles before falling back to the
   human-review block path (#81)
+- **self-fix:** generalized to also run inside auto-review (not just
+  pre-preview), and to route the fix call to whichever agent (Claude or
+  OpenCode) actually implemented the issue instead of a hardcoded Claude
+  fallback (#193).
 - **commands:** `/milestone triage` — lists open issues with no milestone,
   excluding `🧊 parked` and `roadmap`, then walks them one at a time to assign
   one, every write confirmed by read-back (#178)

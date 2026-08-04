@@ -709,6 +709,31 @@ get distinct wording in `post-auto-review-block.sh` ("self-fix exhausted
 after N/M iterations") via new `SELF_FIX_ITERATIONS` / `SELF_FIX_MAX` env,
 byte-identical to the original wording when self-fix didn't run.
 
+### Addendum — Self-fix generalized to auto_review + agent routing (2026-08-04)
+
+**Tracking:** [#193](https://github.com/freaxnx01/agent-workflow/issues/193)
+
+The self-fix pass above generalizes further, closing two gaps: it only ran
+inside `pre_preview`, and it always dispatched a hardcoded Claude fix
+wrapper regardless of which agent actually implemented the issue.
+
++ `auto_review` (ADR-002) gains the identical embedded self-fix step
+  `pre_preview` already had — same shape, not a shared job. On `approve`
+  (first-pass or post-self-fix), the merge envelope is (re-)evaluated
+  against the final HEAD before auto-merge, same as any other approve path.
+  See ADR-002's own addendum (2026-08-04) for a known limitation on this
+  path: a self-fix-approved PR commonly still lands in `ai:review-blocked`
+  today, because the envelope's required-checks gate runs before CI on the
+  freshly-pushed fix commit has finished.
++ The fix call now routes to `needs.implement.outputs.agent` (`claude` |
+  `opencode`) and `needs.implement.outputs.model` — the agent that actually
+  implemented the issue — instead of a hardcoded Claude wrapper and the
+  *review* model. The review step's own agent identity (`AGENT: claude`,
+  `review-model`) is unchanged; only the fix call's agent/model became
+  dynamic. `scripts/self-fix-pr.sh` resolves the wrapper via a new `AGENT`
+  env; `scripts/lib/agent-cmd-opencode-fix.sh` mirrors the existing Claude
+  wrapper for the OpenCode case.
+
 ## ADR-005 — Operator console lives here; user-level vs project-scoped commands (2026-07-12)
 
 ### Context
