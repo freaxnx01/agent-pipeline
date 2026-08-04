@@ -416,6 +416,77 @@ out="$(ISSUE_NUMBER=1 REPO=o/r \
        ISSUE_BODY='Refactor the auth middleware' bash "$CLASSIFY")"
 assert_contains "$out" 'claude-haiku-4-5 (label model:haiku)' "override label beats heuristic"
 
+section "classify-turns — explicit override labels + task-count heuristic"
+
+CLASSIFY_TURNS="$ROOT/scripts/classify-turns.sh"
+
+# Override: turns:80 label
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement
+turns:80' bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 80 (label turns:80)' "label turns:80 → 80"
+
+# Override: turns:120 label
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='turns:120' bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 120 (label turns:120)' "label turns:120 → 120"
+
+# Heuristic: 6+ "### Task N" headings under "## Implementation Plan" → 160
+body6="## Implementation Plan
+### Task 1: a
+### Task 2: b
+### Task 3: c
+### Task 4: d
+### Task 5: e
+### Task 6: f"
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body6" bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 160 (heuristic: 6 plan tasks)' "6 tasks → 160"
+
+# Heuristic: 4-5 tasks → 120
+body4="## Implementation Plan
+### Task 1: a
+### Task 2: b
+### Task 3: c
+### Task 4: d"
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body4" bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 120 (heuristic: 4 plan tasks)' "4 tasks → 120"
+
+# Heuristic: 2-3 tasks → 80
+body2="## Implementation Plan
+### Task 1: a
+### Task 2: b"
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body2" bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 80 (heuristic: 2 plan tasks)' "2 tasks → 80"
+
+# Regression: an "## Implementation Plan" section whose task headings are
+# NOT "### Task N" (e.g. "## Task N", a different heading level, or plain
+# prose) must fall through to DEFAULT_MAX_TURNS, not crash. grep -c exits 1
+# on zero matches; under set -euo pipefail an unguarded `grep -c` inside a
+# command substitution kills the whole script before it prints anything —
+# this is exactly what happened on issue #193's Phase 1 dispatch
+# (2026-08-04): the body used "## Task N" (H2) instead of "### Task N" (H3),
+# classify-turns.sh silently exited 1, and the whole implement job aborted
+# before ever running the implementer.
+body_wrong_heading="## Implementation Plan
+## Task 1: a
+## Task 2: b"
+ec="$(run_capture_ec env ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body_wrong_heading" bash "$CLASSIFY_TURNS")"
+assert_equals "$ec" "0" "Implementation Plan present but zero '### Task N' matches → exit 0, no crash"
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$body_wrong_heading" bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 50 (heuristic: 0 plan task(s), default budget enough)' \
+  "zero task-heading matches → falls through to DEFAULT_MAX_TURNS, not a crash"
+
+# No "## Implementation Plan" section at all → default
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY='Add a hello.md file' bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 50 (heuristic: no Implementation Plan section found)' "no plan section → default"
+
+# DEFAULT_MAX_TURNS env override applied on the no-plan-section default branch
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY='Add a hello.md file' \
+       DEFAULT_MAX_TURNS=30 bash "$CLASSIFY_TURNS")"
+assert_contains "$out" 'chosen: 30 (heuristic: no Implementation Plan section found)' "DEFAULT_MAX_TURNS env override applied"
+
+# Missing ISSUE_NUMBER → exit 2
+ec="$(run_capture_ec env REPO=o/r bash "$CLASSIFY_TURNS")"
+assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
+
 section "classify-agent — label override + input fallback (ADR-001)"
 
 CLASSIFY_AGENT="$ROOT/scripts/classify-agent.sh"
