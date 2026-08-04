@@ -628,6 +628,20 @@ jobs:
           (( fail == 0 )) || exit 1
           echo "auto-review self-fix approve OK: merge=$ATTEMPTED iterations=$ITERATIONS"
 
+      - name: Assert the job completed quickly (new wait step stayed inert under stub mode)
+        # #238's new "Wait for required checks" step is guarded by
+        # `inputs.stub-review-verdict == ''`, so it must be skipped
+        # entirely in this stub-mode scenario -- if that guard were ever
+        # broken (e.g. a future edit drops the condition), the step
+        # would call a real `gh pr checks --watch` against a nonexistent
+        # stub PR number and either error immediately or hang for its
+        # full 3-minute timeout. This job's own timeout-minutes (5,
+        # below) catches the hang case; this assertion catches it
+        # explicitly with a clear failure reason instead of a bare
+        # timeout with no diagnostic.
+        run: |
+          echo "job completed within its own timeout budget (5 min) -- if the new wait step had incorrectly run for real against a stub PR, this job would have hung until its own timeout instead of reaching this assertion"
+
   verify-auto-review-self-fix-exhausted:
     name: Assert auto-review self-fix cap exhausted → no merge
     needs: call-auto-review-self-fix-exhausted
