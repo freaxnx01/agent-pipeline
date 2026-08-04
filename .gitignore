@@ -22,3 +22,6 @@ gate-tests/**/StrykerOutput/
 
 # Local session artifact written by /handoff, read by /pickup — never committed.
 .claude/handoff.md
+
+# Subagent-driven-development scratch workspace (ledgers, briefs, review packages) — never committed.
+.superpowers/
