@@ -34,8 +34,12 @@ subscription, your model choices, and your existing `dotnet-ai-instructions` con
 ```text
 freaxnx01/agent-workflow       # the pipeline end-to-end: CI side (workflows, scripts, fixtures, docs) + operator console (commands/)
 freaxnx01/dotnet-ai-instructions # EXISTING — local Claude Code stack, /sync-ai-instr
-freaxnx01/<homelab-ansible>      # EXISTING — add github-actions-runner role here
 ```
+
+The self-hosted runner LXC was originally planned to live in a separate
+`homelab-ansible` repo (see "Runner strategy" below) — that repo was never
+created. It ended up as `services/gh-runner/` in the existing
+`mydocker-compose` repo instead.
 
 Plus consumer repos (FlowHub, future personal projects) that get a ~15-line workflow
 stub via `/sync-ai-instr`.
@@ -64,17 +68,39 @@ This means:
 
 ### Runner strategy
 
+**Live as of Phase 6:** self-hosted runners are provisioned and working for
+opted-in **private** repos. `freaxnx01/agent-action-sandbox` is the sole
+Phase 1 repo, running on LXC `gh-runner1` (CT 137, `futro-pve`). Public
+repos are **not** opted in and stay GitHub-hosted.
+
 | Repo type | Runner |
 |---|---|
 | Public (FlowHub) | `ubuntu-latest` (GitHub-hosted, unlimited free minutes) |
-| Private homelab repos | `[self-hosted, homelab]` (LXC on Proxmox) |
+| Private homelab repos, opted in | `[self-hosted, homelab]` (LXC `gh-runner1` on Proxmox) |
+| Private homelab repos, not yet opted in | `ubuntu-latest` until added to `repos.list` |
 
-**Critical security constraint:** never attach self-hosted runners to public repos.
-Fork-PR attack surface is unacceptable. FlowHub stays GitHub-hosted permanently.
+**Security constraint, current state:** self-hosted runners only ever attach to
+**private** repos. A registration-token broker (PAT never enters a runner
+container; each runner gets a 60-minute, repo-scoped token instead — see
+`services/gh-runner/README.md` in `mydocker-compose` for the full mechanism)
+narrows the blast radius of a compromised job, but it does **not** by itself
+make the fork-PR attack surface on public repos safe: a compromised job can
+still read its own repo's short-lived token, the DinD sidecar runs
+`privileged: true` (a container escape there is LXC root), and DinD/tool-cache
+state persists across jobs on the same repo. Whether to ever admit a public
+repo to self-hosted runners remains an open human decision weighed against
+those residual risks, not a threshold this broker crosses on its own. Until
+that decision is made, treat "never attach self-hosted runners to public
+repos" as still in force.
 
-The self-hosted LXC runner is provisioned via a new Ansible role in the existing
-homelab Ansible repo (`roles/github-actions-runner/`), not in `agent-workflow` itself.
-Treat it like any other homelab service.
+The self-hosted runner was **not** provisioned via an Ansible role in a
+`homelab-ansible` repo as originally planned here — that repo was never
+created. Instead it's an LXC + Docker Compose service,
+`services/gh-runner/` in the existing `mydocker-compose` repo, following
+that repo's normal (non-Ansible) service pattern. See
+`services/gh-runner/README.md` for install/rotate/add-repo/add-node steps,
+and the homelab Obsidian vault's `Services/GitHub Actions Runner.md` for the
+operational writeup.
 
 ### Runner toolchain (both hosted and self-hosted)
 

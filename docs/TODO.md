@@ -41,10 +41,18 @@ Mirrors the implementation order in [DESIGN.md](DESIGN.md). Strict order — don
 
 ## Phase 6: Self-hosted runner (later, only for private repos)
 
-- [ ] 23. Add Ansible role for `github-actions-runner` LXC in homelab repo
-- [ ] 24. Bake toolchain (ripgrep, gh, jq, fd, formatters) into the LXC image
-- [ ] 25. Provision LXC, register as runner with labels `[self-hosted, homelab]`
-- [ ] 26. Test with a private homelab repo (NOT FlowHub)
+> Implemented as an LXC + Docker Compose service in `mydocker-compose`
+> (`services/gh-runner/`), **not** the Ansible role this phase originally
+> described — the `homelab-ansible` repo referenced below was never created.
+> See `services/gh-runner/README.md` in `mydocker-compose` for the runbook
+> and the Obsidian page `Services/GitHub Actions Runner.md` for the
+> operational writeup (topology, token-broker security model, firewall
+> posture, residual risks).
+
+- [x] 23. ~~Add Ansible role for `github-actions-runner` LXC in homelab repo~~ — done instead as `services/gh-runner/` (Docker Compose) in `mydocker-compose`, LXC `gh-runner1` (CT 137, futro-pve)
+- [x] 24. ~~Bake toolchain~~ — toolchain baked into the `gh-runner` Docker image (`gh-runner:2.336.0-ubuntu-noble`) rather than an LXC OS image
+- [x] 25. Provision LXC, register as runner with labels `[self-hosted, homelab]` — done: `gh-runner1-agent-action-sandbox`, labels `self-hosted,Linux,X64,homelab,gh-runner1`
+- [x] 26. Test with a private homelab repo (NOT FlowHub) — `freaxnx01/agent-action-sandbox` (private), verified via `dind-smoke` run 30244536656 and a real `issues.labeled` → PR run (`ai-implement` run 30245389329, PR #10)
 
 ## Phase 7: delegate-to-gh skill (only after Phases 1–5 manually for ~2 weeks)
 
