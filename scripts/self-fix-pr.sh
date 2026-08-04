@@ -16,10 +16,18 @@
 #               does not write a credential.helper into the fresh clone.
 #
 # Optional environment variables:
-#   FIX_AGENT_CMD     Override the agent invocation. Contract:
+#   AGENT             claude | opencode — which agent implemented the
+#                     issue (needs.implement.outputs.agent). Default:
+#                     claude. Selects the default FIX_AGENT_CMD wrapper
+#                     (ignored when FIX_AGENT_CMD is set explicitly).
+#   FIX_AGENT_CMD     Override the agent invocation entirely. Contract:
 #                       $FIX_AGENT_CMD <prompt-file>
-#                     Agent edits files directly in the CWD. Default
-#                     resolves to <script-dir>/lib/agent-cmd-claude-fix.sh.
+#                     Agent edits files directly in the CWD. Takes
+#                     precedence over AGENT-based resolution.
+#   FIX_LIB_DIR       Directory the AGENT-based default resolves wrapper
+#                     scripts from. Default: <script-dir>/lib. Test seam —
+#                     lets Layer-1 tests point AGENT resolution at mock
+#                     wrappers without touching the real lib/ scripts.
 #   MODEL             Model id passed to FIX_AGENT_CMD.
 #   PROMPT_TEMPLATE   Override path to lib/self-fix-prompt.md.
 #   WORK_DIR          Directory to operate in. Default: mktemp -d, removed
@@ -35,7 +43,7 @@
 # Exit codes:
 #   0  fix committed (and pushed, unless SKIP_PUSH=1)
 #   1  checkout / agent / commit / push failure, or agent made no changes
-#   2  required env or args missing
+#   2  required env or args missing, or AGENT invalid
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -58,6 +66,21 @@ fi
 require_env REPO
 require_env HEAD_REF
 require_env ITERATION
+
+AGENT="${AGENT:-claude}"
+# Only validated when it actually drives wrapper resolution below -- an
+# explicit FIX_AGENT_CMD bypasses AGENT entirely (per the header comment),
+# so an unrelated/nonstandard AGENT value must not block a caller who
+# overrode the wrapper directly.
+if [[ -z "${FIX_AGENT_CMD:-}" ]]; then
+  case "$AGENT" in
+    claude|opencode) ;;
+    *)
+      printf 'error: AGENT must be one of: claude | opencode (got %q)\n' "$AGENT" >&2
+      exit 2
+      ;;
+  esac
+fi
 
 if [[ ! -r "$CONCERNS_FILE" ]]; then
   printf 'error: concerns file not readable: %s\n' "$CONCERNS_FILE" >&2
@@ -109,7 +132,11 @@ awk -v repo="$REPO" -v pr="$PR_NUMBER" -v ref="$HEAD_REF" -v concerns="$concerns
 ' "$PROMPT_TEMPLATE" > "$PROMPT_FILE"
 
 if [[ -z "${FIX_AGENT_CMD:-}" ]]; then
-  FIX_AGENT_CMD="$SCRIPT_DIR/lib/agent-cmd-claude-fix.sh"
+  FIX_LIB_DIR="${FIX_LIB_DIR:-$SCRIPT_DIR/lib}"
+  case "$AGENT" in
+    claude)   FIX_AGENT_CMD="$FIX_LIB_DIR/agent-cmd-claude-fix.sh" ;;
+    opencode) FIX_AGENT_CMD="$FIX_LIB_DIR/agent-cmd-opencode-fix.sh" ;;
+  esac
 fi
 
 if ! ( cd "$WORK_DIR" && "$FIX_AGENT_CMD" "$PROMPT_FILE" ); then

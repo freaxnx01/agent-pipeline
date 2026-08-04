@@ -1207,6 +1207,103 @@ commit_msg="$(git -C "$REPO_DIR" log -1 --format=%s)"
 assert_equals "$commit_msg" "address self-review (iteration 1)" "no ambient git identity → correct commit message"
 rm -rf "$REPO_DIR"
 
+# AGENT-based default resolution: claude → agent-cmd-claude-fix.sh (via FIX_LIB_DIR test seam)
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=claude \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "AGENT=claude resolves a working wrapper"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed-by-claude' "AGENT=claude resolves agent-cmd-claude-fix.sh specifically"
+rm -rf "$REPO_DIR"
+
+# AGENT-based default resolution: opencode → agent-cmd-opencode-fix.sh
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=opencode \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "AGENT=opencode resolves a working wrapper"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed-by-opencode' "AGENT=opencode resolves agent-cmd-opencode-fix.sh specifically"
+rm -rf "$REPO_DIR"
+
+# Default AGENT (unset) behaves as claude
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_contains "$edited" 'fixed-by-claude' "AGENT unset → defaults to claude"
+rm -rf "$REPO_DIR"
+
+# Explicit FIX_AGENT_CMD still overrides AGENT-based resolution. AGENT=opencode
+# would resolve to the FIX_LIB_DIR opencode mock (which writes
+# 'fixed-by-opencode') if FIX_AGENT_CMD weren't taking precedence -- assert
+# exact file content, not a substring, since 'fixed-by-opencode' also
+# contains 'fixed' and would silently pass a substring check either way.
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=opencode \
+       FIX_LIB_DIR="$MOCKS/self-fix-lib" \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "explicit FIX_AGENT_CMD still works"
+edited="$(cat "$REPO_DIR/file.txt")"
+assert_equals "$edited" "$(printf 'hello\nfixed')" \
+  "explicit FIX_AGENT_CMD overrides AGENT-based resolution (not the opencode mock)"
+rm -rf "$REPO_DIR"
+
+# Invalid AGENT → exit 2
+ec="$(run_capture_ec env REPO=o/r HEAD_REF=x ITERATION=1 AGENT=gpt5 bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_equals "$ec" "2" "invalid AGENT → exit 2"
+
+# Invalid AGENT is ignored when FIX_AGENT_CMD is set explicitly -- the doc
+# comment already promises this ("ignored when FIX_AGENT_CMD is set
+# explicitly"); the validation must actually honor it (PR #232 review
+# finding: the code validated unconditionally, contradicting the comment).
+REPO_DIR="$(make_self_fix_repo)"
+out="$(WORK_DIR="$REPO_DIR" SKIP_CLONE=1 SKIP_PUSH=1 \
+       REPO=o/r HEAD_REF=fix-branch ITERATION=1 AGENT=gpt5 \
+       FIX_AGENT_CMD="$MOCKS/self-fix-agent" \
+       bash "$SELF_FIX_PR" 99 "$CONCERNS")"
+assert_contains "$out" 'fixed=true' "invalid AGENT is ignored when FIX_AGENT_CMD is set explicitly"
+rm -rf "$REPO_DIR"
+
+section "agent-cmd-opencode-fix — model prefixing + empty-MODEL branch (#193 review finding)"
+
+OPENCODE_FIX="$ROOT/scripts/lib/agent-cmd-opencode-fix.sh"
+
+opencode_fix_run() {
+  # args: <model-env-or-empty>
+  local model="$1"
+  local log; log="$(mktemp)"
+  local tmp_runner; tmp_runner="$(mktemp -d)"
+  local prompt; prompt="$(mktemp)"
+  printf 'fix these findings' > "$prompt"
+  PATH="$MOCKS:$PATH" OPENCODE_MOCK_LOG="$log" RUNNER_TEMP="$tmp_runner" \
+    MODEL="$model" bash "$OPENCODE_FIX" "$prompt" >/dev/null
+  cat "$log"
+  rm -rf "$log" "$tmp_runner" "$prompt"
+}
+
+# MODEL unset → no --model flag at all
+call="$(opencode_fix_run '')"
+assert_equals "$call" 'run --format json --print-logs -- fix these findings' \
+  "MODEL unset → opencode invoked without --model"
+
+# MODEL without a provider prefix → openrouter/ prepended
+call="$(opencode_fix_run 'mistralai/mistral-large')"
+assert_equals "$call" 'run --format json --print-logs --model openrouter/mistralai/mistral-large -- fix these findings' \
+  "MODEL without openrouter/ prefix → prefix prepended"
+
+# MODEL already prefixed with openrouter/ → passed through unchanged (not double-prefixed)
+call="$(opencode_fix_run 'openrouter/openai/gpt-oss-120b')"
+assert_equals "$call" 'run --format json --print-logs --model openrouter/openai/gpt-oss-120b -- fix these findings' \
+  "MODEL already openrouter/-prefixed → unchanged, not double-prefixed"
+
 section "self-fix-loop — bounded fix→re-review cycles"
 
 SELF_FIX_LOOP="$ROOT/scripts/self-fix-loop.sh"
@@ -1282,6 +1379,62 @@ STUB_VERDICT_SEQUENCE='request_changes,approve' \
 out="$(cat "$go")"; rm -f "$go"
 assert_contains "$out" 'verdict=approve'   "stub sequence → verdict=approve"
 assert_contains "$out" 'iterations-used=2' "stub sequence consumes 2 entries"
+
+# FIX_AGENT/FIX_MODEL are forwarded to FIX_CMD as AGENT/MODEL, distinct
+# from this script's own inherited AGENT (which must stay claude for the
+# re-review call — see self-fix-loop-review-stub, which doesn't read
+# AGENT/MODEL at all and so can't observe a collision directly; this
+# assertion checks the FIX_CMD side, which does observe it). Exact-line
+# match (not assert_contains) — a substring match here would also pass
+# for e.g. 'model=some-model-typo', hiding a real mismatch.
+LOG="$(mktemp)"
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 \
+FIX_CMD="$FIX_STUB" FIX_LOG="$LOG" FIX_AGENT=opencode FIX_MODEL=some-model \
+REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS='approve' NEW_HEAD_SHA=newsha \
+AGENT=claude MODEL=review-model-value \
+  bash "$SELF_FIX_LOOP" >/dev/null
+rm -f "$go"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$fix_calls" 'pr=42 iteration=1 agent=opencode model=some-model' \
+  "explicit FIX_AGENT/FIX_MODEL forwarded to FIX_CMD as AGENT/MODEL, overriding the inherited MODEL"
+
+# Regression guard: FIX_MODEL unset but the script's own MODEL (the caller's
+# review-model, used for re-review) IS set → the fix call must still receive
+# that MODEL, not empty. The workflow's existing pre_preview self-fix step
+# (agent-implement.yml) sets MODEL: ${{ inputs.review-model }} but doesn't
+# set FIX_MODEL — before this default, the fix agent silently ran with no
+# --model flag instead of inheriting review-model, a real production
+# regression caught in PR #232's review.
+LOG="$(mktemp)"
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 \
+FIX_CMD="$FIX_STUB" FIX_LOG="$LOG" \
+REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS='approve' NEW_HEAD_SHA=newsha \
+MODEL=review-model-value \
+  bash "$SELF_FIX_LOOP" >/dev/null
+rm -f "$go"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$fix_calls" 'pr=42 iteration=1 agent=claude model=review-model-value' \
+  "FIX_MODEL unset → fix call inherits the caller's own MODEL, not empty"
+
+# Defaults: FIX_AGENT/FIX_MODEL/MODEL all unset → FIX_CMD sees AGENT=claude, MODEL=(empty)
+LOG="$(mktemp)"
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 \
+FIX_CMD="$FIX_STUB" FIX_LOG="$LOG" \
+REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS='approve' NEW_HEAD_SHA=newsha \
+  bash "$SELF_FIX_LOOP" >/dev/null
+rm -f "$go"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_equals "$fix_calls" 'pr=42 iteration=1 agent=claude model=' \
+  "FIX_AGENT/FIX_MODEL/MODEL all unset → defaults to claude, empty model, forwarded to FIX_CMD"
 
 # Error paths
 ec="$(run_capture_ec env REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 bash "$SELF_FIX_LOOP")"
