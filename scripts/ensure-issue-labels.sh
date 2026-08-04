@@ -19,6 +19,9 @@
 #   outcome    ai:review-blocked
 #              — written by the auto-review job (ADR-002, epic #3) when
 #                the safety envelope or verdict leaves the PR draft
+#   coordination enrichment-ongoing
+#              — read/written by /enrich (Step 1.5 / 2.5 / 6) to prevent two
+#                sessions from concurrently enriching the same issue
 #
 # Idempotent: existing labels are preserved unchanged (`gh label create` errors
 # when the label exists; we ignore that error rather than passing `--force`, so
@@ -65,3 +68,5 @@ create ai-chain        0E8A16 'Eligible for chain-dispatch when blockers resolve
 create ai:chain-paused D73A4A 'Repo-wide kill switch for chain-dispatch'
 
 create ai:review-blocked D73A4A 'Auto-review left the PR draft; human action required'
+
+create enrichment-ongoing FBCA04 'Another /enrich session is actively enriching this issue — do not start a second one'
