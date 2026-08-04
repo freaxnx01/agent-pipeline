@@ -1331,6 +1331,37 @@ out="$(cat "$go")"; rm -f "$go"
 assert_contains "$out" 'verdict=approve'   "stub sequence → verdict=approve"
 assert_contains "$out" 'iterations-used=2' "stub sequence consumes 2 entries"
 
+# FIX_AGENT/FIX_MODEL are forwarded to FIX_CMD as AGENT/MODEL, distinct
+# from this script's own inherited AGENT (which must stay claude for the
+# re-review call — see self-fix-loop-review-stub, which doesn't read
+# AGENT/MODEL at all and so can't observe a collision directly; this
+# assertion checks the FIX_CMD side, which does observe it).
+LOG="$(mktemp)"
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 \
+FIX_CMD="$FIX_STUB" FIX_LOG="$LOG" FIX_AGENT=opencode FIX_MODEL=some-model \
+REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS='approve' NEW_HEAD_SHA=newsha \
+AGENT=claude \
+  bash "$SELF_FIX_LOOP" >/dev/null
+rm -f "$go"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_contains "$fix_calls" 'agent=opencode model=some-model' "FIX_AGENT/FIX_MODEL forwarded to FIX_CMD as AGENT/MODEL"
+
+# Defaults: FIX_AGENT/FIX_MODEL unset → FIX_CMD sees AGENT=claude, MODEL=(empty)
+LOG="$(mktemp)"
+go="$(mktemp)"
+GITHUB_OUTPUT="$go" \
+PR_NUMBER=42 REPO=o/r HEAD_SHA=initsha HEAD_REF=fix-branch \
+INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 \
+FIX_CMD="$FIX_STUB" FIX_LOG="$LOG" \
+REVIEW_SCRIPT="$REVIEW_STUB" REVIEW_VERDICTS='approve' NEW_HEAD_SHA=newsha \
+  bash "$SELF_FIX_LOOP" >/dev/null
+rm -f "$go"
+fix_calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_contains "$fix_calls" 'agent=claude model=' "FIX_AGENT unset → defaults to claude, forwarded to FIX_CMD"
+
 # Error paths
 ec="$(run_capture_ec env REPO=o/r HEAD_SHA=x HEAD_REF=y INITIAL_VERDICT=request_changes CONCERNS_FILE="$LOOP_CONCERNS" MAX_ITERATIONS=3 bash "$SELF_FIX_LOOP")"
 assert_equals "$ec" "2" "missing PR_NUMBER → exit 2"

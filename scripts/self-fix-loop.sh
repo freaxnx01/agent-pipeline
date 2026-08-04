@@ -23,13 +23,22 @@
 # Optional environment variables:
 #   FIX_CMD        Override for the fix invocation. Contract:
 #                    $FIX_CMD <pr-number> <concerns-json-file>
-#                  (ITERATION, REPO, HEAD_REF passed via env per call.)
-#                  Default: <script-dir>/self-fix-pr.sh.
+#                  (ITERATION, REPO, HEAD_REF, AGENT, MODEL passed via env
+#                  per call — AGENT/MODEL come from FIX_AGENT/FIX_MODEL
+#                  below, not from this script's own inherited AGENT/MODEL,
+#                  which the REVIEW_SCRIPT call below needs to stay at the
+#                  fixed review-agent identity.) Default:
+#                  <script-dir>/self-fix-pr.sh.
+#   FIX_AGENT      claude | opencode — forwarded to FIX_CMD as AGENT.
+#                  Default: claude.
+#   FIX_MODEL      Forwarded to FIX_CMD as MODEL. Default: empty.
 #   REVIEW_SCRIPT  Override path to review-pr.sh (default: sibling
 #                  script). Re-review calls reuse review-pr.sh's own env
-#                  contract (AGENT, AGENT_CMD, MODEL, etc.) — those must
-#                  already be present in this script's own environment,
-#                  since child processes inherit it unmodified.
+#                  contract (AGENT, AGENT_CMD, MODEL, etc.) inherited
+#                  unmodified from this script's own environment — the
+#                  caller job sets those to the fixed review-agent
+#                  identity (AGENT=claude), which is intentionally
+#                  independent of FIX_AGENT.
 #   NEW_HEAD_SHA   Skip the `gh pr view --json headRefOid` lookup after
 #                  each fix and use this value instead. Used by Layer-1
 #                  tests.
@@ -108,6 +117,8 @@ if [[ -n "${STUB_VERDICT_SEQUENCE:-}" ]]; then
 else
   FIX_CMD="${FIX_CMD:-$SCRIPT_DIR/self-fix-pr.sh}"
   REVIEW_SCRIPT="${REVIEW_SCRIPT:-$SCRIPT_DIR/review-pr.sh}"
+  FIX_AGENT="${FIX_AGENT:-claude}"
+  FIX_MODEL="${FIX_MODEL:-}"
   # shellcheck disable=SC2153 # CONCERNS_FILE (env) seeds local concerns_file; not a typo
   concerns_file="$CONCERNS_FILE"
 
@@ -125,7 +136,7 @@ else
   }
 
   for (( i = 1; i <= MAX_ITERATIONS; i++ )); do
-    if ! ITERATION="$i" REPO="$REPO" HEAD_REF="$HEAD_REF" \
+    if ! ITERATION="$i" REPO="$REPO" HEAD_REF="$HEAD_REF" AGENT="$FIX_AGENT" MODEL="$FIX_MODEL" \
          "$FIX_CMD" "$PR_NUMBER" "$concerns_file"; then
       abort_iteration "fix attempt failed" "$i"
       break
