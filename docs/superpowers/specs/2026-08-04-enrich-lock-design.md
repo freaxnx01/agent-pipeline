@@ -225,10 +225,10 @@ Verification is a manual dry run against a scratch issue:
 
 ## Follow-ups (out of scope here)
 
-- Apply the same lock mechanism to `/enrich-phased`. **Known gap until then:**
-  `/enrich-phased` neither acquires nor releases `enrichment-ongoing`, so a
-  lock left by `/enrich` is invisible to it (it will happily enrich a locked
-  issue), and it can never release one. Staleness expiry is the only backstop.
+- ~~Apply the same lock mechanism to `/enrich-phased`.~~ Done — see
+  `docs/superpowers/specs/2026-08-04-enrich-phased-lock-design.md` (issue
+  #237). `/enrich-phased` now detects and respects a lock left by `/enrich`
+  (and vice versa), using a 24h staleness window instead of 4h.
 - Consider whether the "same person resuming" self-collision case is worth
   special-casing later (e.g. embedding a session/host identifier in the lock
   comment) if it proves annoying in practice.
