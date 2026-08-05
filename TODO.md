@@ -24,13 +24,8 @@
       bug on mid-phase resume, the threshold mismatch) plus a 4th round that
       timed out before opening a PR; the final threshold/resume-release/
       label-verify fixes were applied by hand and merged directly as PR #244.
-- [ ] **Manual verification never run.** Both specs
-      (`docs/superpowers/specs/2026-08-04-enrich-lock-design.md` and
-      `…/2026-08-04-enrich-phased-lock-design.md`) document dry-run scenarios
-      (hard-stop, stale takeover, full run, cross-command detection in both
-      directions, resume-at-boundary, mid-phase resume, abandoned-resume
-      release) as the only test coverage this docs-only feature has — none of
-      them have actually been exercised against a real scratch issue yet.
+- [ ] **Manual verification never run** — filed as issue #245 (7 dry-run
+      scenarios across both specs, no automated coverage exists).
 - [ ] Issue #236 (the two cosmetic nits from #233's review — missing
       `2>/dev/null || true` comment, gh/tea tie-break wording) is still open,
       still `needs-enrichment` — never enriched or dispatched.
@@ -39,20 +34,11 @@
       commands/enrich-phased.md") rather than keep the original verbatim
       find/replace blocks — flagged as circular/hard-to-independently-verify in
       round 3's review, explicitly deferred as not worth another round. Still
-      true after the final hand-applied fixes.
-- [ ] Discovered `main`'s branch protection has no `required_pull_request_reviews`
-      configured, despite `CLAUDE.md`'s "at least 1 PR review" convention
-      (`gh api repos/freaxnx01/agent-workflow/branches/main/protection` — only
-      `gate-selftest` is a required status check). Worth reconciling: either wire
-      up the required-review rule, or correct the doc if 1-review-required was
-      never actually intended for this repo.
-- [ ] Observed the pipeline's own review agent time out mid-run
-      (`RESULT_FILE not valid JSON`, exit 124) on round 4, likely from the issue
-      body growing large across multiple appended review-finding rounds. No
-      issue filed — worth watching for whether this recurs on other
-      multi-round redispatches; if so, may be worth having `/gh:implement`'s
-      redispatch guidance trim/summarize prior rounds instead of appending
-      indefinitely.
+      true after the final hand-applied fixes. Not filed as an issue — too
+      minor.
+- [ ] `main`'s branch protection vs. `CLAUDE.md`'s "1 PR review" convention —
+      filed as issue #246.
+- [ ] Pipeline review-agent mid-run timeout on round 4 — filed as issue #247.
 
 ## Worktrees (status as of 2026-08-05)
 
