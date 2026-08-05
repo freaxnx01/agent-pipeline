@@ -41,11 +41,11 @@ date -u +%Y-%m-%dT%H:%M:%SZ
 ```
 
 - No `enrichment-ongoing` label → continue to Step 2.
-- Label present, a matching comment found, age < 4 hours → **stop**. Tell the user
+- Label present, a matching comment found, age < 24 hours → **stop**. Tell the user
   the issue is already being enriched (show the age) and end the command — do not
   run Step 2 or start brainstorming.
-- Label present, age ≥ 4 hours, **or** no matching comment found (treat unknown age
-  as stale) → tell the user the lock looks abandoned (show age and the 4h
+- Label present, age ≥ 24 hours, **or** no matching comment found (treat unknown age
+  as stale) → tell the user the lock looks abandoned (show age and the 24h
   threshold) and ask whether to take over.
   - No → stop.
   - Yes → continue to Step 2; Step 2.5 will re-acquire the lock and note the
@@ -136,7 +136,7 @@ gh issue edit $ARGUMENTS --remove-label enrichment-ongoing
 No `2>/dev/null || true` on this one: this run applied that label itself, so a
 non-zero exit is a real failure, not a missing repo convention. If it fails, tell
 the user the lock is still held and has to be removed by hand — otherwise it
-blocks the issue for the full 4 hours.
+blocks the issue for the full 24 hours.
 
 ### Step 3 — Brainstorm spec
 
@@ -242,7 +242,7 @@ some of these conventions. So the first two run on their own lines with
 `|| true`. The lock release doesn't: this run applied `enrichment-ongoing`
 itself, so a non-zero exit is a real failure — tell the user the lock is still
 held and has to be removed by hand, otherwise it blocks the issue for the full
-4 hours.
+24 hours.
 
 ### Step 7 — Confirm
 
@@ -299,11 +299,11 @@ date -u +%Y-%m-%dT%H:%M:%SZ
 ```
 
 - No `enrichment-ongoing` label → continue to Step 2.
-- Label present, a matching comment found, age < 4 hours → **stop**. Tell the user
+- Label present, a matching comment found, age < 24 hours → **stop**. Tell the user
   the issue is already being enriched (show the age) and end the command — do not
   run Step 2 or start brainstorming.
-- Label present, age ≥ 4 hours, **or** no matching comment found (treat unknown age
-  as stale) → tell the user the lock looks abandoned (show age and the 4h
+- Label present, age ≥ 24 hours, **or** no matching comment found (treat unknown age
+  as stale) → tell the user the lock looks abandoned (show age and the 24h
   threshold) and ask whether to take over.
   - No → stop.
   - Yes → continue to Step 2; Step 2.5 will re-acquire the lock and note the
@@ -407,7 +407,7 @@ tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels
 ```
 
 If either command fails, tell me the lock is still held and has to be removed by
-hand — otherwise it blocks the issue for the full 4 hours.
+hand — otherwise it blocks the issue for the full 24 hours.
 
 ### Step 3 — Brainstorm spec
 

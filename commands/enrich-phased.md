@@ -43,7 +43,20 @@ Then dispatch to the matching phase below.
 ### Phase `spec`
 
 1. `gh issue view <issue> --comments`. If the issue is closed, already has
-   `ai-implement`, or is `🧊 parked`, stop and say so.
+   `ai-implement`, or is `🧊 parked`, stop and say so. **On a resume** (a state
+   file already existed for this run — see *On invocation*), this run already
+   holds the lock from a prior step 4, and stopping here abandons it without
+   releasing. Release it first — no `2>/dev/null || true`, since this run
+   applied the label itself and a non-zero exit is a real failure, not a
+   missing repo convention:
+
+   ```bash
+   gh issue edit <issue> --remove-label enrichment-ongoing
+   ```
+
+   If it fails, tell the user the lock is still held and has to be removed
+   by hand. On a new run there is nothing to release yet (step 4 hasn't run)
+   — skip this entirely.
 2. **Check for an existing enrichment lock — new runs only.** Skip this step
    entirely on a resume (no argument, continuing from the state file): that is the
    same run continuing, so the only lock it could find is its own. If the issue
@@ -65,8 +78,18 @@ Then dispatch to the matching phase below.
    Remember which lock comments you saw here — step 4's race re-check has to tell
    them apart from ones posted after this point.
 3. Assess readiness (acceptance criteria + scope + no blocking unknowns). If it's
-   already complete, say so, suggest `/gh:implement <issue>`, delete the state file
-   if one exists (a new run hasn't written it yet), and stop.
+   already complete, say so, suggest `/gh:implement <issue>`, and stop. **On a
+   resume**, a state file exists here (written by a prior step 4) and this run
+   holds the lock — release it before deleting the file, same as step 1's
+   resume path:
+
+   ```bash
+   gh issue edit <issue> --remove-label enrichment-ongoing
+   ```
+
+   If it fails, tell the user the lock is still held and has to be removed by
+   hand. **On a new run**, no state file exists yet (step 4 hasn't run) and
+   there is nothing to release — just confirm no file exists and stop.
 4. **Acquire the enrichment lock — new runs only**, same gate as step 2: on a
    resume skip this step entirely and go straight to step 5, since the lock is
    already held from the original acquisition. Running it again would post a second
@@ -101,6 +124,12 @@ Then dispatch to the matching phase below.
    ```bash
    gh issue edit <issue> --add-label enrichment-ongoing
    ```
+
+   **Verify this succeeded before continuing.** If it fails, the run does not
+   hold the lock even though the timestamp comment claims it does — abort
+   without brainstorming and tell the user the lock could not be acquired.
+   The state file isn't written until after the race re-check below
+   succeeds, so there's nothing to clean up here.
 
    **Then re-check for a competitor** — step 2 and this step are not atomic (the
    readiness check, and on the takeover path a user prompt, sit between them).
@@ -279,7 +308,20 @@ Then dispatch to the matching phase below.
 
 1. `tea issues <issue> --login git-home` + `tea api --login git-home
    "repos/$repo/issues/<issue>/comments"`. If the issue is closed or `🧊 parked`,
-   stop and say so.
+   stop and say so. **On a resume** (a state file already existed for this run
+   — see *On invocation*), this run already holds the lock from a prior
+   step 4, and stopping here abandons it without releasing:
+
+   ```bash
+   current=$(tea api --login git-home "repos/$repo/issues/<issue>" | jq -r '[.labels[].name]')
+   [[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
+   kept=$(echo "$current" | jq -c '[.[] | select(. != "enrichment-ongoing")]')
+   tea api --login git-home -X PUT "repos/$repo/issues/<issue>/labels" -f labels="$kept" >/dev/null
+   ```
+
+   If either command fails, tell the user the lock is still held and has to
+   be removed by hand. On a new run there is nothing to release yet (step 4
+   hasn't run) — skip this entirely.
 2. **Check for an existing enrichment lock — new runs only.** Skip this step
    entirely on a resume (no argument, continuing from the state file): that is the
    same run continuing, so the only lock it could find is its own. If the issue
@@ -301,8 +343,21 @@ Then dispatch to the matching phase below.
    Remember which lock comments you saw here — step 4's race re-check has to tell
    them apart from ones posted after this point.
 3. Assess readiness (acceptance criteria + scope + no blocking unknowns). If it's
-   already complete, say so, suggest `/work <issue>`, delete the state file if one
-   exists (a new run hasn't written it yet), and stop.
+   already complete, say so, suggest `/work <issue>`, and stop. **On a resume**,
+   a state file exists here (written by a prior step 4) and this run holds the
+   lock — release it before deleting the file, same as step 1's resume path:
+
+   ```bash
+   current=$(tea api --login git-home "repos/$repo/issues/<issue>" | jq -r '[.labels[].name]')
+   [[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
+   kept=$(echo "$current" | jq -c '[.[] | select(. != "enrichment-ongoing")]')
+   tea api --login git-home -X PUT "repos/$repo/issues/<issue>/labels" -f labels="$kept" >/dev/null
+   ```
+
+   If either command fails, tell the user the lock is still held and has to
+   be removed by hand. **On a new run**, no state file exists yet (step 4
+   hasn't run) and there is nothing to release — just confirm no file exists
+   and stop.
 4. **Acquire the enrichment lock — new runs only**, same gate as step 2: on a
    resume skip this step entirely and go straight to step 5, since the lock is
    already held from the original acquisition. Running it again would post a second
@@ -345,6 +400,12 @@ Then dispatch to the matching phase below.
    locked=$(echo "$current" | jq -c '. + ["enrichment-ongoing"] | unique')
    tea api --login git-home -X PUT "repos/$repo/issues/<issue>/labels" -f labels="$locked" >/dev/null
    ```
+
+   **Verify the `PUT` succeeded before continuing.** If it fails, the run
+   does not hold the lock even though the timestamp comment claims it does —
+   abort without brainstorming and tell the user the lock could not be
+   acquired. The state file isn't written until after the race re-check
+   below succeeds, so there's nothing to clean up here.
 
    **Then re-check for a competitor** — step 2 and this step are not atomic (the
    readiness check, and on the takeover path a user prompt, sit between them).

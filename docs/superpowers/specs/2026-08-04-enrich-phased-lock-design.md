@@ -25,20 +25,23 @@ nor acquires one at all.
   the other — achieved for free by reusing the identical label name and
   comment marker format `/enrich` already established.
 - The staleness window accounts for `/enrich-phased`'s legitimately longer
-  pauses between phases (hours to days), rather than reusing `/enrich`'s 4h
-  window verbatim.
+  pauses between phases (hours to days). Since the lock comment doesn't
+  record which command acquired it, `/enrich` and `/enrich-phased` must
+  share one threshold for either to correctly judge a lock the other holds —
+  so `/enrich`'s own threshold is raised from 4h to the same 24h value, not
+  left at 4h alongside `/enrich-phased`'s 24h.
 - Applies to both the GitHub and Forgejo sections of
   `commands/enrich-phased.md`, mirroring `/enrich`'s existing gh/tea
   symmetry.
 
 ## Non-goals
 
-- No redesign of `/enrich`'s own lock (`commands/enrich.md`) — it already
-  works. The two robustness fixes this spec introduces (surfacing
+- No redesign of `/enrich`'s own lock (`commands/enrich.md`) — its flow and
+  lock semantics are unchanged. This spec does touch `/enrich` in three
+  narrow ways, backported so the two commands don't drift: the staleness
+  threshold (see *Staleness threshold* below), surfacing
   `enrichment-ongoing` release failures instead of swallowing them, and
-  guarding the Forgejo read-modify-PUT against wiping every label) are
-  backported to it verbatim so the two commands don't drift, but nothing
-  about its flow, threshold, or lock semantics changes.
+  guarding the Forgejo read-modify-PUT against wiping every label.
 - No re-verification of the lock at every phase boundary (Phase `plan`,
   Phase `issue`) — see Design below for why a single acquisition in Phase
   `spec` is sufficient.
@@ -67,15 +70,26 @@ vice versa — no extra bridging code, no second label. This is the key
 property that makes the two commands consistent with each other without
 either needing to know the other exists beyond sharing a marker format.
 
-### Staleness threshold: 24 hours (not 4h)
+### Staleness threshold: 24 hours, shared with `/enrich`
 
-`/enrich`'s 4h threshold assumes a single continuous sitting. `/enrich-phased`
-exists specifically for topics large enough to span multiple `/clear`'d
-sessions — a legitimate gap between Phase `spec` finishing and Phase `plan`
-resuming could be hours or span into the next day. A 4h threshold would let
-a second session steal an actively-in-progress phased run's lock during an
-ordinary pause. 24 hours absorbs a normal overnight gap while still
-recovering from an abandoned run within a day.
+`/enrich-phased` exists specifically for topics large enough to span multiple
+`/clear`'d sessions — a legitimate gap between Phase `spec` finishing and
+Phase `plan` resuming could be hours or span into the next day. `/enrich`'s
+original 4h threshold assumed a single continuous sitting and would let a
+second session steal an actively-in-progress phased run's lock during an
+ordinary pause.
+
+The lock comment records a timestamp but not which command acquired it, so
+the two commands can't each apply their own threshold to a lock they didn't
+set — whichever command reads the lock must use the same number the
+acquiring command used, or cross-command detection only holds in one
+direction. Rather than track ownership (more mechanism, more surface for the
+next review round), this spec raises `/enrich`'s own threshold to 24 hours
+to match, backported into `commands/enrich.md` and
+`docs/superpowers/specs/2026-08-04-enrich-lock-design.md` alongside this
+feature. 24 hours absorbs a normal overnight gap for `/enrich-phased` while
+still recovering a genuinely abandoned single-sitting `/enrich` run within a
+day.
 
 ### Where the lock lives in the phase flow
 
@@ -250,6 +264,12 @@ issue:
    acquisition step re-runs, and **no second `🔒 Enrichment lock …` comment
    is posted** (a second one would make the race re-check find the run's own
    earlier lock and dead-end the run permanently).
+7. Abandoned-resume release check: start a run, let it acquire the lock, then
+   resume (with no argument) after the issue has since been closed, labeled
+   `ai-implement`, or `🧊 parked` by someone else. Confirm step 1's early exit
+   releases `enrichment-ongoing` before stopping — check the label is gone
+   afterward. Repeat by making the issue "already complete" instead (so
+   step 3's early exit fires) and confirm the same release happens there.
 
 ## Follow-ups (out of scope here)
 

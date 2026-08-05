@@ -21,16 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **enrich-phased:** concurrency lock — Phase `spec` now detects an existing
-  `enrichment-ongoing` lock and acquires its own before brainstorming, using a
-  24h staleness window (vs `/enrich`'s 4h) to absorb the `/clear` boundaries a
-  phased run legitimately pauses across. Both steps run on a new run only, never
-  on a resume, and the state file is written only once the lock is confirmed
-  held — so a hard-stop or a lost race leaves nothing resumable behind. Phase
-  `issue` releases the label on the success path. Same label and comment format
-  as `/enrich`, so a lock set by either command is seen by the other (#237)
+  `enrichment-ongoing` lock and acquires its own before brainstorming, using
+  the same 24h staleness window `/enrich`'s lock now uses (see below) to
+  absorb the `/clear` boundaries a phased run legitimately pauses across.
+  Both steps run on a new run only, never on a resume — and a resume whose
+  earlier stop (issue closed/parked, already-complete) would otherwise
+  abandon the lock now releases it first. The state file is written only
+  once the lock is confirmed held, so a hard-stop or a lost race leaves
+  nothing resumable behind, and label application is verified before the
+  race re-check runs. Phase `issue` releases the label on the success path.
+  Same label and comment format as `/enrich`, so a lock set by either
+  command is seen by the other (#237)
 - **enrich:** concurrency lock — `/enrich` claims an `enrichment-ongoing` label
   plus a timestamped lock comment before brainstorming (Step 2.5), hard-stops
-  when another session holds a lock younger than 4h (Step 1.5), offers a
+  when another session holds a lock younger than 24h (Step 1.5), offers a
   takeover past that threshold, re-checks after acquiring so the session that
   acquired first wins the race, and releases the label at Step 6 or on any
   earlier user-initiated abort (#229)
@@ -78,6 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   staleness window with no signal. Every Forgejo read-modify-PUT of the label
   set now also guards its read: an empty or failed read used to PUT an empty
   set, wiping every label on the issue including `ai-implement` (#237)
+- **enrich:** staleness threshold raised from 4h to 24h, matching
+  `/enrich-phased`. The lock comment doesn't record which command acquired
+  it, so both must use the same window — at 4h, `/enrich` read an
+  `/enrich-phased` run's ordinary overnight pause as abandoned and offered it
+  up for takeover, the exact double-enrichment bug the lock exists to
+  prevent, just via the other command (#237)
 - **setup:** `setup/link-commands.sh` now prunes command files it previously
   installed that no longer exist in the repo's `commands/` tree, instead of
   only ever adding/updating. Previously a re-install after a command was
