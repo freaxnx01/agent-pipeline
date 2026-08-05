@@ -60,12 +60,12 @@
       (`commands/gh/review.md` changes, "don't default to @copilot for
       agent-workflow PRs") with no upstream tracking branch and no PR yet.
       Unchanged since last check — real work, still untouched.
-- [x] `.worktrees/enrich` (branch `worktree-enrich`) — now shows **no diff**
-      against `main`; its content (self-fix routing, #193) landed via PRs
-      #232/#235/#239 and #238's PR #242, both merged this session. Safe to
-      clean up (`git worktree remove` + `git branch -d`) next time it's
-      touched — not done here since worktree cleanup wasn't this session's
-      task.
+- [x] `.worktrees/enrich` (branch `worktree-enrich`) — removed. Content
+      (self-fix routing, #193) had already landed via PRs #232/#235/#239 and
+      #238's PR #242; confirmed zero diff against `main` before removing the
+      worktree and force-deleting the local branch (`git branch -D` — it
+      wasn't merged to its own stale `origin/worktree-enrich` remote, only to
+      `main`, which is what mattered).
 - [ ] `.worktrees/factory-map` (branch `docs/pre-preview-self-fix-enrich-81`) — 2
       files not on `main` (design/plan docs); its own remote counterpart has
       diverged heavily from the local branch — needs a closer look before any
