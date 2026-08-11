@@ -160,11 +160,11 @@ Two properties worth noting, both visible here and not in the tables below:
 | **ideas-lab** (private) | Idea intake. Backs `/capture-idea`. |
 | **bridge-write-test** (FJ, private) | Smoke-test target for `bridge` write operations. |
 
-## Archived
+## Undecided
 
-| Repo | Disposition |
+| Repo | Status |
 |---|---|
-| **build-ci** | **Archive** (ADR-F002). Empty shell: README is one line, no `.gitignore`/`CLAUDE.md`/`action.yml`/workflows, zero issues. CI is owned by `agent-workflow`. |
+| **build-ci** | **Revisit — see ADR-F002.** Not empty, as an earlier revision of this map claimed. It builds an Alpine base image and pushes it to `ghcr.io/freaxnx01/build-ci/build-ci:latest`. Whether it stays depends on whether anything still pulls that image. |
 
 ## Output fleet
 
@@ -182,7 +182,7 @@ Built *by* the factory, not part of it. Useful as a consumer fleet to validate t
 
 ### ADR-F001 — `agent-os` to `agent-memory`
 
-**Status:** accepted, not yet executed
+**Status:** accepted, confirmed by `list_tree`, not yet executed
 
 **Context.** `agent-os` declared five phases. Four had been overtaken by other repos while only Phase 1 was ever built:
 
@@ -196,19 +196,56 @@ Built *by* the factory, not part of it. Useful as a consumer fleet to validate t
 
 Zero open issues, so no tracked work sat behind phases 2–5. The "OS" name claimed a scope the repo did not have and put it in notional competition with `agent-workflow`.
 
+**Confirmed 2026-08-11.** A recursive `list_tree` shows the repo contains exactly
+one substantive tree: `memory/` (docker-compose, `mem0-mcp/` server, Ollama and
+Postgres service definitions, `hooks/post-session.sh`). There is no `skills/`,
+`tools/`, `observability/` or `pipeline/` directory. The phase table was
+aspiration, never scaffolding.
+
 **Decision.** Rename to `agent-memory`. Scope to the memory stack. Delete the phase table.
 
-**Consequence.** Memory is the one capability nothing else covers — this narrows the repo without demoting it. If the factory is to accumulate context across sessions rather than restart cold, this is load-bearing. Update the `agent-workflow` "Related repos" table and the Forgejo mirror after the rename.
+**Execution notes.**
 
-### ADR-F002 — Archive `build-ci`
+- `gh repo rename` — `bridge` has no `update_repo` tool yet (freaxnx01/bridge#219), so this is manual either way.
+- Once renamed, `agent-memory/memory/` is a redundant prefix. Promote the contents to the repo root, or accept the nesting deliberately.
+- `memory/init/01-extensions.sql` and `memory/services/postgres/init/01-extensions.sql` are the same blob (identical sha `0aa0fc22`). Leftover from a restructure; one is dead. Delete whichever the compose files do not reference.
+- Update the `agent-workflow` "Related repos" table and the Forgejo mirror after the rename.
 
-**Status:** accepted, not yet executed
+**Consequence.** Memory is the one capability nothing else covers — this narrows the repo without demoting it. If the factory is to accumulate context across sessions rather than restart cold, this is load-bearing.
 
-**Context.** Public repo, `README.md` contains only `# build-ci`. No `.gitignore`, `CLAUDE.md`, `action.yml`, or `.github/workflows/ci.yml`. Zero issues. Its `updated_at` falls inside a bulk metadata sweep, not a real commit. Probable origin: a placeholder for the `dotnet-quality` composite action, which landed in `ai-instructions` instead.
+### ADR-F002 — `build-ci` — superseded, needs a new decision
 
-**Caveat.** The "empty" finding was inferred from five guessed `read_file` calls, not proven — at the time `bridge` had no directory listing. `list_tree` has since shipped (freaxnx01/bridge#220), so **confirm with `list_tree` before archiving**; one call now settles what five guesses could not.
+**Status:** **the original decision was based on a false premise. Do not act on it.**
 
-**Decision.** Archive. CI has one home: `agent-workflow`.
+**Original decision (2026-07-30).** Archive `build-ci` as an empty shell.
+
+**Why it was wrong.** The "empty" finding came from five guessed `read_file`
+calls that happened to miss the two files that mattered. At the time `bridge`
+had no directory listing, and the guesses were treated as conclusive rather
+than as a gap. A recursive `list_tree` on 2026-08-11 shows the repo actually
+contains:
+
+| Path | What it is |
+|---|---|
+| `Dockerfile` | `FROM alpine` + `bash`, `curl`, `unzip` |
+| `.github/workflows/docker-image.yml` | Builds and pushes `ghcr.io/freaxnx01/build-ci/build-ci:latest` on every push to `main` |
+| `.github/workflows/agent.yml` | Consumer stub — already correctly named, so this repo is *not* affected by the `claude.yml` trap below |
+| `README.md` | One line, which is what made the repo look abandoned |
+
+So it is a small CI base-image builder, not a placeholder.
+
+**The actual open question.** Does anything still pull that image? The repo is
+otherwise untouched — `actions/checkout@v2` has been deprecated for years,
+which suggests nothing has needed it in a long time.
+
+- **If something pulls it:** it is live infrastructure. Keep it, and give it a
+  README that says what the image is for. It belongs in Supporting, not here.
+- **If nothing pulls it:** archive — but for *unused*, not for *empty*. The
+  distinction matters because "empty" implied deleting cost nothing.
+
+**Lesson recorded.** Absence of evidence from guessed paths is not evidence of
+absence. This is the concrete case behind the "read before you assert" rule in
+[`ADVISOR-PROMPT.md`](ADVISOR-PROMPT.md).
 
 ### ADR-F003 — One CI home
 
@@ -263,8 +300,8 @@ grep -rn 'claude-pipeline\|agent-pipeline\|claude\.yml\|claude-implement' . --ex
 | Non-breaking rename sweep | freaxnx01/agent-workflow#205 |
 | Stub-name warning | freaxnx01/agent-workflow#206 |
 | v2 breaking renames (tracking) | freaxnx01/agent-workflow#207 |
-| Execute ADR-F001 rename | — |
-| Execute ADR-F002 archive (confirm with `list_tree` first) | — |
+| Execute ADR-F001 rename (+ the two cleanup items in its execution notes) | — |
+| Decide `build-ci`: check whether anything pulls its ghcr image (ADR-F002) | — |
 
 **Shipped since this map was first written:**
 
