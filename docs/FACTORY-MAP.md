@@ -1,6 +1,6 @@
 # Software Factory — Repo Map
 
-**Status:** living document · **Last scanned:** 2026-07-30 · **Scan method:** `bridge` MCP (`list_repos` across both forges)
+**Status:** living document · **Last scanned:** 2026-07-30 · **Scan method:** `bridge mcp serve` (`list_repos` across both forges)
 
 The authoritative answer to "which repos make up the factory, what does each own, and what is the boundary between them."
 
@@ -136,11 +136,19 @@ Two properties worth noting, both visible here and not in the tables below:
 | **agent-workflow** | GH public | Orchestration | The whole Issue-to-PR pipeline. Two halves in one repo (ADR-005): the **CI side** (`.github/workflows/`, `.github/actions/`, `scripts/`, `gate-tests/`) and the **operator console** (`commands/` — 45 forge-agnostic slash commands, `skills/`, `hooks/`, `partials/`, `setup/`). Also the one-URL machine bootstrap. |
 | **agent-memory** *(rename pending — see ADR-F001)* | GH public | Memory | Semantic memory stack: pgvector + mem0 + Ollama, exposed as an MCP server. Session Stop hook. Runs on `agent-dev` LXC 201. |
 | **agent-skills** | GH public | Distribution | Public plugin marketplace `freax-agent-skills`. Sharable, non-personal skills (`sync-ai-instructions`, `propose-ai-instructions`). |
-| **ai-instructions** | GH public | Convention SoT | `base-instructions.md` + per-stack overlays, `.ai/skills/` (`commit`, `push`, `release-notes`), milestone conventions. |
-| **bridge** | GH public | Forge abstraction | Go MCP server. Unified issue/repo/file tooling across GitHub (`freaxnx01`) and self-hosted Forgejo (`freax`). |
+| **ai-instructions** | GH public | Convention SoT | `base-instructions.md` + per-stack overlays, `.ai/skills/` (`commit`, `push`, `release-notes`), milestone and issue-title conventions. |
+| **bridge** | GH public | Cockpit + forge abstraction | Repo picker and agent-session launcher: fzf/TUI navigation, tmux slots, worktrees, presence and sync. `bridge dispatch` is the issue-to-pipeline decision engine. Surfaces: `nav` (TUI), REST, WebUI, `locutus` (Telegram), and `bridge mcp serve` — the last being the cross-forge tool layer this map was scanned with, and only one surface of several. |
 | **agent-dev-lxc** | FJ private | Infrastructure | Proxmox LXC provisioning + setup for the agent container. |
 | **claude-code-plugins** | GH private | Distribution | Personal (non-public) plugin marketplace. Counterpart to `agent-skills`. |
 | **config** | GH public | Machine setup | Shell, oh-my-posh prompt, Windows tooling. **No Claude content** — that all lives in `agent-workflow`. |
+
+> **Note on the `bridge` row.** An earlier revision of this map described
+> `bridge` as "a Go MCP server". That was wrong, and it was wrong for a
+> reproducible reason: an assistant holding `bridge mcp serve`'s tools in
+> context inferred the whole repo from the one surface it could see, and
+> then flagged the repo's *accurate* GitHub description as stale. If you are
+> an agent reading this file, note that the scan method line above names a
+> subcommand, not the product.
 
 ## Supporting (5)
 
@@ -198,7 +206,7 @@ Zero open issues, so no tracked work sat behind phases 2–5. The "OS" name clai
 
 **Context.** Public repo, `README.md` contains only `# build-ci`. No `.gitignore`, `CLAUDE.md`, `action.yml`, or `.github/workflows/ci.yml`. Zero issues. Its `updated_at` falls inside a bulk metadata sweep, not a real commit. Probable origin: a placeholder for the `dotnet-quality` composite action, which landed in `ai-instructions` instead.
 
-**Caveat.** `bridge` cannot list directories (see freaxnx01/bridge#220), so "empty" is inferred from absent obvious files, not proven. Confirm with `git clone && ls -la` before archiving.
+**Caveat.** The "empty" finding was inferred from five guessed `read_file` calls, not proven — at the time `bridge` had no directory listing. `list_tree` has since shipped (freaxnx01/bridge#220), so **confirm with `list_tree` before archiving**; one call now settles what five guesses could not.
 
 **Decision.** Archive. CI has one home: `agent-workflow`.
 
@@ -215,6 +223,10 @@ Zero open issues, so no tracked work sat behind phases 2–5. The "OS" name clai
 Chat sessions with `bridge` access are an excellent *workbench* — live cross-forge state, no pasting, eight repos cross-referenced in a turn. They are a poor *filing cabinet*: context fills (a single `list_repos` is ~85 repos of JSON), and assistant memory across sessions is a lossy summary, not a record.
 
 Because `bridge` can re-scan on demand, conversation history is not the continuity mechanism — **the repos are.** Therefore: decisions get written here and committed; sessions stay short and topic-scoped; the next session starts by reading this file, not by re-deriving it.
+
+The companion to this decision is [`ADVISOR-PROMPT.md`](ADVISOR-PROMPT.md), which
+holds the working rules for those sessions — including the failure modes that
+made "read before you assert" a written rule rather than an assumption.
 
 ---
 
@@ -247,16 +259,22 @@ grep -rn 'claude-pipeline\|agent-pipeline\|claude\.yml\|claude-implement' . --ex
 | Item | Where |
 |---|---|
 | `update_repo` — repo metadata writes | freaxnx01/bridge#219 |
-| `list_tree` — directory listing | freaxnx01/bridge#220 |
 | `search_code` — cross-repo grep (forge parity problem; design decision needed) | freaxnx01/bridge#221 |
 | Non-breaking rename sweep | freaxnx01/agent-workflow#205 |
 | Stub-name warning | freaxnx01/agent-workflow#206 |
 | v2 breaking renames (tracking) | freaxnx01/agent-workflow#207 |
 | Execute ADR-F001 rename | — |
-| Execute ADR-F002 archive | — |
+| Execute ADR-F002 archive (confirm with `list_tree` first) | — |
 
-`put_file` (gated direct-to-default writes within a path allowlist) shipped —
-freaxnx01/bridge#223, closed by PR #228.
+**Shipped since this map was first written:**
+
+- `put_file` — gated direct-to-default writes within a path allowlist
+  (freaxnx01/bridge#223, closed by PR #228; follow-ups in #229). This file
+  is now editable directly from an MCP session.
+- `list_tree` — directory listing (freaxnx01/bridge#220).
+
+**Unreconciled:** freaxnx01/bridge#217 (attachments + generic repo file writes)
+overlaps #223. Close one as duplicate or split the scope explicitly.
 
 Every open issue title across the factory (except `ideas-lab`'s raw
 `Game idea: ...` capture titles, kept as-is by design) now follows
@@ -269,6 +287,12 @@ section).
 - Label creation is silent on typos
 - `cross_forge_status` TODO.md parser drops some multi-line items
 - `forge` parameter is case-sensitive
+- `list_issues` returns **titles only** — no bodies, labels or dates, so
+  ranking work from a `list_issues` result alone is unreliable
+- `list_git_forges` reports a per-forge capability list that is **not** a
+  complete tool inventory; do not use it to conclude a tool is missing
+- The MCP server has hung and dropped tools mid-session. If a call hangs,
+  stop writing — a timed-out `put_file` leaves commit state unknown.
 
 ---
 
@@ -277,8 +301,10 @@ section).
 This file is a snapshot. To refresh it in a new session:
 
 ```text
-Read FACTORY-MAP.md in agent-workflow/docs/, then run bridge list_repos
-across both forges and tell me what has drifted from the map.
+Read docs/ADVISOR-PROMPT.md and docs/FACTORY-MAP.md in freaxnx01/agent-workflow,
+then follow it. Today: re-scan and report drift.
 ```
 
-One tool call re-derives the ground truth. Update the map, commit, move on.
+`ADVISOR-PROMPT.md` carries the working rules; this file carries the state.
+One `list_repos` call re-derives the ground truth. Update the map, commit,
+move on.
