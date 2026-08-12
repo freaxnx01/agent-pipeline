@@ -24,7 +24,7 @@
 #                      blob instead. Used by Layer-1 tests.
 #   PIPELINE_PRS_JSON_SEQUENCE_CMD  Path to an executable that replaces
 #                      the `gh pr list` call when set. Each retry re-invokes it.
-#   FIND_PR_RETRY_MAX  Max retry attempts after empty result. Default: 3.
+#   FIND_PR_RETRY_MAX  Max total attempts (including the first). Default: 3.
 #   FIND_PR_RETRY_BASE_SLEEP  Base sleep duration in seconds. Default: 2.
 #   FIND_PR_RETRY_SLEEP_CMD  Command to sleep; default: sleep.
 #
@@ -53,12 +53,16 @@ fi
 AUTHOR_ALLOWLIST="${AUTHOR_ALLOWLIST:-github-actions[bot]}"
 
 FIND_PR_RETRY_MAX="${FIND_PR_RETRY_MAX:-3}"
+[[ "$FIND_PR_RETRY_MAX" =~ ^[0-9]+$ ]] || FIND_PR_RETRY_MAX=3
 FIND_PR_RETRY_BASE_SLEEP="${FIND_PR_RETRY_BASE_SLEEP:-2}"
+[[ "$FIND_PR_RETRY_BASE_SLEEP" =~ ^[0-9]+$ ]] || FIND_PR_RETRY_BASE_SLEEP=2
 FIND_PR_RETRY_SLEEP_CMD="${FIND_PR_RETRY_SLEEP_CMD:-sleep}"
 
 fetch_prs() {
   if [[ -n "${PIPELINE_PRS_JSON_SEQUENCE_CMD:-}" ]]; then
-    "$PIPELINE_PRS_JSON_SEQUENCE_CMD" || printf '[]'
+    local output
+    output="$("$PIPELINE_PRS_JSON_SEQUENCE_CMD")" || output='[]'
+    printf '%s' "$output"
     return
   fi
   gh pr list \
@@ -105,12 +109,10 @@ if [[ -n "${PIPELINE_PRS_JSON:-}" ]]; then
 else
   attempt=1
   SELECTED='{}'
-  pr_number=""
   while :; do
     PRS_JSON="$(fetch_prs)"
     SELECTED="$(select_from_json "$PRS_JSON" "$ALLOWED_JSON")"
-    pr_number="$(printf '%s' "$SELECTED" | jq -r '.number // ""')"
-    [[ -n "$pr_number" ]] && break
+    [[ "$(printf '%s' "$SELECTED" | jq -r '.number // ""')" ]] && break
     (( attempt >= FIND_PR_RETRY_MAX )) && break
     "$FIND_PR_RETRY_SLEEP_CMD" "$(( FIND_PR_RETRY_BASE_SLEEP * attempt ))"
     attempt=$(( attempt + 1 ))
