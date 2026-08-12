@@ -58,7 +58,7 @@ FIND_PR_RETRY_SLEEP_CMD="${FIND_PR_RETRY_SLEEP_CMD:-sleep}"
 
 fetch_prs() {
   if [[ -n "${PIPELINE_PRS_JSON_SEQUENCE_CMD:-}" ]]; then
-    "$PIPELINE_PRS_JSON_SEQUENCE_CMD"
+    "$PIPELINE_PRS_JSON_SEQUENCE_CMD" || printf '[]'
     return
   fi
   gh pr list \
@@ -69,6 +69,18 @@ fetch_prs() {
     --limit 10 2>/dev/null || printf '[]'
 }
 
+# Pick the highest-numbered draft PR that closes the issue AND whose
+# author is in the allowlist. Highest-numbered acts as a most-recent
+# tiebreaker if a previous failed run left a stale draft. The author
+# filter blocks a third-party-opened higher-numbered draft from
+# hijacking the auto-review target.
+#
+# Author logins are normalized before the allowlist check: `gh pr list --json
+# author` reports the GitHub-Actions bot as `app/github-actions`, while the REST
+# `user.login` (and the configured allowlist) use `github-actions[bot]`. Without
+# normalizing, gate 1 never matches a GITHUB_TOKEN-authored PR (#54). The same
+# maps any App, e.g. `app/my-app` ⇄ `my-app[bot]`.
+#
 # select_from_json <json> <allowed_json> → prints the selected PR object (or {}).
 select_from_json() {
   printf '%s' "$1" \
@@ -93,10 +105,12 @@ if [[ -n "${PIPELINE_PRS_JSON:-}" ]]; then
 else
   attempt=1
   SELECTED='{}'
+  pr_number=""
   while :; do
     PRS_JSON="$(fetch_prs)"
     SELECTED="$(select_from_json "$PRS_JSON" "$ALLOWED_JSON")"
-    [[ "$SELECTED" != '{}' ]] && break
+    pr_number="$(printf '%s' "$SELECTED" | jq -r '.number // ""')"
+    [[ -n "$pr_number" ]] && break
     (( attempt >= FIND_PR_RETRY_MAX )) && break
     "$FIND_PR_RETRY_SLEEP_CMD" "$(( FIND_PR_RETRY_BASE_SLEEP * attempt ))"
     attempt=$(( attempt + 1 ))
