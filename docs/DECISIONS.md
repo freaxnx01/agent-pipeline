@@ -402,6 +402,47 @@ here.)
   pipeline ever forks, the fork's first task is to update the guard.
   Prose alone is insufficient — the guard MUST exist in code.
 
+### Addendum — find-pipeline-pr.sh search-index race (2026-08-12)
+
+**Tracking:** [#249](https://github.com/freaxnx01/agent-workflow/issues/249)
+
+`find-pipeline-pr.sh` locates the pipeline-opened draft PR via `gh pr list
+--search "closes #N in:body"` — GitHub's full-text search index, which is
+eventually consistent. On a fast `implement` run, the `auto_review`/
+`pre_preview` job's `find_pr` step can query before the index catches up,
+get zero results, and report `found=false` for a PR that genuinely exists
+and matches every criterion (open, draft, correct `Closes #N`, allowlisted
+author).
+
+Observed on `game-geography-quiz#13` (2026-08-11): a 39s/18-turn `implement`
+run — the fastest of four issues dispatched in the same batch — opened a
+correct draft PR, but `find_pr` reported `found=false` immediately after.
+`post-auto-review-block.sh` stamped the issue `ai:review-blocked`, which
+reads identically to "an agent reviewed this and found real problems" even
+though no review ever ran. The other three issues in the same batch (1m/2m/
+11m durations) all found their PR correctly — the correlation with the
+*shortest* run pointed at index-propagation lag rather than a logic bug.
+
+**Fix:** `find-pipeline-pr.sh` now retries the search on an empty result
+(default 3 attempts, ~2s/4s backoff across 2 sleeps) before reporting `found=false`. This
+is a distinct retry condition from `scripts/lib/gh-retry.sh`'s
+`with_backoff`, which retries a *failed* `gh` call (non-zero exit matching a
+transient-error signature) — here the call *succeeds* with a *stale-empty*
+result, so a separate loop was added rather than reusing `with_backoff`
+directly. Both known call sites (`verify-or-recover-pr.sh`'s recovery check,
+and the `auto_review`/`pre_preview` jobs) share this script, so the fix
+covers both without workflow YAML changes.
+
+**Consequences:**
+
++ A genuinely nonexistent PR still reports `found=false`, just after the
+  retry budget (~6s worst case, 2 sleeps of 2s + 4s across 3 attempts) instead of immediately — negligible given
+  the multi-minute scale of the surrounding job.
++ `verify-or-recover-pr.sh`'s "already exists" fallback comment (`# PR
+  already existed — the search index lagged`) documents the same underlying
+  race from the recovery-attempt angle; the retry reduces how often that
+  fallback path is needed, though it remains as a second line of defense.
+
 ### Addendum — Self-fix + pending-checks interaction (2026-08-04)
 
 **Tracking:** [#193](https://github.com/freaxnx01/agent-workflow/issues/193)
