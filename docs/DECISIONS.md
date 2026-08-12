@@ -424,7 +424,7 @@ though no review ever ran. The other three issues in the same batch (1m/2m/
 *shortest* run pointed at index-propagation lag rather than a logic bug.
 
 **Fix:** `find-pipeline-pr.sh` now retries the search on an empty result
-(default 3 attempts, ~2s/4s/6s backoff) before reporting `found=false`. This
+(default 3 attempts, ~2s/4s backoff across 2 sleeps) before reporting `found=false`. This
 is a distinct retry condition from `scripts/lib/gh-retry.sh`'s
 `with_backoff`, which retries a *failed* `gh` call (non-zero exit matching a
 transient-error signature) — here the call *succeeds* with a *stale-empty*
@@ -435,7 +435,7 @@ covers both without workflow YAML changes.
 
 **Consequences:**
 - A genuinely nonexistent PR still reports `found=false`, just after the
-  retry budget (~12s worst case) instead of immediately — negligible given
+  retry budget (~6s worst case, 2 sleeps of 2s + 4s across 3 attempts) instead of immediately — negligible given
   the multi-minute scale of the surrounding job.
 - `verify-or-recover-pr.sh`'s "already exists" fallback comment (`# PR
   already existed — the search index lagged`) documents the same underlying
