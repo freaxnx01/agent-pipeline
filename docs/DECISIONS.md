@@ -434,10 +434,11 @@ and the `auto_review`/`pre_preview` jobs) share this script, so the fix
 covers both without workflow YAML changes.
 
 **Consequences:**
-- A genuinely nonexistent PR still reports `found=false`, just after the
+
++ A genuinely nonexistent PR still reports `found=false`, just after the
   retry budget (~6s worst case, 2 sleeps of 2s + 4s across 3 attempts) instead of immediately — negligible given
   the multi-minute scale of the surrounding job.
-- `verify-or-recover-pr.sh`'s "already exists" fallback comment (`# PR
++ `verify-or-recover-pr.sh`'s "already exists" fallback comment (`# PR
   already existed — the search index lagged`) documents the same underlying
   race from the recovery-attempt angle; the retry reduces how often that
   fallback path is needed, though it remains as a second line of defense.
