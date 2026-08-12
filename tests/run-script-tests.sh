@@ -1527,6 +1527,56 @@ assert_contains "$out" 'pr-number='         "no pr-number when not found"
 out="$(find_pr_run env ISSUE_NUMBER=42 REPO=o/r PIPELINE_PRS_JSON='[]')"
 assert_contains "$out" 'found=false'        "empty list → found=false"
 
+# --- retry-on-empty-result (search-index lag, #249) --------------------
+
+# Fake `gh pr list` shim: returns "[]" on its first N invocations (tracked
+# via a counter file, same idiom as gh-retry.sh's `make_flaky`), then the
+# real PR JSON on the next. Used to drive find-pipeline-pr.sh's retry loop.
+make_flaky_pr_list() {
+  local script="$1" empty_times="$2" real_json="$3" ctr="$4"
+  cat > "$script" <<EOF
+#!/usr/bin/env bash
+n=\$(cat "$ctr" 2>/dev/null || printf 0)
+n=\$((n + 1)); printf '%s' "\$n" > "$ctr"
+if (( n <= $empty_times )); then printf '[]\n'; exit 0; fi
+printf '%s\n' '$real_json'
+EOF
+  chmod +x "$script"
+}
+
+# Empty on attempt 1, PR found on attempt 2 → found=true, exactly 2 invocations.
+shim1="$(mktemp)"; ctr1="$(mktemp)"; : > "$ctr1"
+make_flaky_pr_list "$shim1" 1 \
+  '[{"number":17,"isDraft":true,"headRefOid":"deadbeef","headRefName":"feat/x","author":{"login":"github-actions[bot]"}}]' \
+  "$ctr1"
+out="$(find_pr_run env ISSUE_NUMBER=42 REPO=o/r \
+        PIPELINE_PRS_JSON_SEQUENCE_CMD="$shim1" \
+        FIND_PR_RETRY_SLEEP_CMD=: FIND_PR_RETRY_MAX=3)"
+assert_contains "$out" 'found=true'   "retries once on empty, finds PR on attempt 2"
+assert_contains "$out" 'pr-number=17' "  → pr-number from the successful attempt"
+assert_equals "$(cat "$ctr1")" "2"    "  → exactly 2 invocations (1 empty + 1 success)"
+
+# Empty for all FIND_PR_RETRY_MAX attempts → found=false, exactly MAX invocations.
+shim2="$(mktemp)"; ctr2="$(mktemp)"; : > "$ctr2"
+make_flaky_pr_list "$shim2" 99 '[]' "$ctr2"
+out="$(find_pr_run env ISSUE_NUMBER=42 REPO=o/r \
+        PIPELINE_PRS_JSON_SEQUENCE_CMD="$shim2" \
+        FIND_PR_RETRY_SLEEP_CMD=: FIND_PR_RETRY_MAX=3)"
+assert_contains "$out" 'found=false' "gives up after FIND_PR_RETRY_MAX empty attempts"
+assert_equals "$(cat "$ctr2")" "3"   "  → exactly FIND_PR_RETRY_MAX (3) invocations, not infinite"
+
+# PIPELINE_PRS_JSON (existing seam) still short-circuits with zero retries —
+# regression guard that the retry loop doesn't touch the deterministic-JSON
+# path every other existing test in this section relies on.
+shim3="$(mktemp)"; ctr3="$(mktemp)"; printf 0 > "$ctr3"
+make_flaky_pr_list "$shim3" 99 '[]' "$ctr3"
+out="$(find_pr_run env ISSUE_NUMBER=42 REPO=o/r \
+        PIPELINE_PRS_JSON='[{"number":5,"isDraft":true,"headRefOid":"x","author":{"login":"github-actions[bot]"}}]' \
+        PIPELINE_PRS_JSON_SEQUENCE_CMD="$shim3" \
+        FIND_PR_RETRY_SLEEP_CMD=: FIND_PR_RETRY_MAX=3)"
+assert_contains "$out" 'pr-number=5'      "PIPELINE_PRS_JSON takes priority over the sequence shim"
+assert_equals "$(cat "$ctr3")" "0"        "  → shim never invoked when PIPELINE_PRS_JSON is set"
+
 # Error paths
 ec="$(run_capture_ec env REPO=o/r bash "$FIND_PR")"
 assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
