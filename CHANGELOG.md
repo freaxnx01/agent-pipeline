@@ -22,10 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **enrich:** `--quick` flag for non-interactive enrichment — suppress all
   clarifying questions and the user approval gate (except on [one-way
-  doors](#one-way-door)), record all unaided decisions in an `## Assumptions`
-  block with confidence markers and rejected alternatives, and include a
-  `## Consequences` block for collateral effects. Converts the synchronous
-  interview into an async review queue (#255)
+  doors](docs/glossary.md#one-way-door)), record all unaided decisions in an
+  `## Assumptions` block with confidence markers and rejected alternatives,
+  and include a `## Consequences` block for collateral effects. Converts the
+  synchronous interview into an async review queue (#255)
 - **enrich-phased:** concurrency lock — Phase `spec` now detects an existing
   `enrichment-ongoing` lock and acquires its own before brainstorming, using
   the same 24h staleness window `/enrich`'s lock now uses (see below) to
