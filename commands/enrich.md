@@ -16,8 +16,9 @@ detect_forge
 
 ```bash
 source "$HOME/.claude/scripts/lib/parse-enrich-args.sh"
-IFS=$'\n' read -r -d '' ISSUE QUICK < <(parse_enrich_args "$ARGUMENTS"; printf '\0') || true
-: "${ISSUE:?Issue number is required. Usage: /enrich <issue-number> [--quick]}"
+parsed=$(parse_enrich_args "$ARGUMENTS") || { echo "Issue number is required. Usage: /enrich <issue-number> [--quick]" >&2; exit 1; }
+ISSUE=$(echo "$parsed" | sed -n 's/^ISSUE=//p')
+QUICK=$(echo "$parsed" | sed -n 's/^QUICK=//p')
 ```
 
 Since each fenced bash block runs as a separate shell invocation, the variables `$ISSUE` and `$QUICK` set above **will not persist** to the blocks below. After parsing, substitute the resolved issue number (a digit, not a variable) directly into each command below. For example, if you parsed `256 --quick`, you would write `gh issue view 256` not `gh issue view $ISSUE`.
