@@ -12,18 +12,19 @@ detect_forge
 
 ## Argument parsing
 
-`$ARGUMENTS` may carry `--quick` alongside the issue number. Strip it before use:
+`$ARGUMENTS` may carry `--quick` alongside the issue number. Parse it in this block:
 
 ```bash
-ISSUE=$(echo "$ARGUMENTS" | tr ' ' '\n' | grep -v '^--' | tr -d '#' | head -1)
-QUICK=$(echo "$ARGUMENTS" | grep -q -- '--quick' && echo yes || echo no)
+source "$HOME/.claude/scripts/lib/parse-enrich-args.sh"
+IFS=$'\n' read -r -d '' ISSUE QUICK < <(parse_enrich_args "$ARGUMENTS"; printf '\0') || true
+: "${ISSUE:?Issue number is required. Usage: /enrich <issue-number> [--quick]}"
 ```
 
-Replace every reference to `$ARGUMENTS` in the steps below with `$ISSUE`.
+Since each fenced bash block runs as a separate shell invocation, the variables `$ISSUE` and `$QUICK` set above **will not persist** to the blocks below. After parsing, substitute the resolved issue number (a digit, not a variable) directly into each command below. For example, if you parsed `256 --quick`, you would write `gh issue view 256` not `gh issue view $ISSUE`.
 
 ## Quick mode
 
-When `/enrich` runs with the `--quick` flag, brainstorming suppresses all clarifying questions and the user approval gate — treat the spec as approved the moment brainstorming's own self-review passes. The run produces two new sections in the issue body:
+When `/enrich` runs with the `--quick` flag, brainstorming suppresses all clarifying questions and the user approval gate — treat the spec as approved the moment brainstorming's own self-review passes. **Exception: escalate on [one-way doors](#one-way-door) (irreversible operations, anything touching credentials, anything that spends money, anything changing a public interface others depend on) — stop and ask the user instead of deciding alone.** The run produces two new sections in the issue body:
 
 **Assumptions format** — one entry per unaided decision, with rejected alternative and evidence:
 
@@ -33,7 +34,7 @@ When `/enrich` runs with the `--quick` flag, brainstorming suppresses all clarif
   a generic "named water body → pin on map" mechanism.
 ```
 
-Confidence is `[high]`/`[med]`/`[low]` — how likely the human is to disagree, not how sure the agent is that it works. `[low]` where the repo gave no signal. `file:line` required for `[high]` claims about existing behaviour.
+Confidence is `[high]`/`[med]`/`[low]` — how likely the human is to disagree, not how sure the agent is that it works. `[low]` where the repo gave no signal. `file:line` required for any claim about existing behaviour (regardless of confidence marker).
 
 **Consequences section** contains effects that were *not* decisions — shifted distributions, pacing, adjacent behaviour. Decisions go in Assumptions; consequences are what nobody chose but everybody inherits. Example:
 
@@ -96,7 +97,7 @@ Judge whether the issue already has all three:
 - **Scope / spec** — what to build, enough to start without guessing
 - **No blocking unknowns** — no open design questions or TBDs the agent can't resolve from the codebase
 
-If the issue is already complete, tell the user and suggest running `/gh:implement $ARGUMENTS` directly. Stop here.
+If the issue is already complete, tell the user and suggest running `/work <issue-number>` directly (where `<issue-number>` is the parsed issue number). Stop here.
 
 ### Step 2.5 — Acquire the enrichment lock
 
@@ -362,7 +363,7 @@ Judge whether the issue already has all three:
 - **No blocking unknowns** — no open design questions or TBDs the implementer can't
   resolve from the codebase
 
-If it's already complete, tell me and suggest running `/work $ARGUMENTS` directly.
+If it's already complete, tell me and suggest running `/work <issue-number>` directly (where `<issue-number>` is the parsed issue number).
 Stop here.
 
 ### Step 2.5 — Acquire the enrichment lock
@@ -557,6 +558,10 @@ existing tracked specs/plans dir; never write to a path that `git check-ignore -
 If you run into blockers (brainstorming/writing-plans unavailable, push auth fails,
 the issue-body PATCH is rejected, ignored docs dir), find a solution and update this
 command for the future.
+
+## One-way door
+
+In quick-mode, a [one-way door](../docs/glossary.md#one-way-door) is a design decision the agent refuses to make alone — irreversible operations (deleting data, running migrations), anything touching credentials or secrets, anything that spends money (rate limits, API calls with costs), or anything changing a public interface others depend on. When quick-mode hits a one-way door, it stops and asks the user to decide, even if the flag is `--quick`. Record the unanswered decision as a Blocked item in the Assumptions block (prefixed with ⛔ or similar) so the human review phase can resolve it before implementation.
 
 ## Unknown host
 
