@@ -1,6 +1,6 @@
 ---
 description: Enrich an issue with a spec and implementation plan, then update the issue body so it's ready to implement
-argument-hint: <issue number>
+argument-hint: <issue number> [--quick]
 ---
 
 Detect the forge, then run the matching section below.
@@ -10,16 +10,50 @@ source "$HOME/.claude/scripts/lib/detect-forge.sh"
 detect_forge
 ```
 
+## Argument parsing
+
+`$ARGUMENTS` may carry `--quick` alongside the issue number. Strip it before use:
+
+```bash
+ISSUE=$(echo "$ARGUMENTS" | tr ' ' '\n' | grep -v '^--' | tr -d '#' | head -1)
+QUICK=$(echo "$ARGUMENTS" | grep -q -- '--quick' && echo yes || echo no)
+```
+
+Replace every reference to `$ARGUMENTS` in the steps below with `$ISSUE`.
+
+## Quick mode
+
+When `/enrich` runs with the `--quick` flag, brainstorming suppresses all clarifying questions and the user approval gate — treat the spec as approved the moment brainstorming's own self-review passes. The run produces two new sections in the issue body:
+
+**Assumptions format** — one entry per unaided decision, with rejected alternative and evidence:
+
+```markdown
+- **A1** [high] Implemented as data additions to the existing SEAS array.
+  Rejected: a new quiz mode. `index.html:941-949` shows the seas mode is already
+  a generic "named water body → pin on map" mechanism.
+```
+
+Confidence is `[high]`/`[med]`/`[low]` — how likely the human is to disagree, not how sure the agent is that it works. `[low]` where the repo gave no signal. `file:line` required for `[high]` claims about existing behaviour.
+
+**Consequences section** contains effects that were *not* decisions — shifted distributions, pacing, adjacent behaviour. Decisions go in Assumptions; consequences are what nobody chose but everybody inherits. Example:
+
+```markdown
+## Consequences
+
+- Pacing: each entry adds ~50ms to page load in browser-parsing mode.
+- Side effect: adding a sea also marks it as "recently modified" for recommendation sorting.
+```
+
 ## GitHub
 
-Enrich GitHub issue #$ARGUMENTS (strip any leading `#`) so it is ready for the
+Enrich GitHub issue #$ISSUE (strip any leading `#`) so it is ready for the
 agent-workflow. The pipeline reads only the issue **body** — everything the agent
 needs must end up there.
 
 ### Step 1 — Read the issue
 
 ```bash
-gh issue view $ARGUMENTS --comments
+gh issue view $ISSUE --comments
 ```
 
 If the issue is closed, already has `ai-implement` label, or is `🧊 parked`, stop and say so.
@@ -82,21 +116,21 @@ comment reads as "unknown age → stale" and invites a takeover — exactly the
 detection this is meant to provide. Fresh acquisition (Step 1.5 found no lock):
 
 ```bash
-gh issue comment $ARGUMENTS --body "🔒 Enrichment lock acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+gh issue comment $ISSUE --body "🔒 Enrichment lock acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ```
 
 Takeover of a stale lock (Step 1.5 found one and the user agreed to take over —
 substitute the actual age you showed the user for `<Xh>`):
 
 ```bash
-gh issue comment $ARGUMENTS --body "🔒 Enrichment lock re-acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ) (previous lock stale, <Xh> old)"
+gh issue comment $ISSUE --body "🔒 Enrichment lock re-acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ) (previous lock stale, <Xh> old)"
 ```
 
 Note the exact timestamp you posted — the re-check below compares against it. Then
 apply the label:
 
 ```bash
-gh issue edit $ARGUMENTS --add-label enrichment-ongoing
+gh issue edit $ISSUE --add-label enrichment-ongoing
 ```
 
 **Then re-check for a competitor.** Step 1.5 and this step are not atomic — Step 2's
@@ -105,7 +139,7 @@ so a second session can have passed Step 1.5 and acquired in that gap. Both sess
 would otherwise brainstorm the same issue. Re-fetch the comments:
 
 ```bash
-gh issue view $ARGUMENTS --comments
+gh issue view $ISSUE --comments
 ```
 
 Look for a `🔒 Enrichment lock (re-)acquired` comment that is **not** the one you
@@ -114,7 +148,7 @@ timestamp is **earlier** than yours (same second → the one listed first wins),
 lost the race. Stand down:
 
 ```bash
-gh issue comment $ARGUMENTS --body "🔓 Enrichment lock released at $(date -u +%Y-%m-%dT%H:%M:%SZ) (lost race to the lock acquired at <winner timestamp>)"
+gh issue comment $ISSUE --body "🔓 Enrichment lock released at $(date -u +%Y-%m-%dT%H:%M:%SZ) (lost race to the lock acquired at <winner timestamp>)"
 ```
 
 Leave the `enrichment-ongoing` label in place — it's a single boolean the winning
@@ -130,7 +164,7 @@ brainstorming's approval gate in Step 3, or the push verification failing in
 Step 5 — release the lock before ending:
 
 ```bash
-gh issue edit $ARGUMENTS --remove-label enrichment-ongoing
+gh issue edit $ISSUE --remove-label enrichment-ongoing
 ```
 
 No `2>/dev/null || true` on this one: this run applied that label itself, so a
@@ -144,6 +178,11 @@ Invoke **superpowers:brainstorming** with the issue as context. The goal is a
 validated spec saved to `<specs-dir>/YYYY-MM-DD-<topic>-design.md` and committed.
 Follow the brainstorming skill end-to-end (clarifying questions, approaches,
 design sections, spec self-review, user approval gate).
+
+**If `$QUICK` is `yes`:** run brainstorming under the rules in
+[Quick mode](#quick-mode) above. Suppress the clarifying questions and the user
+approval gate — treat the spec as approved the moment brainstorming's own
+self-review passes. Carry the assumptions and consequences forward to Step 6.
 
 ### Step 4 — Write implementation plan
 
@@ -209,16 +248,18 @@ extra file reads to orient itself. Replace the issue body with:
 
 1. The original description (keep it — context for humans)
 2. An `## Acceptance Criteria` section with the approved AC as a `- [ ]` checklist
-3. An `## Implementation Plan` section containing the **full plan content
+3. When `$QUICK` is `yes`, an `## Assumptions` section and a `## Consequences`
+   section, before the implementation plan.
+4. An `## Implementation Plan` section containing the **full plan content
    inlined verbatim** (not a link) — the task breakdown, file structure, TDD
    steps, and exact code to produce, exactly as written to the plan file in
    Step 4
-4. A `## Spec` section with just the relative path to the spec file (linked as
+5. A `## Spec` section with just the relative path to the spec file (linked as
    markdown) — for human/reviewer reference only; the implementing agent
    should not need it
 
 ```bash
-gh issue edit $ARGUMENTS --body "..."
+gh issue edit $ISSUE --body "..."
 ```
 
 **Also clear the readiness labels** — `needs-enrichment` and `❓ to-be-defined`
@@ -226,9 +267,9 @@ mean "not ready yet," and the issue now is. Leaving either on is a silent trap:
 `/gh:implement` treats them as a hard stop regardless of what the body says.
 
 ```bash
-gh issue edit $ARGUMENTS --remove-label needs-enrichment 2>/dev/null || true
-gh issue edit $ARGUMENTS --remove-label "❓ to-be-defined" 2>/dev/null || true
-gh issue edit $ARGUMENTS --remove-label enrichment-ongoing
+gh issue edit $ISSUE --remove-label needs-enrichment 2>/dev/null || true
+gh issue edit $ISSUE --remove-label "❓ to-be-defined" 2>/dev/null || true
+gh issue edit $ISSUE --remove-label enrichment-ongoing
 ```
 
 The third line releases the Step 2.5 lock — enrichment is done, so the issue is
@@ -250,7 +291,7 @@ Print:
 
 - Issue URL
 - Paths to spec and plan files
-- "Issue is ready — run `/gh:implement $ARGUMENTS` to trigger the agent-workflow."
+- "Issue is ready — run `/gh:implement $ISSUE` to trigger the agent-workflow."
 
 ---
 
@@ -259,7 +300,7 @@ rejected), find a solution and update this skill for the future.
 
 ## Forgejo
 
-Enrich Forgejo issue #$ARGUMENTS (strip any leading `#`) so it is ready to
+Enrich Forgejo issue #$ISSUE (strip any leading `#`) so it is ready to
 implement. Everything the implementer needs must end up in the issue **body** (+ the
 committed spec/plan it links to).
 
@@ -276,8 +317,8 @@ repo=$(echo "$url" | sed -E 's#.*[:/]([^/]+/[^/]+)$#\1#')
 ### Step 1 — Read the issue
 
 ```bash
-tea issues $ARGUMENTS --login git-home
-tea api --login git-home "repos/$repo/issues/$ARGUMENTS/comments"
+tea issues $ISSUE --login git-home
+tea api --login git-home "repos/$repo/issues/$ISSUE/comments"
 ```
 
 If the issue is closed or `🧊 parked`, stop and say so.
@@ -342,7 +383,7 @@ comment reads as "unknown age → stale" and invites a takeover — exactly the
 detection this is meant to provide. Fresh acquisition (Step 1.5 found no lock):
 
 ```bash
-tea api --login git-home -X POST "repos/$repo/issues/$ARGUMENTS/comments" \
+tea api --login git-home -X POST "repos/$repo/issues/$ISSUE/comments" \
   -f body="🔒 Enrichment lock acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ```
 
@@ -350,7 +391,7 @@ Takeover of a stale lock (Step 1.5 found one and the user agreed to take over �
 substitute the actual age you showed the user for `<Xh>`):
 
 ```bash
-tea api --login git-home -X POST "repos/$repo/issues/$ARGUMENTS/comments" \
+tea api --login git-home -X POST "repos/$repo/issues/$ISSUE/comments" \
   -f body="🔒 Enrichment lock re-acquired at $(date -u +%Y-%m-%dT%H:%M:%SZ) (previous lock stale, <Xh> old)"
 ```
 
@@ -362,10 +403,10 @@ comes back empty, `locked` ends up empty and the `PUT` wipes **every** label on
 the issue:
 
 ```bash
-current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+current=$(tea api --login git-home "repos/$repo/issues/$ISSUE" | jq -r '[.labels[].name]')
 [[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
 locked=$(echo "$current" | jq -c '. + ["enrichment-ongoing"] | unique')
-tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$locked" >/dev/null
+tea api --login git-home -X PUT "repos/$repo/issues/$ISSUE/labels" -f labels="$locked" >/dev/null
 ```
 
 **Then re-check for a competitor.** Step 1.5 and this step are not atomic — Step 2's
@@ -374,7 +415,7 @@ so a second session can have passed Step 1.5 and acquired in that gap. Both sess
 would otherwise brainstorm the same issue. Re-fetch the comments:
 
 ```bash
-tea api --login git-home "repos/$repo/issues/$ARGUMENTS/comments"
+tea api --login git-home "repos/$repo/issues/$ISSUE/comments"
 ```
 
 Look for a `🔒 Enrichment lock (re-)acquired` comment that is **not** the one you
@@ -383,7 +424,7 @@ timestamp is **earlier** than yours (same second → lowest comment `id` wins), 
 lost the race. Stand down:
 
 ```bash
-tea api --login git-home -X POST "repos/$repo/issues/$ARGUMENTS/comments" \
+tea api --login git-home -X POST "repos/$repo/issues/$ISSUE/comments" \
   -f body="🔓 Enrichment lock released at $(date -u +%Y-%m-%dT%H:%M:%SZ) (lost race to the lock acquired at <winner timestamp>)"
 ```
 
@@ -400,10 +441,10 @@ brainstorming's approval gate in Step 3, or the push verification failing in
 Step 5 — release the lock before ending:
 
 ```bash
-current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+current=$(tea api --login git-home "repos/$repo/issues/$ISSUE" | jq -r '[.labels[].name]')
 [[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
 kept=$(echo "$current" | jq -c '[.[] | select(. != "enrichment-ongoing")]')
-tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$kept" >/dev/null
+tea api --login git-home -X PUT "repos/$repo/issues/$ISSUE/labels" -f labels="$kept" >/dev/null
 ```
 
 If either command fails, tell me the lock is still held and has to be removed by
@@ -415,6 +456,11 @@ Invoke **superpowers:brainstorming** with the issue as context. The goal is a
 validated spec saved to a **tracked** specs dir (see *Choosing a tracked path*) and
 committed. Follow the brainstorming skill end-to-end (clarifying questions,
 approaches, design sections, spec self-review, user approval gate).
+
+**If `$QUICK` is `yes`:** run brainstorming under the rules in
+[Quick mode](#quick-mode) above. Suppress the clarifying questions and the user
+approval gate — treat the spec as approved the moment brainstorming's own
+self-review passes. Carry the assumptions and consequences forward to Step 6.
 
 ### Step 4 — Write implementation plan
 
@@ -449,14 +495,16 @@ file (`-f` would store the literal string `@bodyfile.md`; `tea issues edit` has 
 body flag):
 
 ```bash
-tea api -X PATCH "repos/$repo/issues/$ARGUMENTS" -F body=@bodyfile.md
+tea api -X PATCH "repos/$repo/issues/$ISSUE" -F body=@bodyfile.md
 ```
 
 The new body has:
 
 1. The original description (keep it — context for humans)
 2. An `## Acceptance Criteria` section with the approved AC as a `- [ ]` checklist
-3. A `## Spec & Implementation Plan` section with relative paths to the spec and plan
+3. When `$QUICK` is `yes`, an `## Assumptions` section and a `## Consequences`
+   section, before the plan references.
+4. A `## Spec & Implementation Plan` section with relative paths to the spec and plan
    files (linked as markdown) plus: *"Read the plan before writing any code — it
    contains the full task breakdown, file structure, TDD steps, and exact code to
    produce."*
@@ -468,10 +516,10 @@ issue's current labels and PUT back the set with those names — plus the
 `enrichment-ongoing` lock — filtered out:
 
 ```bash
-current=$(tea api --login git-home "repos/$repo/issues/$ARGUMENTS" | jq -r '[.labels[].name]')
+current=$(tea api --login git-home "repos/$repo/issues/$ISSUE" | jq -r '[.labels[].name]')
 [[ -n "$current" && "$current" != "null" ]] || { echo "failed to read current labels, aborting" >&2; exit 1; }
 kept=$(echo "$current" | jq -c '[.[] | select(. != "needs-enrichment" and . != "❓ to-be-defined" and . != "enrichment-ongoing")]')
-tea api --login git-home -X PUT "repos/$repo/issues/$ARGUMENTS/labels" -f labels="$kept" >/dev/null
+tea api --login git-home -X PUT "repos/$repo/issues/$ISSUE/labels" -f labels="$kept" >/dev/null
 ```
 
 The guard on the read matters here too: an empty `current` would PUT an empty set
@@ -485,13 +533,13 @@ in place as an audit trail; only the label is removed. If the write fails, say s
 
 (This is best-effort against Forgejo's labels API, which has had both name- and
 ID-keyed variants across versions — if the `PUT` errors, check `tea api
---login git-home "repos/$repo/issues/$ARGUMENTS/labels"` for the shape this
+--login git-home "repos/$repo/issues/$ISSUE/labels"` for the shape this
 instance expects and fix this step for the future.)
 
 ### Step 7 — Confirm
 
 Print the issue URL, the spec and plan paths, and: *"Issue is ready — run
-`/work $ARGUMENTS` to implement it locally."*
+`/work $ISSUE` to implement it locally."*
 
 > When the self-hosted **Forgejo Actions** agent-workflow exists (future tier), this
 > final pointer becomes "apply the `ai-implement` label / run `/fj:implement`" to
