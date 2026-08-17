@@ -1,5 +1,30 @@
 # Glossary
 
+## Agent-owned body
+
+Convention that an enriched issue's generated sections are written only by
+agents, never hand-edited. Human corrections go in as comments. Keeps
+regeneration idempotent and makes the comment thread the audit trail for why a
+plan says what it says. The original description at the top of the body stays
+human-owned — `/enrich` preserves it verbatim.
+
+## Assumptions block
+
+An `## Assumptions` section written by [quick-mode](#quick-mode). One entry per
+decision the agent made unaided, each carrying the rejected alternative, the
+evidence behind the choice (`file:line` where the claim is about existing
+behaviour), and a confidence marker. Confidence is `[high]` / `[med]` / `[low]`
+— how likely the human is to disagree, not how sure the agent is that it works.
+
+The unit of async review: scan `[low]` entries first, skim the rest.
+
+## Enrichment run
+
+A batch of parallel agent sessions that turn scoped issues into
+implementation-ready ones across a repo group. Grouped by a shared
+[run label](#run-label). Distinct from an implementation run, which consumes
+those issues via `ai-implement`.
+
 ## Epic
 
 An epic is **not a native GitHub object** — it's a convention layered on top of
@@ -70,6 +95,43 @@ milestone is not an epic, and an epic is not a label:
 
 - **[Label](#label)** — a flat tag (e.g. `epic`) used to filter. Answers
   *nothing about structure*; it only marks.
+
+## One-way door
+
+A decision [quick-mode](#quick-mode) refuses to make alone: irreversible
+operations, anything touching credentials, anything that spends money, anything
+changing a public interface others depend on. These escalate to the human and
+block the session.
+
+Everything else is a two-way door — reversible, so the agent decides and records
+it in the [assumptions block](#assumptions-block).
+
+## Quick-mode
+
+An `/enrich` variant that asks the human nothing. At each decision point the
+agent chooses the option it would otherwise have recommended, records it in the
+[assumptions block](#assumptions-block), and continues. Escalates only on
+[one-way doors](#one-way-door).
+
+Converts a synchronous interview into an async review queue: the human reviews
+the finished issue rather than answering questions mid-session. The trade is
+losing mid-interview steering — a wrong premise produces a complete plan built
+on it, which has to be rejected wholesale rather than corrected at question
+three. Confidence markers are the mitigation, not a cure.
+
+## Revise
+
+Regenerating an enriched issue's generated sections from its description and all
+its comments. A fresh session, not a resumed one: the issue is the entire input.
+Wholesale regeneration rather than delta patching, so repeated runs on unchanged
+input produce the same result and two rounds of corrections can't half-apply.
+
+## Run label
+
+`run:<date>` — groups issues from one [enrichment run](#enrichment-run) across
+repos. Needed because [milestones](#milestone) are scoped to a single repo and
+so cannot span a repo group. Pairs with an [epic](#epic) tracking issue holding
+the child checklist.
 
 ## Scope creep
 
