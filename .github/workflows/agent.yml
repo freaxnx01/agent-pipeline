@@ -39,3 +39,5 @@ jobs:
       default-model: claude-sonnet-5
       local-scripts: true
       pre-preview: true
+      self-fix: true
+      self-fix-max-iterations: 2
