@@ -1,5 +1,18 @@
 # TODO
 
+## Pipeline flake: `ensure-toolchain.sh` apt install hang (discovered 2026-08-17, issue #255 dispatch)
+
+- [ ] `agent-implement-test`'s "stub rate-limit (retry path)" matrix job hung on
+      `installing missing tools via apt: ripgrep` in
+      `scripts/ensure-toolchain.sh` for the full 10-minute job timeout, then got
+      cancelled (`The operation was canceled`) — run
+      https://github.com/freaxnx01/agent-workflow/actions/runs/32068197101/job/95505110588.
+      Not a required check (`gate-selftest` is main's only required status
+      check) so it didn't block merging PR #256, and it wasn't caused by
+      anything in that PR's content — looks like apt lock contention or a slow
+      runner mirror. Worth a closer look if it recurs: retry/timeout logic
+      around the `apt-get install` call, or pin a faster mirror.
+
 ## PR #215 follow-ups (deferred, non-blocking, flagged in the PR itself)
 
 - [ ] No fixture asserts `setup/link-commands.sh` actually installs
