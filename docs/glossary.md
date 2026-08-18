@@ -12,11 +12,19 @@ human-owned — `/enrich` preserves it verbatim.
 
 An `## Assumptions` section written by [quick-mode](#quick-mode). One entry per
 decision the agent made unaided, each carrying the rejected alternative, the
-evidence behind the choice (`file:line` where the claim is about existing
-behaviour), and a confidence marker. Confidence is `[high]` / `[med]` / `[low]`
+evidence behind the choice (`file:line` for any claim about existing behaviour),
+and a confidence marker. Confidence is `[high]` / `[med]` / `[low]`
 — how likely the human is to disagree, not how sure the agent is that it works.
 
 The unit of async review: scan `[low]` entries first, skim the rest.
+
+## Consequences block
+
+A `## Consequences` section written by [quick-mode](#quick-mode). One entry per
+effect that was *not* a decision — collateral changes nobody chose but everybody
+inherits. Examples: "pacing: each entry adds ~50ms to page load", "side effect:
+adding a sea also marks it as 'recently modified' for sorting". Decisions go in
+[Assumptions](#assumptions-block); consequences are what nobody chose.
 
 ## Enrichment run
 
@@ -110,8 +118,8 @@ it in the [assumptions block](#assumptions-block).
 
 An `/enrich` variant that asks the human nothing. At each decision point the
 agent chooses the option it would otherwise have recommended, records it in the
-[assumptions block](#assumptions-block), and continues. Escalates only on
-[one-way doors](#one-way-door).
+[assumptions block](#assumptions-block) and [consequences block](#consequences-block),
+and continues. Escalates only on [one-way doors](#one-way-door).
 
 Converts a synchronous interview into an async review queue: the human reviews
 the finished issue rather than answering questions mid-session. The trade is
