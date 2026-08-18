@@ -53,25 +53,24 @@
       filed as issue #246.
 - [ ] Pipeline review-agent mid-run timeout on round 4 — filed as issue #247.
 
-## Worktrees (status as of 2026-08-05)
+## Worktrees (status as of 2026-08-18)
 
-- [ ] `.worktrees/div` (branch `worktree-div`) — still 1 local commit
-      (`commands/gh/review.md` changes, "don't default to @copilot for
-      agent-workflow PRs") with no upstream tracking branch and no PR yet.
-      Unchanged since last check — real work, still untouched.
+- [x] `.worktrees/div` (branch `worktree-div`) — removed. Its 1 local commit
+      ("don't default to @copilot for agent-workflow PRs") was byte-identical
+      to `1638a66` (merged via PR #208) — confirmed zero diff before removing
+      the worktree and force-deleting the local branch.
 - [x] `.worktrees/enrich` (branch `worktree-enrich`) — removed. Content
       (self-fix routing, #193) had already landed via PRs #232/#235/#239 and
       #238's PR #242; confirmed zero diff against `main` before removing the
       worktree and force-deleting the local branch (`git branch -D` — it
       wasn't merged to its own stale `origin/worktree-enrich` remote, only to
       `main`, which is what mattered).
-- [ ] `.worktrees/factory-map` (branch `docs/pre-preview-self-fix-enrich-81`) — 2
-      files not on `main` (design/plan docs); its own remote counterpart has
-      diverged heavily from the local branch — needs a closer look before any
-      cleanup decision. Unchanged since last check.
-- [ ] **New**: `.worktrees/new` (branch `worktree-new`) appeared since last
-      check, tip `540c3ca` — matches a commit made *in this session's own
-      worktree* (`worktree-richy`'s TODO.md update), not obviously this
-      worktree's own work. Shows no diff against `main`. Unclear what created
-      it or what it's for — worth checking before assuming it's safe to
-      remove.
+- [x] `.worktrees/factory-map` (branch `docs/pre-preview-self-fix-enrich-81`) —
+      removed. The branch was stale from 2026-07-31: its "unique" files vs.
+      `main` turned out to be pre-forge-agnostic-consolidation `commands/gh/*`
+      and `commands/fj/*` duplicates that `main` deliberately removed (see
+      CHANGELOG's `## Removed` entry for #198/#199), and its one real doc
+      (`docs/superpowers/plans/2026-07-31-pre-preview-self-fix.md`) was
+      byte-identical to what merged via PR #218. No unmerged work found.
+- [ ] `.worktrees/new` (branch `worktree-new`) — this session's own worktree,
+      still in active use for issue #255 dispatch work. Not stale.
