@@ -56,6 +56,7 @@ These have all happened. They are why the rules above exist.
 | Asserting a tool is absent | Stated `put_file` and `list_tree` were unavailable, twice, based on ranked tool-search results rather than a direct lookup. Both existed and had shipped. |
 | Filing a duplicate | Opened `bridge#223` without reading the backlog; `bridge#217` already covered repo file writes. |
 | Inferring a repo's purpose | Concluded `bridge` was "a Go MCP server" from having its MCP tools in context, and flagged its accurate GitHub description as stale. It is a repo picker and agent-session launcher; MCP is one surface of several. The wrong description propagated into two issue bodies and this map. |
+| Trusting a stale tool note | Repeated this file's own "`list_issues` returns titles only" line after the tool had started returning labels and dates. A stale capability note makes the workbench look weaker than it is, and quietly rules out work that is in fact cheap. |
 
 Common thread: **confident claims about state, built on inference rather
 than a tool call.** Shape and judgment work has held up well; state has not.
@@ -64,12 +65,19 @@ moment to challenge it.
 
 ## Tool notes
 
-- `list_issues` returns **titles only** — no bodies, labels or dates.
-  Ranking work from titles alone is how the duplicate above happened.
+- `list_issues` returns titles, labels, milestone and dates — but **not
+  bodies** (verified 2026-08-17). Labels are enough to filter and to see
+  what a ranking ladder actually has to rank on. They are not enough to
+  judge scope or spot a duplicate — read the issue before ranking on
+  substance. That is what the duplicate above turned on.
+- `search_code` is **GitHub-only**. A Forgejo target lands in warnings
+  rather than returning results, so a clean Forgejo search is not evidence
+  of absence.
 - `list_git_forges` reports a per-forge capability list that is **not** a
   complete tool inventory. Do not use it to conclude a tool is missing.
 - `put_file` replaces the whole file and needs the current `sha` on update.
-  Read immediately before writing.
+  Read immediately before writing. A stale `sha` fails the call rather than
+  clobbering, so the check is its own guard.
 - `bridge` has been intermittently unstable — a four-minute hang and a
   total tool dropout in one session. If a call hangs, stop writing: a
   timed-out `put_file` leaves the commit state unknown.
