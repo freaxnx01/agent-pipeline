@@ -260,8 +260,33 @@ extra file reads to orient itself. Replace the issue body with:
    markdown) — for human/reviewer reference only; the implementing agent
    should not need it
 
+**Never compose the new body from an unverified read.** This step prepends the
+*original* description read back in Step 1, so re-fetch it explicitly right before
+composing — `gh issue view $ISSUE --json body -q .body > file` can fail on a
+transient network error (`dial tcp ...: i/o timeout`) while still creating an
+**empty** file. Redirection exits `0`, so nothing looks wrong, and the composed body
+silently loses the original description, screenshots, and notes. Editing then
+destroys them: the previous body is only recoverable from the issue's edit history.
+
+Fetch with a retry, then assert non-empty before composing:
+
 ```bash
-gh issue edit $ISSUE --body "..."
+for i in 1 2 3; do
+  gh issue view $ISSUE --json body -q .body > orig-body.md 2>err.txt \
+    && [ -s orig-body.md ] && break
+  echo "attempt $i failed: $(cat err.txt)"
+done
+[ -s orig-body.md ] || { echo "could not read issue body — aborting"; exit 1; }
+```
+
+Assert on the composed body before writing it: it starts with the original's first
+line, retains every `user-attachments` image reference the original had, and
+contains the `## Acceptance Criteria` heading (plus `## Implementation Plan` /
+`## Spec` as applicable). Prefer `--body-file` over `--body` — a 40 KB inlined plan
+does not belong on a command line.
+
+```bash
+gh issue edit $ISSUE --body-file <composed-body-file>
 ```
 
 **Also clear the readiness labels** — `needs-enrichment` and `❓ to-be-defined`
@@ -491,6 +516,29 @@ git push
 Verify the push succeeded before proceeding.
 
 ### Step 6 — Update the issue body
+
+**Never compose the new body from an unverified read.** `bodyfile.md` prepends the
+*original* description read back in Step 1, so re-fetch it explicitly right before
+composing — a transient network error can leave the fetch command exit non-zero
+while a shell redirect still creates an **empty** file, silently losing the
+original description, screenshots, and notes once the PATCH goes through. Recovery
+afterward is only possible from the issue's edit history.
+
+Fetch with a retry, then assert non-empty before composing:
+
+```bash
+for i in 1 2 3; do
+  tea api --login git-home "repos/$repo/issues/$ISSUE" | jq -r '.body' > orig-body.md \
+    && [ -s orig-body.md ] && break
+  echo "attempt $i failed"
+done
+[ -s orig-body.md ] || { echo "could not read issue body — aborting"; exit 1; }
+```
+
+Assert on the composed `bodyfile.md` before writing it: it starts with the
+original's first line, retains every image/attachment reference the original had,
+and contains the `## Acceptance Criteria` heading (plus `## Spec & Implementation
+Plan` as applicable).
 
 Replace the issue body via API PATCH — use the **typed** field `-F` so it reads the
 file (`-f` would store the literal string `@bodyfile.md`; `tea issues edit` has no
