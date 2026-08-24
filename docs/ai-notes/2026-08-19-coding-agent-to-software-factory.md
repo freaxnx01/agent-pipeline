@@ -1,6 +1,7 @@
 # Coding Agent → Software Factory (external advisor sketch)
 
-Source: ChatGPT thread "Transform Coding Agent", 2026-08-19 (saved HTML, not committed).
+Source: ChatGPT thread "Transform Coding Agent", 2026-08-19. Full transcript alongside in
+`2026-08-19-coding-agent-to-software-factory-transcript.md`.
 Follows on from `docs/ideas.md` entry `2026-07-30-complete-ai-assisted-sdlc-loop`, which
 captured the earlier "SDLC Process Overview" thread. The advisor was given the
 `Create Issues → Enrich → Route → HITL → Test → Feedback → Docs → Release` sketch and asked
