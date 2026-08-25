@@ -32,6 +32,28 @@ as an issue comment with `<N>` replaced by the issue number from `$ARGUMENTS`.
 That file is the single source of truth for both the rule and the two contract
 bodies — do not restate either here.
 
+**On a re-dispatch, check the contract is not stale before relying on it.** The
+contract is a comment, and re-applying `ai-implement` does not re-post it — the
+agent reads whatever comment is already there, however old. When
+`implementation-contract.md` has changed since it was posted, the run silently
+follows superseded instructions.
+
+So before labelling, look for an existing contract comment on the issue:
+
+- **None** → post the chosen variant, as above.
+- **One that matches the variant you would post now** → leave it; say so and move on.
+- **One that differs** → post the current variant as a new comment, opening it with
+  one line naming what it supersedes and why, e.g.
+  `> **Superseding the contract posted at <timestamp>.** It told you to commit but
+  never to push, so a truncated run lost everything.` Do not edit or delete the old
+  comment — the issue's history is how an operator reconstructs which instructions a
+  given run actually followed.
+
+This is not hypothetical. `flowhub#20` was dispatched three times against a contract
+posted before the push-per-task fix landed. The third run implemented six of seven
+tasks, committed each one exactly as that stale contract asked, pushed none of them,
+and produced nothing — the fix had been merged hours earlier and the issue never saw it.
+
 Before posting, print one line naming the variant chosen and the rule that selected
 it, e.g. `contract: docs-only (rule 1 — AC says "no test is added or changed")`, so
 the operator can correct it before the agent picks the issue up.
