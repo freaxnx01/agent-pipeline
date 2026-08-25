@@ -2542,6 +2542,37 @@ ln -s "$ROOT" "$bs_home3/repos/github/freaxnx01/public/agent-workflow"
 bs_ec="$(run_capture_ec env HOME="$bs_home3" bash "$BOOTSTRAP" --no-sync --copy)"
 assert_equals "$bs_ec" "0" "--copy accepted end-to-end"
 
+section "link-commands — installs every scripts/lib helper, not just detect-forge"
+
+# Regression: the installer hardcoded a single LIB_SRC/LIB_DEST pair, so
+# parse-enrich-args.sh shipped in the repo but never reached ~/.claude and
+# /enrich's argument parsing failed with "No such file or directory".
+LINKER="$ROOT/setup/link-commands.sh"
+fake_home="$(mktemp -d)"
+
+HOME="$fake_home" REPO_DIR="$ROOT" bash "$LINKER" --no-sync >/dev/null 2>&1 || true
+
+installed_dir="$fake_home/.claude/scripts/lib"
+for lib in "$ROOT"/scripts/lib/*.sh; do
+  name="$(basename "$lib")"
+  if [[ -f "$installed_dir/$name" ]]; then
+    pass "installed scripts/lib/$name"
+  else
+    fail "installed scripts/lib/$name" "file missing under \$HOME/.claude/scripts/lib"
+  fi
+done
+
+# The two helpers user-level commands actually source must be byte-identical.
+for name in detect-forge.sh parse-enrich-args.sh; do
+  if cmp -s "$ROOT/scripts/lib/$name" "$installed_dir/$name"; then
+    pass "  → $name matches the repo copy byte-for-byte"
+  else
+    fail "  → $name matches the repo copy byte-for-byte" "content differs or file absent"
+  fi
+done
+
+rm -rf "$fake_home"
+
 # --- summary ----------------------------------------------------------------
 
 END_TS="$(date +%s%N 2>/dev/null || date +%s)"

@@ -27,11 +27,13 @@ set -euo pipefail
 
 # Transitional: agent-workflow doesn't exist on GitHub / locally until the
 REPO_URL="https://github.com/freaxnx01/agent-workflow.git"
-REPO_DIR="$HOME/repos/github/freaxnx01/public/agent-workflow"
+# REPO_DIR is overridable purely as a test seam (tests/run-script-tests.sh drives
+# this script against a scratch HOME); normal runs never set it.
+REPO_DIR="${REPO_DIR:-$HOME/repos/github/freaxnx01/public/agent-workflow}"
 SRC_DIR="$REPO_DIR/commands"
 DEST_DIR="$HOME/.claude/commands"
-LIB_SRC="$REPO_DIR/scripts/lib/detect-forge.sh"
-LIB_DEST="$HOME/.claude/scripts/lib/detect-forge.sh"
+LIB_SRC_DIR="$REPO_DIR/scripts/lib"
+LIB_DEST_DIR="$HOME/.claude/scripts/lib"
 MANIFEST="$HOME/.claude/.agent-workflow-commands-manifest"
 
 mode="copy"
@@ -97,15 +99,24 @@ if [ -f "$MANIFEST" ]; then
 fi
 printf '%s\n' "${!current_rels[@]}" | sort > "$MANIFEST"
 
-# 4) Install the shared detect-forge.sh helper the forge-agnostic commands source.
-mkdir -p "$(dirname "$LIB_DEST")"
-if [ "$mode" = "copy" ]; then
-  rm -f "$LIB_DEST"        # dest may be a symlink from a prior install → cp would error
-  cp -f "$LIB_SRC" "$LIB_DEST"
-  echo "  copied  scripts/lib/detect-forge.sh"
-else
-  ln -sfn "$LIB_SRC" "$LIB_DEST"
-  echo "  linked  scripts/lib/detect-forge.sh"
-fi
+# 4) Install the shared shell helpers that commands source (detect-forge.sh,
+#    parse-enrich-args.sh, ...). Installs EVERY *.sh in scripts/lib rather than a
+#    named list: a hardcoded single file is why parse-enrich-args.sh shipped in the
+#    repo but never reached ~/.claude, breaking /enrich's argument parsing. Copying
+#    a helper no command sources is harmless; missing one is not.
+mkdir -p "$LIB_DEST_DIR"
+for lib_src in "$LIB_SRC_DIR"/*.sh; do
+  [ -e "$lib_src" ] || continue    # nullglob is not set; skip the literal pattern
+  lib_name="$(basename "$lib_src")"
+  lib_dest="$LIB_DEST_DIR/$lib_name"
+  if [ "$mode" = "copy" ]; then
+    rm -f "$lib_dest"      # dest may be a symlink from a prior install → cp would error
+    cp -f "$lib_src" "$lib_dest"
+    echo "  copied  scripts/lib/$lib_name"
+  else
+    ln -sfn "$lib_src" "$lib_dest"
+    echo "  linked  scripts/lib/$lib_name"
+  fi
+done
 
 echo "✓ done — agent-workflow console commands installed (e.g. /enrich, /route, /capture-idea)"
