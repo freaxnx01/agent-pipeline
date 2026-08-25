@@ -200,7 +200,12 @@ if [[ -n "$MODEL" || -n "$AGENT" ]]; then
 fi
 CACHE_HIT_PCT="$(pct "$CACHE_READ" "$CACHE_DENOM")"
 
-if [[ "$IS_ERROR" == "true" ]]; then
+# A terminal `subtype` of error_* is authoritative even when is_error is false:
+# the CLI reports `error_max_turns` with `"is_error": false`, so keying off the
+# flag alone drops the one field that names the cause and falls through to the
+# generic no-PR branch below (flowhub#20 run 32883249971 — three dispatches were
+# spent reading raw logs for a reason the result JSON already carried).
+if [[ "$IS_ERROR" == "true" || "$SUBTYPE" == error_* ]]; then
   STATUS_EMOJI=':x:'
   STATUS_TEXT="failed: ${SUBTYPE}"
   STATUS_LABEL='ai:failed'
