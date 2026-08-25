@@ -41,6 +41,19 @@ on:
         description: Hard cap on the implementation job runtime.
         type: number
         default: 30
+      claude-timeout-minutes:
+        description: |
+          Wall-clock cap on the `claude` process itself, distinct from
+          `timeout-minutes` above (which caps the whole job). Without this the
+          action applies its own 10-minute default, so a run can be killed
+          mid-implementation with `exit 124` while max_turns is nowhere near
+          exhausted — the work is committed locally, never pushed, and dies with
+          the runner. Raise it for repos whose test suite is slow enough that a
+          multi-task plan cannot finish in ten minutes (a .NET build plus
+          Testcontainers, say). Keep it below `timeout-minutes`, so the process
+          cap trips first and the job still gets to report a result.
+        type: number
+        default: 10
       max-turns:
         description: |
           Default hard cap on Claude Code tool-use turns for the implement
@@ -515,6 +528,7 @@ jobs:
           prompt_file: ${{ steps.issue.outputs.prompt-file }}
           model: ${{ steps.triage.outputs.model }}
           max_turns: ${{ steps.triage_turns.outputs.turns }}
+          timeout_minutes: ${{ inputs.claude-timeout-minutes }}
           # Headless mode has no human in the loop to approve tool use, so
           # everything Claude needs to implement an issue must be allowlisted
           # up front: code changes, search, repo operations, branch + PR.
