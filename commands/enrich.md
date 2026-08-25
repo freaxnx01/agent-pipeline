@@ -289,6 +289,46 @@ does not belong on a command line.
 gh issue edit $ISSUE --body-file <composed-body-file>
 ```
 
+#### When the plan does not fit — GitHub caps a body at 65,536 characters
+
+A thorough plan for a multi-task feature can exceed this on its own, before the
+description and the AC are added. `gh` rejects the edit outright, so this is a hard
+stop rather than a truncation you can ignore. **Check the size before composing:**
+
+```bash
+python3 -c "import io,sys;print(len(io.open(sys.argv[1],encoding='utf-8').read()))" <plan-file>
+```
+
+If the assembled body would exceed the cap, do **not** silently truncate, and do
+**not** fall back to linking the whole plan — the point of Step 6 is an issue body
+the implementing agent can work from alone. Instead, elide the *fewest, least
+reconstructible* parts:
+
+1. Keep, always: the goal, architecture, Global Constraints, and for every task its
+   **Files**, **Interfaces**, and every step heading. This is the plan's structure
+   and cannot be inferred.
+2. Keep, always: **every code block under a "Write the failing test" step.** The
+   plan is TDD-first, so the failing test is the specification of the task. Note
+   that a naive largest-first heuristic removes exactly these, because test classes
+   are usually the longest blocks in a TDD plan — this rule is what stops that.
+3. Elide first, largest-first: long *mechanical* production listings — pure
+   delegation, adapter boilerplate, a decorator forwarding a wide interface. These
+   are reconstructible from the interface they implement.
+4. Replace each elided block with a visible pointer, never a silent cut:
+
+   ````markdown
+   ```
+   [ full listing in the committed plan file — see the note at the top ]
+   ```
+   ````
+
+5. Put a note at the **top** of the `## Implementation Plan` section saying the body
+   was elided, how large the plan is, what was kept verbatim, and linking the
+   committed plan file as the source of truth.
+
+The structural assertion above still applies to the elided body — check it before
+writing, not after.
+
 **Also clear the readiness labels** — `needs-enrichment` and `❓ to-be-defined`
 mean "not ready yet," and the issue now is. Leaving either on is a silent trap:
 `/gh:implement` treats them as a hard stop regardless of what the body says.
@@ -318,6 +358,8 @@ Print:
 
 - Issue URL
 - Paths to spec and plan files
+- Whether the plan had to be elided to fit the 65,536-character body cap — how many
+  blocks of how many, and confirmation that no test code was cut
 - "Issue is ready — run `/gh:implement $ISSUE` to trigger the agent-workflow."
 
 ---
