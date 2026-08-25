@@ -118,6 +118,10 @@ assert_contains "$out" 'LABELS: ai:failed'              "max-turns → ai:failed
 assert_contains "$out" 'failed: error_max_turns'        "max-turns → distinct subtype"
 assert_contains "$out" '10m 12s'                        "max-turns → minutes+seconds duration"
 
+out="$(render_only result-max-turns-unflagged.json)"
+assert_contains "$out" 'failed: error_max_turns'        "max-turns w/ is_error:false → subtype still surfaced"
+assert_contains "$out" 'LABELS: ai:failed'              "max-turns w/ is_error:false → ai:failed"
+
 out="$(render_only result-low-cache-hit.json)"
 assert_contains "$out" '(27% hit rate)'                 "low-cache-hit → 27% computed"
 assert_contains "$out" 'LABELS: ai:done'                "low-cache-hit → still ai:done (low hit ≠ failure)"
