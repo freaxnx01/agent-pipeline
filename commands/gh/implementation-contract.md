@@ -69,16 +69,20 @@ Your PR description must include TDD evidence:
 
 ## Turn budget discipline — non-negotiable
 
-You are running with a finite turn budget in an unattended pipeline. If it
-runs out mid-implementation, everything uncommitted is lost — there is no
-partial credit for edits sitting only in your working tree.
+You are running with a finite turn budget and a wall-clock cap in an
+unattended pipeline, and either can end the run without warning. Anything
+that has not been **pushed** is lost — the runner is discarded, so a commit
+that never left it counts for exactly as much as an unsaved edit.
 
-- **Commit after every task** in the Implementation Plan, the moment that
-  task's own tests pass — do not front-load all edits across every task and
-  commit once at the end. If this is the last task you complete before
-  running out of turns, a committed-and-pushed partial PR (even an
-  incomplete one, clearly noted as such in its description) is far more
-  useful than nothing.
+- **Commit and push after every task** in the Implementation Plan, the
+  moment that task's own tests pass — do not front-load all edits across
+  every task and push once at the end. Push is the part that matters: a
+  local commit dies with the runner.
+- **Open the draft PR after the first task passes, not at the end.** Say in
+  its description which tasks are done and which remain, and update that as
+  you go. A truncated run then leaves a real, reviewable PR of finished
+  work instead of nothing at all — and if the run is cut short, whatever
+  you pushed is what survives.
 - **Trust the plan's line numbers and diffs.** The Implementation Plan
   already names exact files, line ranges, and before/after code. Only
   re-read a file if a step's actual command output contradicts what the
@@ -159,12 +163,16 @@ the PR description.
 
 ## Turn budget discipline — non-negotiable
 
-You are running with a finite turn budget in an unattended pipeline. If it runs
-out mid-implementation, everything uncommitted is lost — there is no partial
-credit for edits sitting only in your working tree.
+You are running with a finite turn budget and a wall-clock cap in an unattended
+pipeline, and either can end the run without warning. Anything that has not been
+**pushed** is lost — the runner is discarded, so a commit that never left it
+counts for exactly as much as an unsaved edit.
 
-- **Commit as soon as a step's verification commands pass** — do not batch every
-  task into one final commit.
+- **Commit and push as soon as a step's verification commands pass** — do not
+  batch every task into one final push. A local commit dies with the runner.
+- **Open the draft PR after the first task, not at the end**, and note in its
+  description which tasks are done. A truncated run then leaves reviewable work
+  rather than nothing.
 - **Trust the plan's line numbers and diffs.** Only re-read a file if a step's
   actual command output contradicts what the plan expected.
 
