@@ -230,18 +230,56 @@ able to check them out:
 git push
 ```
 
-**Push to the branch the implementing agent will start from — normally `main`.**
-A plain `git push` from a local-only scratch branch (e.g. a long-lived
-`.worktrees/<name>` checkout) publishes nothing the agent can see, and the body's
-paths dangle. From such a worktree, push the branch *at* main explicitly:
+**The spec and plan must reach the branch the implementing agent starts from —
+normally `main`.** A plain `git push` from a local-only scratch branch (e.g. a
+long-lived `.worktrees/<name>` checkout) publishes nothing the agent can see, and
+the body's paths dangle.
+
+**Check whether `main` is protected before deciding how to get them there.** Many
+repos require a PR and passing checks, and pushing straight at `main` bypasses that
+— git reports it after the fact:
+
+```text
+remote: Bypassed rule violations for refs/heads/main:
+remote: - Required status check "build-and-test" is expected.
+```
+
+That is a rule violation whether or not the content is harmless, and a repo's own
+`CLAUDE.md` usually forbids it explicitly. Ask git, don't assume:
+
+```bash
+gh api "repos/{owner}/{repo}/branches/main/protection" >/dev/null 2>&1 \
+  && echo "protected — open a PR" || echo "unprotected — direct push is fine"
+```
+
+**Protected → open a PR** and merge it before Step 6, so the paths in the issue body
+resolve:
+
+```bash
+git fetch origin && git rebase origin/main
+git push -u origin <local-branch>
+gh pr create --base main --title "docs(<scope>): add spec and plan for #<issue>" --body "…"
+# wait for checks, then merge
+gh pr merge <pr> --rebase
+```
+
+**Unprotected → push at main directly**, which is what most personal repos want:
 
 ```bash
 git fetch origin && git rebase origin/main   # main often moved while you were writing
 git push origin <local-branch>:main
-git ls-tree -r --name-only origin/main -- docs | grep <today>   # prove the files landed
 ```
 
-Verify the push succeeded before proceeding.
+Either way, prove the files landed before proceeding:
+
+```bash
+git fetch origin && git ls-tree -r --name-only origin/main -- docs | grep <today>
+```
+
+If a PR is required and you cannot merge it yet, say so and stop before Step 6 —
+an issue body pointing at paths that are not on `main` is worse than no issue body,
+because it reads as complete. Release the lock (see *Releasing early*) so the issue
+is not left blocked.
 
 ### Step 6 — Update the issue body
 
