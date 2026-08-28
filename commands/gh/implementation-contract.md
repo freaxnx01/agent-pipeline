@@ -13,8 +13,19 @@ inspected or pasted by hand.
 
 Apply in order — first match wins:
 
-1. **Explicit statement** in the AC or body — "docs-only", "no test is added or
-   changed", or "no file under `<source dir>` is modified" → **docs-only**.
+1. **Explicit statement** in the AC or body that the change touches **no source
+   at all** — "docs-only", "no test is added or changed", or "no file under
+   `<source dir>` is modified" where `<source dir>` is the repo's whole source
+   tree → **docs-only**.
+
+   Two disqualifiers; either one drops through to the next rule:
+   - The statement is **scoped to one project among several** — e.g. "no file
+     under `source/Foo.Api/` is modified" in a repo that also ships
+     `source/Foo.Client/`. That is a keep-out fence around part of the tree, not
+     a claim that the change is documentation.
+   - Another acceptance criterion **mandates tests** — "the full `dotnet test`
+     suite passes", "new tests cover X". An issue cannot simultaneously be
+     docs-only and require new tests.
 2. **`documentation` label** on the issue → **docs-only**.
 3. **AC file paths** are all documentation-shaped (`docs/**`, `*.md`, `README`,
    `CHANGELOG`) → **docs-only**.
@@ -36,13 +47,22 @@ Apply in order — first match wins:
 5. **Anything else, including ambiguity → code.** Defaulting to TDD is the safe
    direction: a spurious test costs less than a silently untested change.
 
-Three traps worth naming:
+Four traps worth naming:
 
 - In a repo whose *product* is `.md` files (this one — `commands/**/*.md`), rule 3
   correctly yields docs-only, because no test harness can cover them. That is not
   a bug in the rule; don't "fix" it to require a `docs/` prefix.
 - A change under `scripts/**` or `tests/**` **is** code even in a
   CI-automation repo, and takes the code variant.
+- Rule 1's phrase list is a **whole-repo** claim, and a scoped keep-out reads
+  identically at a glance. `BI-ArchiveUploader#308` (hide a login-screen
+  indicator behind a debug flag) carried the AC "No file under
+  `source/BI.ArchivingService.Api/` is modified" — a fence around the backend
+  project in a change that edits `.razor` and `.js` under `source/UploadClient/`
+  and mandates new bUnit tests. Taken literally, rule 1 would have posted the
+  docs-only contract, which forbids touching source and rejects any PR that adds
+  tests — i.e. it would have forbidden the entire issue. The disqualifiers on
+  rule 1 exist to catch that; when in doubt, the test-mandating AC settles it.
 - Rule 5 used to be rule 4, and it silently swallowed buildless repos:
   `game-geography-quiz#18` (a data-only edit to `geo-data.js` in a vanilla-JS
   browser game) fell through to code, whose contract demands "write a failing
