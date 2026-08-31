@@ -120,8 +120,8 @@ For each: number, title, key labels, **milestone + due date**, body length, and 
 reason it's in that bucket. Milestone is **shown, not sorted on** — the buckets
 stay bugs → quick wins → rest. Render an issue with no milestone as
 `no milestone` rather than a blank column, and close with a count of those — they
-are what `/fj:milestone triage` walks. Be concise — this is a reading aid, don't
-start any work.
+are what `/milestone triage` walks — it detects Forgejo the same way this
+command does. Be concise — this is a reading aid, don't start any work.
 
 ## Unknown host
 
