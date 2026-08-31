@@ -32,7 +32,7 @@ Resolving `<name>`:
 
 > Substring resolution here does **not** contradict `/milestone`'s "no fuzzy
 > matching" rule. That rule protects *writes* — assigning or creating against a
-> mis-resolved name corrupts data. `/triage` only reads, an ambiguous argument
+> wrongly resolved name corrupts data. `/triage` only reads, an ambiguous argument
 > never resolves silently, and every row prints its milestone, so a wrong guess
 > is visible immediately rather than persisted.
 
