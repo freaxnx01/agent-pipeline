@@ -64,6 +64,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **triage:** `/triage` now drops parked (`🧊 parked`) and `roadmap`
+  issues in the query itself, and shows each issue's milestone + due date
+  alongside its body length. Milestone is displayed, **not** sorted on — the
+  bugs → quick wins → rest ordering is unchanged, because triage asks what's
+  broken and what's cheap, not when it ships. Body length rides beside the
+  200-char preview so the "short, well-defined" quick-win signal survives
+  truncation. WIP stays deliberately unexcluded: filtering it needs `/issues`'
+  GraphQL timeline query, which would cost `/triage` its single cheap
+  `gh issue list` call. Both the GitHub and Forgejo halves.
 - **partials:** `subagent-driven-default.md` now carves out issue-based
   dispatch — when a plan targets a GitHub issue in a repo with
   agent-workflow's pipeline wired up, default to `/enrich`'s issue-body +
