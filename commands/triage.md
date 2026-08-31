@@ -1,5 +1,6 @@
 ---
-description: Open issues ordered bugs/fixes first, then quick wins — with milestone, minus parked/roadmap
+description: Open issues ordered bugs/fixes first, then quick wins — optionally scoped to one milestone, minus parked/roadmap
+argument-hint: "[<milestone> | pick]"
 ---
 
 Detect the forge, then run the matching section below.
@@ -9,6 +10,35 @@ source "$HOME/.claude/scripts/lib/detect-forge.sh"
 detect_forge
 ```
 
+## Argument — optional milestone scope
+
+The argument is **optional** and chooses which issues to triage:
+
+| Argument | Meaning |
+| --- | --- |
+| *(none)* | Every in-scope issue. The default, unchanged. |
+| `pick` | List the open milestones with their open counts, ask which to triage, then scope to the answer. |
+| `<name>` | Scope to one milestone — exact title, else a **unique** case-insensitive substring. |
+
+Resolving `<name>`:
+
+- An exact title match wins outright.
+- Otherwise match open milestones whose title *contains* the argument,
+  case-insensitively. Exactly one match → use it, and **say which title you
+  resolved to** so a surprising match is visible. Zero matches, or more than
+  one → print the open milestones and ask which, i.e. fall into `pick`.
+- **Never** fall back to "all issues" when a name was given but did not
+  resolve, and **never** create a milestone. Ask instead.
+
+> Substring resolution here does **not** contradict `/milestone`'s "no fuzzy
+> matching" rule. That rule protects *writes* — assigning or creating against a
+> mis-resolved name corrupts data. `/triage` only reads, an ambiguous argument
+> never resolves silently, and every row prints its milestone, so a wrong guess
+> is visible immediately rather than persisted.
+
+When a milestone **is** in scope, skip the closing un-milestoned count — it is
+zero by construction. Say which milestone you scoped to instead.
+
 ## GitHub
 
 Fetch open issues with body, labels, and **milestone**, dropping the ones that
@@ -17,11 +47,21 @@ aren't current work — **not parked** (no `🧊 parked` label) and **not roadma
 `/parked`. Roadmap issues are planned for a future milestone rather than current
 work; list them with `/roadmap`.
 
+For `pick`, or to resolve an ambiguous `<name>`, list the open milestones first:
+
+```bash
+repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+gh api "repos/$repo/milestones?state=open&sort=due_on&direction=asc&per_page=100" \
+  --jq '.[] | [.title, (.due_on // "-"), .open_issues] | @tsv'
+```
+
 Do the exclusion **in the query, not by eye** — a `--jq` filter can't be skipped,
-a prose instruction can:
+a prose instruction can. Add `--milestone "<title>"` when one is in scope; drop
+that flag entirely when it is not:
 
 ```bash
 gh issue list --state open --limit 100 \
+  --milestone "<resolved title>" \
   --json number,title,labels,body,createdAt,milestone \
   --jq 'map(select([.labels[].name] | index("🧊 parked") | not))
     | map(select([.labels[].name] | index("roadmap") | not))
@@ -35,6 +75,11 @@ gh issue list --state open --limit 100 \
         ((.body // "") | gsub("\n"; " ") | .[0:200])
       ] | @tsv'
 ```
+
+`--milestone` filters **server-side**, so the call stays one cheap request — do
+not fetch everything and discard non-matching milestones in jq instead. It
+filters milestone *membership only*, so the parked/roadmap `--jq` filters above
+stay regardless.
 
 Two field-shape traps: `gh issue list --json labels` yields `[.labels[].name]` —
 **not** `.labels.nodes[].name`, which is the GraphQL shape `/issues` uses — and
@@ -71,6 +116,9 @@ cheap*, not *when does it ship*. Render an issue with no milestone as
 are what `/milestone triage` walks. Be concise — this is a reading aid, don't
 start any work.
 
+My arguments:
+$ARGUMENTS
+
 ## Forgejo
 
 Fetch open issues (with body, labels, and milestone) from the current Forgejo
@@ -98,6 +146,28 @@ for i in json.load(sys.stdin):
           "||", (i.get("body") or "")[:200].replace(chr(10), " "))'
 ```
 
+For `pick`, or to resolve an ambiguous `<name>`, list the open milestones first:
+
+```bash
+tea api --login git-home "repos/$repo/milestones?state=open&limit=50" | python3 -c '
+import sys, json
+for m in sorted(json.load(sys.stdin), key=lambda x: x.get("due_on") or "9999"):
+    print(m["title"], m.get("due_on") or "-", m.get("open_issues", 0), sep="\t")'
+```
+
+To scope the fetch to a resolved milestone, add a title check to the loop
+already shown above, beside the label skip:
+
+```python
+    want = "<resolved title>"          # omit this pair of lines when unscoped
+    if want and (m.get("title") or "") != want: continue
+```
+
+The Forgejo issues API also accepts a `&milestones=<name>` query parameter, which
+would filter server-side like `gh`'s `--milestone`. It is **not used here because
+it has never been verified against a live `tea`** — switch to it once someone
+confirms it, and delete the client-side check.
+
 Forgejo spells the due date `due_on` (snake_case), unlike `gh`'s `dueOn`. As in
 the GitHub half, the body is a 200-char preview and its **full length is its own
 column** — that is the "short and well-defined" signal for bucket 2, not the
@@ -122,6 +192,9 @@ stay bugs → quick wins → rest. Render an issue with no milestone as
 `no milestone` rather than a blank column, and close with a count of those — they
 are what `/milestone triage` walks — it detects Forgejo the same way this
 command does. Be concise — this is a reading aid, don't start any work.
+
+My arguments:
+$ARGUMENTS
 
 ## Unknown host
 

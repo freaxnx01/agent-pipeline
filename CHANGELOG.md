@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **triage:** `/triage` takes an optional milestone argument — `/triage <name>`
+  scopes the list to one milestone (exact title, else a unique case-insensitive
+  substring), and `/triage pick` lists the open milestones with their counts and
+  asks which. A bare `/triage` is unchanged and still lists every in-scope issue.
+  An argument that matches nothing, or more than one milestone, never resolves
+  silently and never falls back to "all issues" — it asks. On GitHub the scope is
+  `gh issue list --milestone`, filtered server-side so the call stays one cheap
+  request; the Forgejo half filters client-side because its `&milestones=` query
+  parameter has not been verified against a live `tea`.
 - **enrich:** `--quick` flag for non-interactive enrichment — suppress all
   clarifying questions and the user approval gate (except on [one-way
   doors](docs/glossary.md#one-way-door)), record all unaided decisions in an
