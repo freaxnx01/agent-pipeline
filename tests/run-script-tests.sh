@@ -2143,6 +2143,15 @@ assert_contains "$log" 'label create ai:review-blocked --repo owner/repo' "creat
 # Coordination label (read/written by /enrich's concurrency lock)
 assert_contains "$log" 'label create enrichment-ongoing --repo owner/repo' "creates enrichment-ongoing"
 
+# Turn-budget override labels (read by classify-turns.sh stage 1). Without
+# these the documented override is unusable in a fresh repo: `gh issue edit
+# --add-label turns:160` fails outright on a label that does not exist, so
+# the only way to reach a bigger budget is the heuristic. Found on #280.
+assert_contains "$log" 'label create turns:50 --repo owner/repo'  "creates turns:50"
+assert_contains "$log" 'label create turns:80 --repo owner/repo'  "creates turns:80"
+assert_contains "$log" 'label create turns:120 --repo owner/repo' "creates turns:120"
+assert_contains "$log" 'label create turns:160 --repo owner/repo' "creates turns:160"
+
 ec="$(run_capture_ec env bash "$ROOT/scripts/ensure-issue-labels.sh")"
 assert_equals "$ec" "2" "missing REPO → exit 2"
 
