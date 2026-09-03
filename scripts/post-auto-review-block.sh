@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# post-auto-review-block.sh — Surface that the auto-review path refused
+# post-auto-review-block.sh — Surface that a review path refused
 # to promote the PR and stamp the originating issue with
-# `ai:review-blocked`. Called from the `auto_review` job in
+# `ai:review-blocked`. Called from the `ai_review_ai_merge` job in
 # agent-implement.yml on every refusal path:
 #
 #   - self-modification guard fired (ADR-002 §"Self-modification")
@@ -71,7 +71,7 @@ esac
 if [[ "$SELF_MOD_BLOCKED" == 'true' ]]; then
   reason='self-modification guard (ADR-002) refused promotion on agent-workflow itself'
 elif [[ "$FOUND" != 'true' ]]; then
-  reason='auto-review could not find a pipeline-opened draft PR for this issue (expected "Closes #N" in PR body from an allowlisted author)'
+  reason='the review job could not find a pipeline-opened draft PR for this issue (expected "Closes #N" in PR body from an allowlisted author)'
 elif [[ "$VERDICT" != 'approve' ]]; then
   if [[ "$SELF_FIX_ITERATIONS" != '0' ]]; then
     reason="self-fix exhausted after ${SELF_FIX_ITERATIONS}/${SELF_FIX_MAX} iteration(s) — last verdict: ${VERDICT:-<none>}"
@@ -84,7 +84,7 @@ else
   reason="merge-envelope failed: ${ENVELOPE_REASON:-unknown}${gate_note}"
 fi
 
-printf 'auto-review: %s\n' "$reason"
+printf 'review: %s\n' "$reason"
 
 if [[ -n "$PR_NUMBER" ]]; then
   gh pr comment "$PR_NUMBER" --repo "$REPO" \
@@ -99,7 +99,7 @@ fi
 # `always() && !dry-run`, so the label usually exists by the time we
 # get here. Belt-and-suspenders: idempotently create it first so a
 # manually-deleted label, or a future refactor that splits implement
-# and auto_review across separate workflows, doesn't break the
+# and ai_review_ai_merge across separate workflows, doesn't break the
 # `--add-label` call.
 gh label create ai:review-blocked --repo "$REPO" --color D73A4A \
   --description 'Auto-review left the PR draft; human action required' \

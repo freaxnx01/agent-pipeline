@@ -25,7 +25,7 @@
 #                outright on a label that does not exist, so the documented
 #                override is unusable until these are created
 #   outcome    ai:review-blocked
-#              — written by the auto-review job (ADR-002, epic #3) when
+#              — written by either review job (ADR-002, epic #3) when
 #                the safety envelope or verdict leaves the PR draft
 #   coordination enrichment-ongoing
 #              — read/written by /enrich (Step 1.5 / 2.5 / 6) to prevent two
