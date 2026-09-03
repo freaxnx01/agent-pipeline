@@ -51,7 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `default-model` come from different families (either direction).
   **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
   run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
-  the old behaviour.
+  the old behaviour. agent-workflow's own `agent.yml` dogfoods the new defaults
+  and now forwards `OPENROUTER_API_KEY` to the reusable workflow — without that
+  forwarding the credential guard silently keeps every run on Claude.
 
 - **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
   to Claude (`escalate-on-retry`, default true; `escalate-model`, default
@@ -151,7 +153,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `default-model` come from different families (either direction).
   **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
   run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
-  the old behaviour.
+  the old behaviour. agent-workflow's own `agent.yml` dogfoods the new defaults
+  and now forwards `OPENROUTER_API_KEY` to the reusable workflow — without that
+  forwarding the credential guard silently keeps every run on Claude.
 
 - **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
   to Claude (`escalate-on-retry`, default true; `escalate-model`, default
@@ -282,7 +286,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `default-model` come from different families (either direction).
   **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
   run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
-  the old behaviour.
+  the old behaviour. agent-workflow's own `agent.yml` dogfoods the new defaults
+  and now forwards `OPENROUTER_API_KEY` to the reusable workflow — without that
+  forwarding the credential guard silently keeps every run on Claude.
 
 - **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
   to Claude (`escalate-on-retry`, default true; `escalate-model`, default
@@ -318,7 +324,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `default-model` come from different families (either direction).
   **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
   run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
-  the old behaviour.
+  the old behaviour. agent-workflow's own `agent.yml` dogfoods the new defaults
+  and now forwards `OPENROUTER_API_KEY` to the reusable workflow — without that
+  forwarding the credential guard silently keeps every run on Claude.
 
 - **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
   to Claude (`escalate-on-retry`, default true; `escalate-model`, default
@@ -367,7 +375,9 @@ do not load twice. No manual edit of `~/.claude/CLAUDE.md` is needed.
   `default-model` come from different families (either direction).
   **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
   run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
-  the old behaviour.
+  the old behaviour. agent-workflow's own `agent.yml` dogfoods the new defaults
+  and now forwards `OPENROUTER_API_KEY` to the reusable workflow — without that
+  forwarding the credential guard silently keeps every run on Claude.
 
 - **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
   to Claude (`escalate-on-retry`, default true; `escalate-model`, default
@@ -405,7 +415,9 @@ Merged into this release ahead of the #133 consolidation:
   `default-model` come from different families (either direction).
   **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
   run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
-  the old behaviour.
+  the old behaviour. agent-workflow's own `agent.yml` dogfoods the new defaults
+  and now forwards `OPENROUTER_API_KEY` to the reusable workflow — without that
+  forwarding the credential guard silently keeps every run on Claude.
 
 - **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
   to Claude (`escalate-on-retry`, default true; `escalate-model`, default
@@ -461,7 +473,9 @@ working the moment any repo claims the old name. Update at your convenience.
   `default-model` come from different families (either direction).
   **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
   run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
-  the old behaviour.
+  the old behaviour. agent-workflow's own `agent.yml` dogfoods the new defaults
+  and now forwards `OPENROUTER_API_KEY` to the reusable workflow — without that
+  forwarding the credential guard silently keeps every run on Claude.
 
 - **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
   to Claude (`escalate-on-retry`, default true; `escalate-model`, default
