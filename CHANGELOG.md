@@ -20,6 +20,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **issues:** `/issues` takes an optional milestone argument, matching
+  `/triage`'s — `/issues <name>` scopes the list to one milestone (exact title,
+  else a unique case-insensitive substring), and `/issues pick` lists the open
+  milestones with their counts and asks which. A bare `/issues` is unchanged and
+  still lists every in-scope issue repo-wide. An argument that matches nothing,
+  or more than one milestone, never resolves silently and never falls back to
+  "all issues" — it asks. Rows now carry the milestone and its due date, which is
+  what makes a wrongly resolved substring visible. On GitHub the scope is a
+  server-side `filterBy:{milestoneNumber:}` on the existing GraphQL query — it
+  takes the milestone *number*, not its title, so the REST milestones lookup runs
+  even for an exact title, and passing the variable **empty** returns zero issues
+  rather than all of them; the Forgejo half filters client-side for the same
+  unverified-`&milestones=` reason as `/triage` (#289).
+- **triage:** `/triage` takes an optional milestone argument — `/triage <name>`
+  scopes the list to one milestone (exact title, else a unique case-insensitive
+  substring), and `/triage pick` lists the open milestones with their counts and
+  asks which. A bare `/triage` is unchanged and still lists every in-scope issue.
+  An argument that matches nothing, or more than one milestone, never resolves
+  silently and never falls back to "all issues" — it asks. On GitHub the scope is
+  `gh issue list --milestone`, filtered server-side so the call stays one cheap
+  request; the Forgejo half filters client-side because its `&milestones=` query
+  parameter has not been verified against a live `tea`.
 - **enrich:** `--quick` flag for non-interactive enrichment — suppress all
   clarifying questions and the user approval gate (except on [one-way
   doors](docs/glossary.md#one-way-door)), record all unaided decisions in an
@@ -64,6 +86,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **triage:** `/triage` now drops parked (`🧊 parked`) and `roadmap`
+  issues in the query itself, and shows each issue's milestone + due date
+  alongside its body length. Milestone is displayed, **not** sorted on — the
+  bugs → quick wins → rest ordering is unchanged, because triage asks what's
+  broken and what's cheap, not when it ships. Body length rides beside the
+  200-char preview so the "short, well-defined" quick-win signal survives
+  truncation. WIP stays deliberately unexcluded: filtering it needs `/issues`'
+  GraphQL timeline query, which would cost `/triage` its single cheap
+  `gh issue list` call. Both the GitHub and Forgejo halves.
 - **partials:** `subagent-driven-default.md` now carves out issue-based
   dispatch — when a plan targets a GitHub issue in a repo with
   agent-workflow's pipeline wired up, default to `/enrich`'s issue-body +

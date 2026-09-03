@@ -487,6 +487,30 @@ out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY='Add a hel
        DEFAULT_MAX_TURNS=30 bash "$CLASSIFY_TURNS")"
 assert_contains "$out" 'chosen: 30 (heuristic: no Implementation Plan section found)' "DEFAULT_MAX_TURNS env override applied"
 
+# Regression (#280): a LARGE body must classify by its plan, EVERY time.
+# `printf "$ISSUE_BODY" | grep -q` lets grep exit on the first match while
+# printf is still writing; printf then dies of SIGPIPE (silently on some
+# hosts, "write error: Broken pipe" on others) and pipefail turns a
+# successful match into a false condition -- silently downgrading a
+# 160-turn plan to the 50-turn default. Lost ~42% of the time on the real
+# 57KB body from #280, which is what this fixture is. One run proves
+# nothing; assert over repeated runs.
+big_body="$(cat "$FIXTURES/issue-body-large-plan.md")"
+turns_stable=true
+turns_got=''
+for _i in $(seq 1 25); do
+  turns_got="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' ISSUE_BODY="$big_body" bash "$CLASSIFY_TURNS")"
+  if [[ "$turns_got" != *'chosen: 160 (heuristic: 8 plan tasks)'* ]]; then
+    turns_stable=false
+    break
+  fi
+done
+if [[ "$turns_stable" == true ]]; then
+  pass "57KB enriched body → 160 on all 25 runs (no SIGPIPE race)"
+else
+  fail "57KB enriched body → 160 on all 25 runs (no SIGPIPE race)" "got: $turns_got"
+fi
+
 # Missing ISSUE_NUMBER → exit 2
 ec="$(run_capture_ec env REPO=o/r bash "$CLASSIFY_TURNS")"
 assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
@@ -2142,6 +2166,15 @@ assert_contains "$log" 'label create ai:review-blocked --repo owner/repo' "creat
 
 # Coordination label (read/written by /enrich's concurrency lock)
 assert_contains "$log" 'label create enrichment-ongoing --repo owner/repo' "creates enrichment-ongoing"
+
+# Turn-budget override labels (read by classify-turns.sh stage 1). Without
+# these the documented override is unusable in a fresh repo: `gh issue edit
+# --add-label turns:160` fails outright on a label that does not exist, so
+# the only way to reach a bigger budget is the heuristic. Found on #280.
+assert_contains "$log" 'label create turns:50 --repo owner/repo'  "creates turns:50"
+assert_contains "$log" 'label create turns:80 --repo owner/repo'  "creates turns:80"
+assert_contains "$log" 'label create turns:120 --repo owner/repo' "creates turns:120"
+assert_contains "$log" 'label create turns:160 --repo owner/repo' "creates turns:160"
 
 ec="$(run_capture_ec env bash "$ROOT/scripts/ensure-issue-labels.sh")"
 assert_equals "$ec" "2" "missing REPO → exit 2"

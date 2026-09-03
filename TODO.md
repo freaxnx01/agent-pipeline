@@ -1,5 +1,19 @@
 # TODO
 
+## Re-enable GitHub Copilot Coding Agent once access is restored (disabled 2026-09-01, PR #282)
+
+- [ ] Copilot access was revoked on this account, so `/gh:assign`, `/gh:review`,
+      and `/route` were changed to route to Claude only (PR #282, commit
+      `732d204`). Once access is restored, restore the pre-2026-09-01 versions of:
+      - `commands/gh/assign.md` — the `copilot`/`claude` case branch in
+        "Resolve the actor and assign", and the "Agent default" section.
+      - `commands/gh/review.md` — the `@copilot` nudge logic and "Learned
+        default — prefer `@copilot`" section in "Triggering the owning agent".
+      - `commands/route.md` — the Copilot row and "Stack fit" criterion in the
+        GitHub routing table, and the rule-of-thumb line.
+      Each disabled section carries a one-line "see git history" pointer at
+      the exact spot to revert.
+
 ## Pipeline flake: `ensure-toolchain.sh` apt install hang (discovered 2026-08-17, issue #255 dispatch)
 
 - [ ] `agent-implement-test`'s "stub rate-limit (retry path)" matrix job hung on
