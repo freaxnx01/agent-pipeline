@@ -2357,6 +2357,54 @@ assert_contains "$out" 'recovered=false'   "  → not counted as recovered (it p
 ec="$(run_capture_ec env REPO=o/r IS_ERROR=false bash "$VERIFY")"
 assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
 
+# --- salvage: run finished cleanly but never committed ----------------------
+#
+# The single largest observed failure mode ("run completed but no PR was
+# opened", 24 of 48 failures across the fleet) is a run that did real work and
+# left it uncommitted in the workspace. Recovery used to bail because the branch
+# had nothing pushed, discarding the work. Salvage commits and pushes it so the
+# run ends in a reviewable draft PR instead of a silent loss.
+#
+# SALVAGE_APPLY=0 is the test seam: it skips the git add/commit/push writes but
+# still exercises the decision path and the gh pr create call.
+
+out="$(verify_run env ISSUE_NUMBER=42 REPO=o/r IS_ERROR=false DEFAULT_BRANCH=main \
+        PIPELINE_PRS_JSON='[]' BRANCH=main BRANCH_REMOTE_EXISTS=true BRANCH_AHEAD=true \
+        WORKTREE_DIRTY=true SALVAGE_APPLY=0)"
+assert_contains "$out" 'pr create'        "dirty worktree + no usable branch → salvage opens a PR"
+assert_contains "$out" 'pr-present=true'  "salvage → pr-present=true"
+assert_contains "$out" 'salvaged=true'    "salvage → salvaged=true"
+assert_contains "$out" 'Closes #42'       "salvage PR body closes the issue"
+assert_contains "$out" 'salvage/issue-42' "salvage pushes a dedicated salvage branch"
+
+# Branch exists but has no commits pushed — same salvage path.
+out="$(verify_run env ISSUE_NUMBER=42 REPO=o/r IS_ERROR=false DEFAULT_BRANCH=main \
+        PIPELINE_PRS_JSON='[]' BRANCH=ai/issue-42 BRANCH_REMOTE_EXISTS=true BRANCH_AHEAD=false \
+        WORKTREE_DIRTY=true SALVAGE_APPLY=0)"
+assert_contains "$out" 'salvaged=true'    "branch with no commits + dirty tree → salvaged"
+
+# Clean worktree → nothing to salvage, previous behaviour preserved.
+out="$(verify_run env ISSUE_NUMBER=42 REPO=o/r IS_ERROR=false DEFAULT_BRANCH=main \
+        PIPELINE_PRS_JSON='[]' BRANCH=main BRANCH_REMOTE_EXISTS=true BRANCH_AHEAD=true \
+        WORKTREE_DIRTY=false SALVAGE_APPLY=0)"
+assert_contains "$out" 'pr-present=false'  "clean worktree → no salvage"
+assert_contains "$out" 'salvaged=false'    "clean worktree → salvaged=false"
+assert_not_contains "$out" 'pr create'     "clean worktree → never calls gh pr create"
+
+# A genuine agent error is still owned by the existing handling — salvage is
+# scoped to the clean-exit-but-no-PR case it was measured against.
+out="$(verify_run env ISSUE_NUMBER=42 REPO=o/r IS_ERROR=true DEFAULT_BRANCH=main \
+        PIPELINE_PRS_JSON='[]' WORKTREE_DIRTY=true SALVAGE_APPLY=0)"
+assert_contains "$out" 'salvaged=false'    "IS_ERROR=true → no salvage"
+assert_not_contains "$out" 'pr create'     "IS_ERROR=true → never calls gh pr create"
+
+# Normal recovery (branch pushed and ahead) is not reported as a salvage.
+out="$(verify_run env ISSUE_NUMBER=42 REPO=o/r IS_ERROR=false DEFAULT_BRANCH=main \
+        PIPELINE_PRS_JSON='[]' BRANCH=ai/issue-42 BRANCH_REMOTE_EXISTS=true BRANCH_AHEAD=true \
+        WORKTREE_DIRTY=true SALVAGE_APPLY=0)"
+assert_contains "$out" 'recovered=true'    "pushed branch → ordinary recovery"
+assert_contains "$out" 'salvaged=false'    "pushed branch → not a salvage"
+
 # --- setup/link-partials.sh -------------------------------------------------
 
 section "setup/link-partials.sh"
