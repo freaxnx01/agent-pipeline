@@ -24,11 +24,11 @@
 #   ENVELOPE          Envelope outcome (empty if envelope step was skipped).
 #   ENVELOPE_REASON   Human reason from check-merge-envelope.sh.
 #   FAILED_GATES      Comma-separated gate IDs from check-merge-envelope.sh.
-#   MODE              Operational mode (default: auto-review).
-#                     "pre-preview" switches the comment prefix to "Pre-review held"
+#   MODE              Operational mode (default: ai-merge).
+#                     "human-merge" switches the comment prefix to "Review held"
 #                     instead of "Auto-merge held" / "Auto-review held".
-#   SELF_FIX_ITERATIONS  Iterations the pre-preview self-fix loop actually
-#                        used (#81). "0" or unset → unchanged wording.
+#   SELF_FIX_ITERATIONS  Iterations the self-fix loop actually used (#81).
+#                        "0" or unset → unchanged wording.
 #   SELF_FIX_MAX         The self-fix iteration cap, for the "exhausted"
 #                        wording. Only read when SELF_FIX_ITERATIONS != "0".
 #
@@ -54,13 +54,13 @@ ENVELOPE_REASON="${ENVELOPE_REASON:-}"
 FAILED_GATES="${FAILED_GATES:-}"
 SELF_FIX_ITERATIONS="${SELF_FIX_ITERATIONS:-0}"
 SELF_FIX_MAX="${SELF_FIX_MAX:-}"
-MODE="${MODE:-auto-review}"
+MODE="${MODE:-ai-merge}"
 
 # Comment-prefix wording differs by mode; reason text is identical.
 case "$MODE" in
-  pre-preview)
-    pr_prefix='Pre-review held'
-    issue_prefix='Pre-review held'
+  human-merge)
+    pr_prefix='Review held'
+    issue_prefix='Review held'
     ;;
   *)
     pr_prefix='Auto-merge held'

@@ -1144,21 +1144,21 @@ VERDICT=request_changes \
 calls="$(cat "$LOG")"; rm -f "$LOG"
 assert_contains "$calls" 'agent review verdict: request_changes (gate 4)' "non-approve verdict → names gate 4"
 
-# MODE=pre-preview → comment prefix is "Pre-review held", not "Auto-merge held"
+# MODE=human-merge → comment prefix is "Review held", not "Auto-merge held"
 LOG="$(mktemp)"
 PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
 REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true \
-VERDICT=block MODE=pre-preview \
+VERDICT=block MODE=human-merge \
   bash "$POST_BLOCK" >/dev/null
 calls="$(cat "$LOG")"; rm -f "$LOG"
-assert_contains     "$calls" 'pr comment 100 --repo o/r --body Pre-review held: agent review verdict: block (gate 4)' "MODE=pre-preview → 'Pre-review held' PR comment"
-assert_not_contains "$calls" 'Auto-merge held'                                                                        "MODE=pre-preview → no 'Auto-merge held' wording"
+assert_contains     "$calls" 'pr comment 100 --repo o/r --body Review held: agent review verdict: block (gate 4)' "MODE=human-merge → 'Review held' PR comment"
+assert_not_contains "$calls" 'Auto-merge held'                                                                    "MODE=human-merge → no 'Auto-merge held' wording"
 
 # SELF_FIX_ITERATIONS > 0 → distinct "self-fix exhausted" wording
 LOG="$(mktemp)"
 PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
 REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true \
-VERDICT=request_changes MODE=pre-preview \
+VERDICT=request_changes MODE=human-merge \
 SELF_FIX_ITERATIONS=2 SELF_FIX_MAX=2 \
   bash "$POST_BLOCK" >/dev/null
 calls="$(cat "$LOG")"; rm -f "$LOG"
@@ -1169,7 +1169,7 @@ assert_not_contains "$calls" 'agent review verdict: request_changes (gate 4)'   
 LOG="$(mktemp)"
 PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
 REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true \
-VERDICT=block MODE=pre-preview \
+VERDICT=block MODE=human-merge \
   bash "$POST_BLOCK" >/dev/null
 calls="$(cat "$LOG")"; rm -f "$LOG"
 assert_contains "$calls" 'agent review verdict: block (gate 4)' "SELF_FIX_ITERATIONS unset → plain wording unchanged"
@@ -1185,6 +1185,31 @@ FAILED_GATES=6 \
 calls="$(cat "$LOG")"; rm -f "$LOG"
 assert_contains "$calls" 'merge-envelope failed: path envelope' "envelope-fail reason surfaced"
 assert_contains "$calls" 'failed gates: 6'                      "failed-gate IDs in comment"
+
+# MODE=human-merge → "Review held" prefix on the PR comment
+LOG="$(mktemp)"
+PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
+REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true VERDICT=block MODE=human-merge \
+  bash "$POST_BLOCK" >/dev/null
+calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_contains "$calls" 'pr comment 100 --repo o/r --body Review held:' "MODE=human-merge → 'Review held' prefix"
+assert_not_contains "$calls" 'Pre-review held' "MODE=human-merge → no stale 'Pre-review held'"
+
+# MODE=ai-merge (explicit) → auto-merge wording
+LOG="$(mktemp)"
+PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
+REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true VERDICT=block MODE=ai-merge \
+  bash "$POST_BLOCK" >/dev/null
+calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_contains "$calls" 'pr comment 100 --repo o/r --body Auto-merge held:' "MODE=ai-merge → 'Auto-merge held' prefix"
+
+# Unset MODE → same as ai-merge (default unchanged for callers mid-migration)
+LOG="$(mktemp)"
+PATH="$MOCKS:$PATH" GH_MOCK_LOG="$LOG" \
+REPO=o/r ISSUE_NUMBER=42 PR_NUMBER=100 FOUND=true VERDICT=block \
+  bash "$POST_BLOCK" >/dev/null
+calls="$(cat "$LOG")"; rm -f "$LOG"
+assert_contains "$calls" 'pr comment 100 --repo o/r --body Auto-merge held:' "unset MODE defaults to ai-merge wording"
 
 # Error path
 ec="$(run_capture_ec env REPO=o/r bash "$POST_BLOCK")"
@@ -2211,11 +2236,13 @@ assert_contains "$log" 'label create ctx:high --repo owner/repo'   "creates ctx:
 assert_contains "$log" 'label create agent:claude --repo owner/repo'   "creates agent:claude"
 assert_contains "$log" 'label create agent:opencode --repo owner/repo' "creates agent:opencode"
 
-# Gate labels (auto-review epic #3, chaining epic #4)
-assert_contains "$log" 'label create ai-auto-review --repo owner/repo'  "creates ai-auto-review"
-assert_contains "$log" 'label create ai-pre-preview --repo owner/repo'  "creates ai-pre-preview"
+# Gate labels (review flows ADR-002/ADR-004, named by ADR-009; chaining epic #4)
+assert_contains "$log" 'label create ai-review-ai-merge --repo owner/repo'    "creates ai-review-ai-merge"
+assert_contains "$log" 'label create ai-review-human-merge --repo owner/repo' "creates ai-review-human-merge"
 assert_contains "$log" 'label create ai-chain --repo owner/repo'        "creates ai-chain"
 assert_contains "$log" 'label create ai:chain-paused --repo owner/repo' "creates ai:chain-paused"
+assert_not_contains "$log" 'label create ai-auto-review'  "does not create deprecated ai-auto-review"
+assert_not_contains "$log" 'label create ai-pre-preview'  "does not create deprecated ai-pre-preview"
 
 # Outcome label (auto-review epic #3 — ADR-002 §2)
 assert_contains "$log" 'label create ai:review-blocked --repo owner/repo' "creates ai:review-blocked"
