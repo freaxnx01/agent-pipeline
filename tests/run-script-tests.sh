@@ -596,76 +596,132 @@ assert_equals "$ec" "2" "missing OUTPUT_FILE → exit 2"
 
 rm -f "$OC_AUTH_OUT"
 
-section "check-auto-review-gate — input + label combinations"
+section "check-ai-merge-gate — input + label combinations"
 
-GATE="$ROOT/scripts/check-auto-review-gate.sh"
+AGATE="$ROOT/scripts/check-ai-merge-gate.sh"
 
 # Both off → disabled
-out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AUTO_REVIEW=false ISSUE_LABELS='ai-implement' bash "$GATE")"
-assert_contains "$out" 'enabled=false (workflow input auto-review=false)' "input=false, no label → disabled"
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_AI_MERGE=false ISSUE_LABELS='ai-implement' bash "$AGATE")"
+assert_contains "$out" 'enabled=false (workflow input ai-review-ai-merge=false)' "input=false, no label → disabled"
 
 # Label only → still disabled (input gate not satisfied)
-out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AUTO_REVIEW=false ISSUE_LABELS=$'ai-implement\nai-auto-review' bash "$GATE")"
-assert_contains "$out" 'enabled=false (workflow input auto-review=false)' "input=false, label set → disabled (input wins)"
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_AI_MERGE=false ISSUE_LABELS=$'ai-implement\nai-review-ai-merge' bash "$AGATE")"
+assert_contains "$out" 'enabled=false (workflow input ai-review-ai-merge=false)' "input=false, label set → disabled (input wins)"
 
 # Input only → disabled (label gate not satisfied)
-out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AUTO_REVIEW=true ISSUE_LABELS='ai-implement' bash "$GATE")"
-assert_contains "$out" 'enabled=false (input=true but label ai-auto-review missing)' "input=true, no label → disabled"
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_AI_MERGE=true ISSUE_LABELS='ai-implement' bash "$AGATE")"
+assert_contains "$out" 'enabled=false (input=true but label ai-review-ai-merge missing)' "input=true, no label → disabled"
 
-# Both on → enabled
-out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AUTO_REVIEW=true ISSUE_LABELS=$'ai-implement\nai-auto-review' bash "$GATE")"
-assert_contains "$out" 'enabled=true (input=true AND label ai-auto-review present)' "input=true, label set → enabled"
+# Both new → enabled, no deprecation warning
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_AI_MERGE=true ISSUE_LABELS=$'ai-implement\nai-review-ai-merge' bash "$AGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-review-ai-merge present)' "new input + new label → enabled"
+assert_not_contains "$out" '::warning::' "new input + new label → no deprecation warning"
 
-# Default INPUT_AUTO_REVIEW (unset) → disabled
-out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-auto-review' bash "$GATE")"
-assert_contains "$out" 'enabled=false (workflow input auto-review=false)' "unset INPUT_AUTO_REVIEW defaults to false"
+# Deprecated input + deprecated label → enabled, two warnings
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AUTO_REVIEW=true ISSUE_LABELS=$'ai-implement\nai-auto-review' bash "$AGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-auto-review present)' "deprecated input + deprecated label → enabled"
+assert_contains "$out" "::warning::workflow input 'auto-review' is deprecated; rename it to 'ai-review-ai-merge' (removed in v3)" "deprecated input → warning"
+assert_contains "$out" "::warning::issue label 'ai-auto-review' is deprecated; relabel it to 'ai-review-ai-merge' (removed in v3)" "deprecated label → warning"
 
-# Invalid INPUT_AUTO_REVIEW → exit 2
-ec="$(run_capture_ec env ISSUE_NUMBER=1 REPO=o/r INPUT_AUTO_REVIEW=yes ISSUE_LABELS='' bash "$GATE")"
+# New input + deprecated label → enabled, label warning only
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_AI_MERGE=true ISSUE_LABELS=$'ai-implement\nai-auto-review' bash "$AGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-auto-review present)' "new input + deprecated label → enabled"
+assert_not_contains "$out" "workflow input 'auto-review' is deprecated" "new input + deprecated label → no input warning"
+assert_contains "$out" "::warning::issue label 'ai-auto-review' is deprecated" "new input + deprecated label → label warning"
+
+# Deprecated input + new label → enabled, input warning only
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AUTO_REVIEW=true ISSUE_LABELS=$'ai-implement\nai-review-ai-merge' bash "$AGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-review-ai-merge present)' "deprecated input + new label → enabled"
+assert_contains "$out" "::warning::workflow input 'auto-review' is deprecated" "deprecated input + new label → input warning"
+assert_not_contains "$out" "issue label 'ai-auto-review' is deprecated" "deprecated input + new label → no label warning"
+
+# Both labels present → new label wins the reason text, no label warning
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_AI_MERGE=true ISSUE_LABELS=$'ai-review-ai-merge\nai-auto-review' bash "$AGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-review-ai-merge present)' "both labels → new label wins"
+assert_not_contains "$out" "issue label 'ai-auto-review' is deprecated" "both labels → no label warning"
+
+# Both inputs unset → disabled
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-review-ai-merge' bash "$AGATE")"
+assert_contains "$out" 'enabled=false (workflow input ai-review-ai-merge=false)' "unset inputs default to false"
+
+# Invalid new input → exit 2
+ec="$(run_capture_ec env ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_AI_MERGE=yes ISSUE_LABELS='' bash "$AGATE")"
+assert_equals "$ec" "2" "invalid INPUT_AI_REVIEW_AI_MERGE → exit 2"
+
+# Invalid deprecated input → exit 2
+ec="$(run_capture_ec env ISSUE_NUMBER=1 REPO=o/r INPUT_AUTO_REVIEW=yes ISSUE_LABELS='' bash "$AGATE")"
 assert_equals "$ec" "2" "invalid INPUT_AUTO_REVIEW → exit 2"
 
 # Missing ISSUE_NUMBER → exit 2
-ec="$(run_capture_ec env REPO=o/r INPUT_AUTO_REVIEW=true bash "$GATE")"
+ec="$(run_capture_ec env REPO=o/r INPUT_AI_REVIEW_AI_MERGE=true bash "$AGATE")"
 assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
 
 # Missing REPO → exit 2
-ec="$(run_capture_ec env ISSUE_NUMBER=1 INPUT_AUTO_REVIEW=true bash "$GATE")"
+ec="$(run_capture_ec env ISSUE_NUMBER=1 INPUT_AI_REVIEW_AI_MERGE=true bash "$AGATE")"
 assert_equals "$ec" "2" "missing REPO → exit 2"
 
-section "check-preview-gate — input + label combinations"
+section "check-human-merge-gate — input + label combinations"
 
-PGATE="$ROOT/scripts/check-preview-gate.sh"
+HGATE="$ROOT/scripts/check-human-merge-gate.sh"
 
 # Both off → disabled
-out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_PRE_PREVIEW=false ISSUE_LABELS='ai-implement' bash "$PGATE")"
-assert_contains "$out" 'enabled=false (workflow input pre-preview=false)' "input=false, no label → disabled"
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_HUMAN_MERGE=false ISSUE_LABELS='ai-implement' bash "$HGATE")"
+assert_contains "$out" 'enabled=false (workflow input ai-review-human-merge=false)' "input=false, no label → disabled"
 
 # Label only → still disabled (input gate not satisfied)
-out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_PRE_PREVIEW=false ISSUE_LABELS=$'ai-implement\nai-pre-preview' bash "$PGATE")"
-assert_contains "$out" 'enabled=false (workflow input pre-preview=false)' "input=false, label set → disabled (input wins)"
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_HUMAN_MERGE=false ISSUE_LABELS=$'ai-implement\nai-review-human-merge' bash "$HGATE")"
+assert_contains "$out" 'enabled=false (workflow input ai-review-human-merge=false)' "input=false, label set → disabled (input wins)"
 
 # Input only → disabled (label gate not satisfied)
-out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_PRE_PREVIEW=true ISSUE_LABELS='ai-implement' bash "$PGATE")"
-assert_contains "$out" 'enabled=false (input=true but label ai-pre-preview missing)' "input=true, no label → disabled"
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_HUMAN_MERGE=true ISSUE_LABELS='ai-implement' bash "$HGATE")"
+assert_contains "$out" 'enabled=false (input=true but label ai-review-human-merge missing)' "input=true, no label → disabled"
 
-# Both on → enabled
-out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_PRE_PREVIEW=true ISSUE_LABELS=$'ai-implement\nai-pre-preview' bash "$PGATE")"
-assert_contains "$out" 'enabled=true (input=true AND label ai-pre-preview present)' "input=true, label set → enabled"
+# Both new → enabled, no deprecation warning
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_HUMAN_MERGE=true ISSUE_LABELS=$'ai-implement\nai-review-human-merge' bash "$HGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-review-human-merge present)' "new input + new label → enabled"
+assert_not_contains "$out" '::warning::' "new input + new label → no deprecation warning"
 
-# Default INPUT_PRE_PREVIEW (unset) → disabled
-out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-pre-preview' bash "$PGATE")"
-assert_contains "$out" 'enabled=false (workflow input pre-preview=false)' "unset INPUT_PRE_PREVIEW defaults to false"
+# Deprecated input + deprecated label → enabled, two warnings
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_PRE_PREVIEW=true ISSUE_LABELS=$'ai-implement\nai-pre-preview' bash "$HGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-pre-preview present)' "deprecated input + deprecated label → enabled"
+assert_contains "$out" "::warning::workflow input 'pre-preview' is deprecated; rename it to 'ai-review-human-merge' (removed in v3)" "deprecated input → warning"
+assert_contains "$out" "::warning::issue label 'ai-pre-preview' is deprecated; relabel it to 'ai-review-human-merge' (removed in v3)" "deprecated label → warning"
 
-# Invalid INPUT_PRE_PREVIEW → exit 2
-ec="$(run_capture_ec env ISSUE_NUMBER=1 REPO=o/r INPUT_PRE_PREVIEW=yes ISSUE_LABELS='' bash "$PGATE")"
+# New input + deprecated label → enabled, label warning only
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_HUMAN_MERGE=true ISSUE_LABELS=$'ai-implement\nai-pre-preview' bash "$HGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-pre-preview present)' "new input + deprecated label → enabled"
+assert_not_contains "$out" "workflow input 'pre-preview' is deprecated" "new input + deprecated label → no input warning"
+assert_contains "$out" "::warning::issue label 'ai-pre-preview' is deprecated" "new input + deprecated label → label warning"
+
+# Deprecated input + new label → enabled, input warning only
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_PRE_PREVIEW=true ISSUE_LABELS=$'ai-implement\nai-review-human-merge' bash "$HGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-review-human-merge present)' "deprecated input + new label → enabled"
+assert_contains "$out" "::warning::workflow input 'pre-preview' is deprecated" "deprecated input + new label → input warning"
+assert_not_contains "$out" "issue label 'ai-pre-preview' is deprecated" "deprecated input + new label → no label warning"
+
+# Both labels present → new label wins the reason text, no label warning
+out="$(ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_HUMAN_MERGE=true ISSUE_LABELS=$'ai-review-human-merge\nai-pre-preview' bash "$HGATE")"
+assert_contains "$out" 'enabled=true (input=true AND label ai-review-human-merge present)' "both labels → new label wins"
+assert_not_contains "$out" "issue label 'ai-pre-preview' is deprecated" "both labels → no label warning"
+
+# Both inputs unset → disabled
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-review-human-merge' bash "$HGATE")"
+assert_contains "$out" 'enabled=false (workflow input ai-review-human-merge=false)' "unset inputs default to false"
+
+# Invalid new input → exit 2
+ec="$(run_capture_ec env ISSUE_NUMBER=1 REPO=o/r INPUT_AI_REVIEW_HUMAN_MERGE=yes ISSUE_LABELS='' bash "$HGATE")"
+assert_equals "$ec" "2" "invalid INPUT_AI_REVIEW_HUMAN_MERGE → exit 2"
+
+# Invalid deprecated input → exit 2
+ec="$(run_capture_ec env ISSUE_NUMBER=1 REPO=o/r INPUT_PRE_PREVIEW=yes ISSUE_LABELS='' bash "$HGATE")"
 assert_equals "$ec" "2" "invalid INPUT_PRE_PREVIEW → exit 2"
 
 # Missing ISSUE_NUMBER → exit 2
-ec="$(run_capture_ec env REPO=o/r INPUT_PRE_PREVIEW=true bash "$PGATE")"
+ec="$(run_capture_ec env REPO=o/r INPUT_AI_REVIEW_HUMAN_MERGE=true bash "$HGATE")"
 assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
 
 # Missing REPO → exit 2
-ec="$(run_capture_ec env ISSUE_NUMBER=1 INPUT_PRE_PREVIEW=true bash "$PGATE")"
+ec="$(run_capture_ec env ISSUE_NUMBER=1 INPUT_AI_REVIEW_HUMAN_MERGE=true bash "$HGATE")"
 assert_equals "$ec" "2" "missing REPO → exit 2"
 
 section "review-prompt — ADR-002 §2.4 auto-block rules present in template"
