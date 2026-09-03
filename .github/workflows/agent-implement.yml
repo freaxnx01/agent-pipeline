@@ -799,7 +799,7 @@ jobs:
     # gates 1/5/6/7 enforced in scripts/check-merge-envelope.sh. Verdict
     # !=approve or any failed gate leaves the PR draft and stamps
     # ai:review-blocked on the originating issue.
-    name: Auto-review PR for issue #${{ inputs.issue-number }}
+    name: AI review, AI merge — PR for issue #${{ inputs.issue-number }}
     needs: implement
     if: |
       (!inputs.stub-claude || inputs.stub-review-verdict != '')
@@ -1142,7 +1142,7 @@ jobs:
     # the flow. Non-approve verdict or a missing PR leaves the PR draft and
     # stamps ai:review-blocked. Mutually exclusive with ai_review_ai_merge via
     # the implement-job gate (human-merge wins when both labels are present).
-    name: Pre-preview PR for issue #${{ inputs.issue-number }}
+    name: AI review, human merge — PR for issue #${{ inputs.issue-number }}
     needs: implement
     if: |
       (!inputs.stub-claude || inputs.stub-review-verdict != '')
