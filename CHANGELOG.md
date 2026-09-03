@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **issues:** `/issues` takes an optional milestone argument, matching
+  `/triage`'s — `/issues <name>` scopes the list to one milestone (exact title,
+  else a unique case-insensitive substring), and `/issues pick` lists the open
+  milestones with their counts and asks which. A bare `/issues` is unchanged and
+  still lists every in-scope issue repo-wide. An argument that matches nothing,
+  or more than one milestone, never resolves silently and never falls back to
+  "all issues" — it asks. Rows now carry the milestone and its due date, which is
+  what makes a wrongly resolved substring visible. On GitHub the scope is a
+  server-side `filterBy:{milestoneNumber:}` on the existing GraphQL query — it
+  takes the milestone *number*, not its title, so the REST milestones lookup runs
+  even for an exact title, and passing the variable **empty** returns zero issues
+  rather than all of them; the Forgejo half filters client-side for the same
+  unverified-`&milestones=` reason as `/triage` (#289).
 - **triage:** `/triage` takes an optional milestone argument — `/triage <name>`
   scopes the list to one milestone (exact title, else a unique case-insensitive
   substring), and `/triage pick` lists the open milestones with their counts and
