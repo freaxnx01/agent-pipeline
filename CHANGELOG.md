@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **commands:** Add `/ai-stats` — reports ai-implement dispatch statistics for the
+  current repo (`--all` for every repo under the owner). Reconstructs each dispatch
+  from `ai-implement` label events plus the `## ai-implement run` comments
+  `post-run-report.sh` already posts, so no new bookkeeping is needed. Reports ship
+  rate per issue and per dispatch, spend per shipped issue, an A-F grade per issue,
+  and OK-rate/cost breakdowns by coding agent and by model. Backed by
+  `scripts/lib/ai-stats.sh` and Layer-1 fixture tests in
+  `tests/run-ai-stats-tests.sh`.
+
 ### Removed
 
 - **commands:** Remove `/gh:done` `/gh:enrich` `/gh:enrich-phased` `/gh:issues`
