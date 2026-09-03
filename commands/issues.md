@@ -174,6 +174,10 @@ GraphQL timeline, so derive WIP from the open PRs themselves: an issue is WIP if
 same-named `issue-N-*` branch). Then drop parked and roadmap issues, and any issue
 outside the scoped milestone.
 
+Set `want` in the second snippet below to the resolved milestone **title** when a
+milestone is in scope; **leave it the empty string** when none is — an empty
+`want` is what makes the check a no-op:
+
 ```bash
 # repo resolved as above
 # 1) issue numbers referenced by OPEN pull requests
@@ -192,7 +196,7 @@ print(" ".join(map(str,sorted(wip))))' > /tmp/fj_wip.txt
 tea api --login git-home "repos/$repo/issues?state=open&type=issues&limit=100&sort=created&order=desc" \
   | python3 -c '
 import sys,json
-want = ""                             # set to the resolved milestone title when scoped
+want = ""                             # <- resolved milestone title when scoped, else ""
 wip=set(int(x) for x in open("/tmp/fj_wip.txt").read().split())
 for i in json.load(sys.stdin):
     labels=[l["name"] for l in i.get("labels") or []]
@@ -204,8 +208,7 @@ for i in json.load(sys.stdin):
           i["created_at"], "|", (i.get("user") or {}).get("login","?"))'
 ```
 
-Leave `want` as the empty string when unscoped — that is what makes the check a
-no-op. The Forgejo issues API also accepts a `&milestones=<name>` query parameter,
+The Forgejo issues API also accepts a `&milestones=<name>` query parameter,
 which would filter server-side like GitHub's `filterBy`. It is **not used here
 because it has never been verified against a live `tea`** — switch to it once
 someone confirms it, and delete the client-side check.
