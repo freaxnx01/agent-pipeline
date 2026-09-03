@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **ci:** `verify-or-recover-pr.sh` now **salvages uncommitted work**. A run that
+  exited cleanly without opening a PR used to discard whatever it left in the
+  workspace — the largest measured failure mode (24 of 48 failures across the
+  fleet, reported as "run completed but no PR was opened"). Its work is now
+  committed to a `salvage/issue-<n>` branch and opened as a draft PR. The run
+  report flags it as `success (salvaged: ...)` so it is not counted as a clean
+  success. Salvage is scoped to the clean-exit case; a genuine agent error is
+  still owned by the existing handling.
+
+- **ci:** Add `scripts/check-attempt-cap.sh` and a `max-attempts` workflow input
+  (default 2). After the cap, an issue is **parked for a human** instead of
+  redispatched — measured across the fleet, extra attempts do not improve the
+  odds, and the dispatches spent on issues that never shipped were pure loss.
+  Set `max-attempts: 0` to disable.
+
 - **commands:** Add `/ai-stats` — reports ai-implement dispatch statistics for the
   current repo (`--all` for every repo under the owner). Reconstructs each dispatch
   from `ai-implement` label events plus the `## ai-implement run` comments
@@ -17,6 +32,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and OK-rate/cost breakdowns by coding agent and by model. Backed by
   `scripts/lib/ai-stats.sh` and Layer-1 fixture tests in
   `tests/run-ai-stats-tests.sh`.
+
+### Changed
+
+- **models:** **Retire `gpt-oss-120b`** from the selection policy. It won the
+  Round-2 benchmark, but shipped only 2 of 10 dispatched runs (20%) across the
+  fleet — the worst measured rate of any model with a real sample.
+  `classify-task.sh` no longer selects it; the `model:gpt-oss-120b` label is
+  still recognised but warns and falls through to the repo's `default-model`.
+  **BREAKING CHANGE:** issues relying on that label now run on `default-model`.
+
+- **commands:** `/ai-stats` excludes `*-sandbox` repos from its totals by
+  default — a sandbox absorbs failed runs, so its zeroes are noise. Excluded
+  repos are still reported under an **Excluded** heading rather than dropped
+  silently. `--exclude <glob>` replaces the defaults, `--no-exclude` clears them,
+  and a repo named with `--repo` always counts.
 
 ### Removed
 

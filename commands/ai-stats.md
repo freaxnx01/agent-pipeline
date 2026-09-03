@@ -23,6 +23,13 @@ Common invocations:
 | `/ai-stats --since 30d` | only dispatches in the last 30 days (`Nd` / `Nw` / `Nm`, or an ISO date) |
 | `/ai-stats --limit all` | show every row of the per-issue table, not the first 40 |
 | `/ai-stats --json` | raw per-issue records, for piping into `jq` |
+| `/ai-stats --no-exclude` | include repos excluded by default (see below) |
+
+Sandbox repos (`*-sandbox`) are **excluded from the totals by default** — a sandbox
+exists to absorb failed runs, so its zeroes are noise rather than signal. They are
+still listed under an **Excluded** heading at the foot of the report, never dropped
+silently. `--exclude <glob>` replaces the default globs; `--no-exclude` clears them.
+A repo named explicitly with `--repo` always counts.
 
 ## Where the numbers come from
 

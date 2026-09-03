@@ -56,6 +56,7 @@ EXECUTION_FILE="${EXECUTION_FILE:-}"
 MODEL="${MODEL:-}"   # resolved model (steps.triage.outputs.model) — optional
 AGENT="${AGENT:-}"   # resolved agent (steps.classify_agent.outputs.agent) — optional
 MAX_TURNS="${MAX_TURNS:-}"   # configured turn budget (steps.triage_turns.outputs.turns) — optional
+SALVAGED="${SALVAGED:-}"     # "true" when the PR came from verify-or-recover-pr.sh salvage
 
 [[ -r "$RESULT_FILE" ]] || {
   printf 'error: RESULT_FILE not readable: %s\n' "$RESULT_FILE" >&2
@@ -228,6 +229,14 @@ elif [[ "${PR_PRESENT:-}" == "false" ]]; then
   STATUS_TEXT='failed: run completed but no PR was opened'
   STATUS_LABEL='ai:failed'
   STATUS_LABEL_OPPOSITE='ai:done'
+elif [[ "${SALVAGED:-}" == "true" ]]; then
+  # The run never opened a PR itself; verify-or-recover-pr.sh committed the work
+  # it left behind and opened one. Reviewable, but not the same thing as a clean
+  # success — say so, or the stats count it as one.
+  STATUS_EMOJI=':white_check_mark:'
+  STATUS_TEXT='success (salvaged: uncommitted work committed for review)'
+  STATUS_LABEL='ai:done'
+  STATUS_LABEL_OPPOSITE='ai:failed'
 else
   STATUS_EMOJI=':white_check_mark:'
   STATUS_TEXT='success'

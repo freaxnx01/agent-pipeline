@@ -110,6 +110,36 @@ assert_contains "$REPORT" '$0.40'               "money renders trailing cents"
 # shellcheck disable=SC2016  # literal dollar amounts, not expansions
 assert_not_contains "$REPORT" '$0.4 '           "money never renders a single decimal"
 
+# --- repo exclusion ---------------------------------------------------------
+
+section "repo exclusion"
+
+# A sandbox repo exists to absorb failed runs; counting its zeroes drags every
+# fleet number down for no signal. Excluded by default, but reported, never
+# silently dropped.
+assert_not_contains "$REPORT" "acme/demo-sandbox#8" "sandbox issues stay out of the per-issue table"
+assert_contains "$REPORT" "## Excluded"             "excluded repos get their own section"
+assert_contains "$REPORT" "acme/demo-sandbox"       "the excluded repo is named"
+assert_contains "$REPORT" "3 dispatches"            "the excluded repo's dispatches are still reported"
+
+KEPT_JSON="$(bash "$SCRIPT" --from "$FIXTURE" --json)"
+assert_eq "$(jq -r '[.[] | select(.repo == "acme/demo-sandbox")] | length | tostring' <<< "$KEPT_JSON")" "0" \
+  "--json emits only the kept records"
+
+ALL_REPOS="$(bash "$SCRIPT" --from "$FIXTURE" --no-exclude)"
+assert_contains "$ALL_REPOS" "**Repos:** 3"        "--no-exclude counts the sandbox"
+assert_contains "$ALL_REPOS" "**Dispatches:** 14"  "--no-exclude counts the sandbox dispatches"
+assert_not_contains "$ALL_REPOS" "## Excluded"     "--no-exclude has nothing to exclude"
+
+CUSTOM="$(bash "$SCRIPT" --from "$FIXTURE" --exclude 'beta')"
+assert_contains "$CUSTOM" "**Repos:** 2"           "--exclude replaces the default globs"
+assert_contains "$CUSTOM" "acme/beta"              "--exclude names what it dropped"
+assert_contains "$CUSTOM" "acme/demo-sandbox#8"    "--exclude 'beta' lets the sandbox back in"
+
+# A repo named explicitly on the command line always counts, glob or not.
+NAMED="$(bash "$SCRIPT" --from "$FIXTURE" --repo acme/demo-sandbox)"
+assert_contains "$NAMED" "acme/demo-sandbox#8"     "an explicitly named repo is never excluded"
+
 # --- row limit --------------------------------------------------------------
 
 section "row limit"

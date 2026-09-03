@@ -103,6 +103,13 @@ on:
           act, and as a manual escape hatch for inspection-only runs.
         type: boolean
         default: false
+      max-attempts:
+        description: |
+          Attempts allowed on one issue before it is parked instead of
+          redispatched. An attempt is a `## ai-implement run` report already on
+          the issue. Set 0 to disable the cap.
+        type: number
+        default: 2
       local-scripts:
         description: |
           If true, skip the cross-repo checkout of `pipeline-repo` and instead
@@ -424,6 +431,16 @@ jobs:
           } > "$prompt_file"
           echo "prompt-file=$prompt_file" >> "$GITHUB_OUTPUT"
 
+      - name: Check attempt cap
+        if: ${{ !inputs.stub-claude && inputs.max-attempts > 0 }}
+        id: attempt_cap
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          REPO: ${{ github.repository }}
+          MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token || github.token }}
+        run: bash .claude-pipeline/scripts/check-attempt-cap.sh
+
       - name: Classify agent
         if: ${{ !inputs.stub-claude }}
         id: classify_agent
@@ -511,7 +528,7 @@ jobs:
         run: printf 'enabled=%s\n' "$ENABLED" >> "$GITHUB_OUTPUT"
 
       - name: Run Claude Code
-        if: ${{ !inputs.stub-claude && steps.classify_agent.outputs.agent == 'claude' }}
+        if: ${{ !inputs.stub-claude && steps.classify_agent.outputs.agent == 'claude' && steps.attempt_cap.outputs.proceed != 'false' }}
         id: claude_run
         # Step-level env propagates to the action's process.env, which the
         # action then spreads into the spawned `claude` subprocess. Belt-and-
@@ -548,6 +565,7 @@ jobs:
         if: |
           !inputs.stub-claude
           && steps.classify_agent.outputs.agent == 'opencode'
+          && steps.attempt_cap.outputs.proceed != 'false'
         id: opencode_run
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -763,6 +781,7 @@ jobs:
           AGENT: ${{ steps.classify_agent.outputs.agent }}
           MAX_TURNS: ${{ steps.triage_turns.outputs.turns }}
           PR_PRESENT: ${{ steps.verify_pr.outputs.pr-present }}
+          SALVAGED: ${{ steps.verify_pr.outputs.salvaged }}
         run: bash .claude-pipeline/scripts/post-run-report.sh
 
   auto_review:

@@ -27,6 +27,11 @@
 #   --json               Emit the collected records as JSON and exit.
 #   --from <file>        Skip collection; render the report from <file>.
 #   --limit <n>          Rows in the per-issue table. Default 40. `all` for every row.
+#   --exclude <glob>     Drop repos matching <glob> from the totals. Repeatable.
+#                        Default: *-sandbox — a sandbox exists to absorb failed
+#                        runs, so its zeroes are noise, not signal. Excluded
+#                        repos are still listed at the foot of the report.
+#   --no-exclude         Keep every repo, including the defaults above.
 #
 # Requires: gh (authenticated), jq.
 #
@@ -45,6 +50,8 @@ FROM_FILE=''
 ROW_LIMIT=40
 SCAN_ALL=0
 REPOS=()
+EXCLUDES=('*-sandbox')
+EXCLUDES_CLEARED=0
 
 die() { printf 'error: %s\n' "$1" >&2; exit "${2:-2}"; }
 
@@ -60,6 +67,11 @@ parse_args() {
       --json)  OUTPUT_JSON=1; shift ;;
       --from)  [[ -r "${2:-}" ]] || die "--from file not readable: ${2:-}"; FROM_FILE="$2"; shift 2 ;;
       --limit) [[ -n "${2:-}" ]] || die "--limit needs a number or 'all'"; ROW_LIMIT="$2"; shift 2 ;;
+      --exclude)
+        [[ -n "${2:-}" ]] || die "--exclude needs a glob"
+        (( EXCLUDES_CLEARED )) || { EXCLUDES=(); EXCLUDES_CLEARED=1; }
+        EXCLUDES+=("$2"); shift 2 ;;
+      --no-exclude) EXCLUDES=(); EXCLUDES_CLEARED=1; shift ;;
       -h|--help) sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
       *) die "unknown option: $1" ;;
     esac
@@ -201,6 +213,21 @@ map(
 EOF
 }
 
+# Split the graded records into the ones that count and the ones excluded by
+# glob. Excluded repos are reported separately rather than dropped silently — a
+# number that quietly omits repos is worse than the noise it removes.
+partition_program() {
+  cat <<'EOF'
+def matches($globs): . as $repo
+  | ($repo | split("/") | last) as $name
+  | any($globs[]; . as $g
+        | ($g | gsub("\\."; "\\\\.") | gsub("\\*"; ".*")) as $re
+        | ($name | test("^" + $re + "$")) or ($repo | test("^" + $re + "$")));
+{ kept:     map(select((.repo | matches($excludes)) and (.repo | IN($named[])) == false | not)),
+  excluded: map(select((.repo | matches($excludes)) and (.repo | IN($named[])) == false)) }
+EOF
+}
+
 # --- rendering --------------------------------------------------------------
 
 render_report() {
@@ -211,7 +238,9 @@ render_report() {
     def money(v): (v * 100 | round) as $c
       | "$\($c / 100 | floor).\($c % 100 | tostring | if length == 1 then "0" + . else . end)";
 
-    . as $all
+    .kept as $all
+    | .excluded as $excluded
+    | $all
     | (map(.runs[]))                                  as $runs
     | (sum(.attempts))                                as $dispatches
     | (map(select(.shipped)) | length)                as $shipped
@@ -275,6 +304,15 @@ render_report() {
        | sort_by(.grade, -.attempts, -.cost)
        | .[:$rows][]
        | "| \(.grade) | \(.repo)#\(.issue) | \(.attempts) | \(money(.cost)) | \((.runs | last | if . == null then "-" else "\(.agent)/\(.model)" end)) | \(.title[:52]) |")
+    , (if ($excluded | length) == 0 then empty else
+        ""
+        , "## Excluded"
+        , ""
+        , "Not counted above (`--no-exclude` to include them):"
+        , ""
+        , ($excluded | group_by(.repo)[]
+           | "- **\(.[0].repo)** — \(length) issues, \(sum(.attempts)) dispatches, \(map(select(.shipped)) | length) shipped, \(money(sum(.cost)))")
+       end)
   ' "$records"
 }
 
@@ -294,10 +332,16 @@ main() {
     collect > "$RECORDS"
   fi
 
-  jq --arg since "$SINCE" "$(grade_program)" "$RECORDS" > "$RECORDS.graded"
+  local excludes_json named_json
+  excludes_json="$(printf '%s\n' "${EXCLUDES[@]+"${EXCLUDES[@]}"}" | jq -Rs 'split("\n") | map(select(. != ""))')"
+  named_json="$(printf '%s\n' "${REPOS[@]+"${REPOS[@]}"}" | jq -Rs 'split("\n") | map(select(. != ""))')"
+
+  jq --arg since "$SINCE" "$(grade_program)" "$RECORDS" \
+    | jq --argjson excludes "$excludes_json" --argjson named "$named_json" "$(partition_program)" \
+    > "$RECORDS.graded"
 
   if (( OUTPUT_JSON )); then
-    cat "$RECORDS.graded"
+    jq '.kept' "$RECORDS.graded"
   else
     render_report "$RECORDS.graded"
   fi
