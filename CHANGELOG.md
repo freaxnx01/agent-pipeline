@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   odds, and the dispatches spent on issues that never shipped were pure loss.
   Set `max-attempts: 0` to disable.
 
+- **ci:** Record whether an issue carried an `## Implementation Plan` when it was
+  dispatched. The workflow stamps it, `post-run-report.sh` renders it as
+  `**Plan:** enriched|none`, and `/ai-stats` groups ship rate and attempts by it
+  — so the pipeline can finally answer whether enrichment predicts shipping.
+  Runs from before this change report as `unknown`.
+
 - **commands:** Add `/ai-stats` — reports ai-implement dispatch statistics for the
   current repo (`--all` for every repo under the owner). Reconstructs each dispatch
   from `ai-implement` label events plus the `## ai-implement run` comments
@@ -34,6 +40,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tests/run-ai-stats-tests.sh`.
 
 ### Changed
+
+- **models:** **Flip the default implementation agent and model** to
+  `opencode` + `z-ai/glm-5.2`. Across the fleet glm-5.2 shipped 15 of 18 runs
+  (83%) for $4.25 total, against 59% for `claude-opus-4-7` at $181.70 — the
+  cheap OpenRouter models carry ordinary work at a better rate for a fraction
+  of the cost. Two guards make the flip safe: `classify-agent.sh` falls back to
+  Claude when `OPENROUTER_API_KEY` is unavailable, and `classify-task.sh`
+  substitutes a compatible model whenever the resolved agent and the configured
+  `default-model` come from different families (either direction).
+  **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
+  run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
+  the old behaviour.
+
+- **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
+  to Claude (`escalate-on-retry`, default true; `escalate-model`, default
+  `claude-sonnet-5`). A model that failed a job once rarely succeeds on an
+  identical second run, so the retry is spent on a stronger agent instead. An
+  explicit `agent:*` label still wins. Combined with the attempt cap this gives
+  a fixed ladder: cheap attempt, Claude attempt, park.
+
+- **models:** Add the `model:glm` label for `z-ai/glm-5.2`.
 
 - **models:** **Retire `gpt-oss-120b`** from the selection policy. It won the
   Round-2 benchmark, but shipped only 2 of 10 dispatched runs (20%) across the
@@ -113,6 +140,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   comment; `/issues` now points here instead of a raw `gh` invocation (#175)
 
 ### Changed
+
+- **models:** **Flip the default implementation agent and model** to
+  `opencode` + `z-ai/glm-5.2`. Across the fleet glm-5.2 shipped 15 of 18 runs
+  (83%) for $4.25 total, against 59% for `claude-opus-4-7` at $181.70 — the
+  cheap OpenRouter models carry ordinary work at a better rate for a fraction
+  of the cost. Two guards make the flip safe: `classify-agent.sh` falls back to
+  Claude when `OPENROUTER_API_KEY` is unavailable, and `classify-task.sh`
+  substitutes a compatible model whenever the resolved agent and the configured
+  `default-model` come from different families (either direction).
+  **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
+  run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
+  the old behaviour.
+
+- **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
+  to Claude (`escalate-on-retry`, default true; `escalate-model`, default
+  `claude-sonnet-5`). A model that failed a job once rarely succeeds on an
+  identical second run, so the retry is spent on a stronger agent instead. An
+  explicit `agent:*` label still wins. Combined with the attempt cap this gives
+  a fixed ladder: cheap attempt, Claude attempt, park.
+
+- **models:** Add the `model:glm` label for `z-ai/glm-5.2`.
 
 - **triage:** `/triage` now drops parked (`🧊 parked`) and `roadmap`
   issues in the query itself, and shows each issue's milestone + due date
@@ -224,6 +272,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **models:** **Flip the default implementation agent and model** to
+  `opencode` + `z-ai/glm-5.2`. Across the fleet glm-5.2 shipped 15 of 18 runs
+  (83%) for $4.25 total, against 59% for `claude-opus-4-7` at $181.70 — the
+  cheap OpenRouter models carry ordinary work at a better rate for a fraction
+  of the cost. Two guards make the flip safe: `classify-agent.sh` falls back to
+  Claude when `OPENROUTER_API_KEY` is unavailable, and `classify-task.sh`
+  substitutes a compatible model whenever the resolved agent and the configured
+  `default-model` come from different families (either direction).
+  **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
+  run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
+  the old behaviour.
+
+- **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
+  to Claude (`escalate-on-retry`, default true; `escalate-model`, default
+  `claude-sonnet-5`). A model that failed a job once rarely succeeds on an
+  identical second run, so the retry is spent on a stronger agent instead. An
+  explicit `agent:*` label still wins. Combined with the attempt cap this gives
+  a fixed ladder: cheap attempt, Claude attempt, park.
+
+- **models:** Add the `model:glm` label for `z-ai/glm-5.2`.
+
 - **commands:** stale `claude.yml` references updated to `agent.yml` (#163)
 - **commands:** implementation plans are now inlined into the issue body
 - **commands:** handoff artifacts are committed and pushed by default
@@ -238,6 +307,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **docs:** #133 provisioning-consolidation completion record in `docs/TODO.md` (#141)
 
 ### Changed
+
+- **models:** **Flip the default implementation agent and model** to
+  `opencode` + `z-ai/glm-5.2`. Across the fleet glm-5.2 shipped 15 of 18 runs
+  (83%) for $4.25 total, against 59% for `claude-opus-4-7` at $181.70 — the
+  cheap OpenRouter models carry ordinary work at a better rate for a fraction
+  of the cost. Two guards make the flip safe: `classify-agent.sh` falls back to
+  Claude when `OPENROUTER_API_KEY` is unavailable, and `classify-task.sh`
+  substitutes a compatible model whenever the resolved agent and the configured
+  `default-model` come from different families (either direction).
+  **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
+  run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
+  the old behaviour.
+
+- **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
+  to Claude (`escalate-on-retry`, default true; `escalate-model`, default
+  `claude-sonnet-5`). A model that failed a job once rarely succeeds on an
+  identical second run, so the retry is spent on a stronger agent instead. An
+  explicit `agent:*` label still wins. Combined with the attempt cap this gives
+  a fixed ladder: cheap attempt, Claude attempt, park.
+
+- **models:** Add the `model:glm` label for `z-ai/glm-5.2`.
 
 - **build:** markdownlint now ignores transient agent working docs — `docs/ai-notes/**` and `docs/superpowers/**` (#139)
 
@@ -267,6 +357,27 @@ do not load twice. No manual edit of `~/.claude/CLAUDE.md` is needed.
 
 ### Changed
 
+- **models:** **Flip the default implementation agent and model** to
+  `opencode` + `z-ai/glm-5.2`. Across the fleet glm-5.2 shipped 15 of 18 runs
+  (83%) for $4.25 total, against 59% for `claude-opus-4-7` at $181.70 — the
+  cheap OpenRouter models carry ordinary work at a better rate for a fraction
+  of the cost. Two guards make the flip safe: `classify-agent.sh` falls back to
+  Claude when `OPENROUTER_API_KEY` is unavailable, and `classify-task.sh`
+  substitutes a compatible model whenever the resolved agent and the configured
+  `default-model` come from different families (either direction).
+  **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
+  run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
+  the old behaviour.
+
+- **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
+  to Claude (`escalate-on-retry`, default true; `escalate-model`, default
+  `claude-sonnet-5`). A model that failed a job once rarely succeeds on an
+  identical second run, so the retry is spent on a stronger agent instead. An
+  explicit `agent:*` label still wins. Combined with the attempt cap this gives
+  a fixed ladder: cheap attempt, Claude attempt, park.
+
+- **models:** Add the `model:glm` label for `z-ai/glm-5.2`.
+
 - **commands:** `/update-commands` runs this repo's bootstrap, not config's installer (#133)
 - **docs:** README documents the `partials/` surface and the new bootstrap URL (#133)
 
@@ -282,7 +393,28 @@ Merged into this release ahead of the #133 consolidation:
 
 ## [1.7.0](https://github.com/freaxnx01/agent-workflow/releases/tag/v1.7.0) - 2026-07-21
 
-### Changed — repository renamed
+### Changed
+
+- **models:** **Flip the default implementation agent and model** to
+  `opencode` + `z-ai/glm-5.2`. Across the fleet glm-5.2 shipped 15 of 18 runs
+  (83%) for $4.25 total, against 59% for `claude-opus-4-7` at $181.70 — the
+  cheap OpenRouter models carry ordinary work at a better rate for a fraction
+  of the cost. Two guards make the flip safe: `classify-agent.sh` falls back to
+  Claude when `OPENROUTER_API_KEY` is unavailable, and `classify-task.sh`
+  substitutes a compatible model whenever the resolved agent and the configured
+  `default-model` come from different families (either direction).
+  **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
+  run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
+  the old behaviour.
+
+- **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
+  to Claude (`escalate-on-retry`, default true; `escalate-model`, default
+  `claude-sonnet-5`). A model that failed a job once rarely succeeds on an
+  identical second run, so the retry is spent on a stronger agent instead. An
+  explicit `agent:*` label still wins. Combined with the attempt cap this gives
+  a fixed ladder: cheap attempt, Claude attempt, park.
+
+- **models:** Add the `model:glm` label for `z-ai/glm-5.2`. — repository renamed
 
 **`freaxnx01/agent-pipeline` is now `freaxnx01/agent-workflow`** (ADR-006). The repo
 outgrew its name: it carries the operator console (issue-workflow slash commands)
@@ -318,6 +450,27 @@ working the moment any repo claims the old name. Update at your convenience.
 - **commands:** Adopt /process-feedback into the console (#118)
 
 ### Changed
+
+- **models:** **Flip the default implementation agent and model** to
+  `opencode` + `z-ai/glm-5.2`. Across the fleet glm-5.2 shipped 15 of 18 runs
+  (83%) for $4.25 total, against 59% for `claude-opus-4-7` at $181.70 — the
+  cheap OpenRouter models carry ordinary work at a better rate for a fraction
+  of the cost. Two guards make the flip safe: `classify-agent.sh` falls back to
+  Claude when `OPENROUTER_API_KEY` is unavailable, and `classify-task.sh`
+  substitutes a compatible model whenever the resolved agent and the configured
+  `default-model` come from different families (either direction).
+  **BREAKING CHANGE:** consumers who relied on the implicit Claude default now
+  run on OpenCode where an OpenRouter key exists. Pin `agent: claude` to keep
+  the old behaviour.
+
+- **ci:** **Escalate to Claude on retry.** From attempt 2 onwards a run switches
+  to Claude (`escalate-on-retry`, default true; `escalate-model`, default
+  `claude-sonnet-5`). A model that failed a job once rarely succeeds on an
+  identical second run, so the retry is spent on a stronger agent instead. An
+  explicit `agent:*` label still wins. Combined with the attempt cap this gives
+  a fixed ladder: cheap attempt, Claude attempt, park.
+
+- **models:** Add the `model:glm` label for `z-ai/glm-5.2`.
 
 - **workflows:** Rename `claude-*` workflows to `agent-*` (#106)
 

@@ -36,6 +36,11 @@ jobs:
     with:
       issue-number: ${{ github.event.issue.number }}
       runner-labels: '["ubuntu-latest"]'
+      # Pinned rather than inheriting the reusable workflow's new defaults
+      # (agent: opencode / default-model: z-ai/glm-5.2). agent-workflow is the
+      # repo that implements the pipeline — switching its own implementer is a
+      # deliberate call, not something to inherit.
+      agent: claude
       default-model: claude-sonnet-5
       local-scripts: true
       pre-preview: true

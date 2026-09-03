@@ -313,6 +313,47 @@ out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode \
 assert_contains "$out" 'chosen: qwen/qwen3-coder-30b-a3b-instruct (label model:qwen3-coder)' \
   "label model:qwen3-coder + agent=opencode → qwen3-coder"
 
+# A retry escalates the AGENT to claude, but DEFAULT_MODEL still holds the
+# repo's cheap OpenRouter default. Handing that id to Claude is fatal, so the
+# Claude path substitutes ESCALATE_MODEL.
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=claude DEFAULT_MODEL=z-ai/glm-5.2 \
+       ISSUE_BODY='add an endpoint' ISSUE_LABELS='ai-implement' bash "$CLASSIFY" 2>&1)"
+assert_contains "$out" 'chosen: claude-sonnet-5' \
+  "agent=claude + OpenRouter default → substitutes the Claude escalation model"
+assert_not_contains "$out" 'chosen: z-ai/glm-5.2' \
+  "agent=claude never runs on an OpenRouter model id"
+
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=claude DEFAULT_MODEL=z-ai/glm-5.2 \
+       ESCALATE_MODEL=claude-opus-5 ISSUE_BODY='add an endpoint' \
+       ISSUE_LABELS='ai-implement' bash "$CLASSIFY" 2>&1)"
+assert_contains "$out" 'chosen: claude-opus-5' "ESCALATE_MODEL is configurable"
+
+# The mirror case: flipping the default agent to opencode leaves any consumer
+# that pinned only `default-model: claude-sonnet-5` pointing opencode at a
+# Claude id, which OpenRouter cannot resolve.
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode DEFAULT_MODEL=claude-sonnet-5 \
+       ISSUE_BODY='add an endpoint' ISSUE_LABELS='ai-implement' bash "$CLASSIFY" 2>&1)"
+assert_contains "$out" 'chosen: z-ai/glm-5.2' \
+  "agent=opencode + Claude default → substitutes the OpenRouter default"
+assert_not_contains "$out" 'chosen: claude-sonnet-5' \
+  "agent=opencode never runs on a Claude model id"
+
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode DEFAULT_MODEL=claude-sonnet-5 \
+       OPENROUTER_FALLBACK_MODEL=z-ai/glm-4.7-flash \
+       ISSUE_BODY='add an endpoint' ISSUE_LABELS='ai-implement' bash "$CLASSIFY" 2>&1)"
+assert_contains "$out" 'chosen: z-ai/glm-4.7-flash' "the OpenRouter fallback is configurable"
+
+# A Claude default on the Claude path is left exactly as it was.
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=claude DEFAULT_MODEL=claude-haiku-4-5 \
+       ISSUE_BODY='add an endpoint' ISSUE_LABELS='ai-implement' bash "$CLASSIFY" 2>&1)"
+assert_contains "$out" 'chosen: claude-haiku-4-5' "a Claude default is untouched"
+
+# glm-5.2 is the best-measured OpenRouter model on the fleet (15 of 18 runs
+# shipped at $4.25 total) and is the new default; it needs a label too.
+out="$(ISSUE_NUMBER=1 REPO=o/r AGENT=opencode ISSUE_LABELS='model:glm' bash "$CLASSIFY")"
+assert_contains "$out" 'chosen: z-ai/glm-5.2 (label model:glm)' \
+  "label model:glm + agent=opencode → glm-5.2"
+
 # gpt-oss-120b is retired: 2 successful runs out of 10 across the fleet, the
 # worst rate of any model with a meaningful sample. The label is kept as a
 # recognised name so it warns instead of silently falling through as a typo.
@@ -509,8 +550,9 @@ CLASSIFY_AGENT="$ROOT/scripts/classify-agent.sh"
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='agent:claude' bash "$CLASSIFY_AGENT")"
 assert_contains "$out" 'chosen: claude (label agent:claude)'     "label agent:claude → claude"
 
-# Override: agent:opencode label
-out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='agent:opencode' bash "$CLASSIFY_AGENT")"
+# Override: agent:opencode label. HAS_OPENROUTER_KEY is pinned because the
+# credential guard below sends opencode to claude when no key is available.
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='agent:opencode' HAS_OPENROUTER_KEY=true bash "$CLASSIFY_AGENT")"
 assert_contains "$out" 'chosen: opencode (label agent:opencode)' "label agent:opencode → opencode"
 
 # Default input (no label, no DEFAULT_AGENT) → claude
@@ -518,12 +560,54 @@ out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' bash "$CLASSIFY_AGENT
 assert_contains "$out" 'chosen: claude (workflow input default (claude))' "no label, no DEFAULT_AGENT → claude"
 
 # Input fallback: DEFAULT_AGENT=opencode
-out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' DEFAULT_AGENT=opencode bash "$CLASSIFY_AGENT")"
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' DEFAULT_AGENT=opencode HAS_OPENROUTER_KEY=true bash "$CLASSIFY_AGENT")"
 assert_contains "$out" 'chosen: opencode (workflow input default (opencode))' "no label, DEFAULT_AGENT=opencode → opencode"
 
 # Label beats input
 out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='agent:claude' DEFAULT_AGENT=opencode bash "$CLASSIFY_AGENT")"
 assert_contains "$out" 'chosen: claude (label agent:claude)'     "label agent:claude beats DEFAULT_AGENT=opencode"
+
+# --- retry escalation -------------------------------------------------------
+#
+# Attempt 1 runs the cheap default; if it fails, attempt 2 escalates to Claude.
+# Across the fleet the cheap OpenRouter models carry ordinary work at a better
+# rate than Claude for a fraction of the cost, but when one of them cannot do a
+# job, spending a second cheap run on it is the losing move.
+
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' DEFAULT_AGENT=opencode \
+       HAS_OPENROUTER_KEY=true ATTEMPT=2 bash "$CLASSIFY_AGENT")"
+assert_contains "$out" 'chosen: claude'   "attempt 2 escalates to claude"
+assert_contains "$out" 'escalation'       "escalation is named as the reason"
+
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' DEFAULT_AGENT=opencode \
+       HAS_OPENROUTER_KEY=true ATTEMPT=1 bash "$CLASSIFY_AGENT")"
+assert_contains "$out" 'chosen: opencode' "attempt 1 stays on the cheap default"
+
+# An explicit label still wins over escalation — the operator asked for it.
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='agent:opencode' DEFAULT_AGENT=opencode \
+       HAS_OPENROUTER_KEY=true ATTEMPT=3 bash "$CLASSIFY_AGENT")"
+assert_contains "$out" 'chosen: opencode (label agent:opencode)' "label beats retry escalation"
+
+# Escalation can be turned off.
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' DEFAULT_AGENT=opencode \
+       HAS_OPENROUTER_KEY=true ATTEMPT=2 ESCALATE_ON_RETRY=false bash "$CLASSIFY_AGENT")"
+assert_contains "$out" 'chosen: opencode' "ESCALATE_ON_RETRY=false keeps the default agent"
+
+# --- credential-aware fallback ----------------------------------------------
+#
+# opencode needs an OpenRouter credential. With the default agent flipped to
+# opencode, a consumer repo that only holds a Claude token would otherwise fail
+# every single run on a missing secret.
+
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' DEFAULT_AGENT=opencode \
+       HAS_OPENROUTER_KEY=false bash "$CLASSIFY_AGENT")"
+assert_contains "$out" 'chosen: claude'      "no OpenRouter key → falls back to claude"
+assert_contains "$out" 'OPENROUTER_API_KEY'  "the fallback names the missing secret"
+
+# The fallback also applies to an explicit label — a label cannot conjure a secret.
+out="$(ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='agent:opencode' \
+       HAS_OPENROUTER_KEY=false bash "$CLASSIFY_AGENT")"
+assert_contains "$out" 'chosen: claude'      "label agent:opencode without a key → claude"
 
 # Invalid DEFAULT_AGENT → exit 2
 ec="$(run_capture_ec env ISSUE_NUMBER=1 REPO=o/r ISSUE_LABELS='ai-implement' DEFAULT_AGENT=mistral bash "$CLASSIFY_AGENT")"
@@ -2370,6 +2454,26 @@ assert_contains "$out" 'recovered=false'   "  → not counted as recovered (it p
 # Missing required env → exit 2.
 ec="$(run_capture_ec env REPO=o/r IS_ERROR=false bash "$VERIFY")"
 assert_equals "$ec" "2" "missing ISSUE_NUMBER → exit 2"
+
+# Whether the issue carried an "## Implementation Plan" is stamped on the run
+# report, so /ai-stats can answer whether enrichment actually predicts shipping.
+out="$(RESULT_FILE="$FIXTURES/result-success-cheap.json" ISSUE_NUMBER=42 \
+        WORKFLOW_RUN_URL=https://example.test/run/1 RENDER_ONLY=1 \
+        MODEL=claude-sonnet-5 AGENT=claude HAS_PLAN=true \
+        bash "$ROOT/scripts/post-run-report.sh")"
+assert_contains "$out" '**Plan:** enriched' "HAS_PLAN=true → reported as enriched"
+
+out="$(RESULT_FILE="$FIXTURES/result-success-cheap.json" ISSUE_NUMBER=42 \
+        WORKFLOW_RUN_URL=https://example.test/run/1 RENDER_ONLY=1 \
+        MODEL=claude-sonnet-5 AGENT=claude HAS_PLAN=false \
+        bash "$ROOT/scripts/post-run-report.sh")"
+assert_contains "$out" '**Plan:** none' "HAS_PLAN=false → reported as none"
+
+out="$(RESULT_FILE="$FIXTURES/result-success-cheap.json" ISSUE_NUMBER=42 \
+        WORKFLOW_RUN_URL=https://example.test/run/1 RENDER_ONLY=1 \
+        MODEL=claude-sonnet-5 AGENT=claude \
+        bash "$ROOT/scripts/post-run-report.sh")"
+assert_not_contains "$out" '**Plan:**' "HAS_PLAN unset → no Plan field (older runs stay parseable)"
 
 # A salvaged PR is reported as such, not as an ordinary success — otherwise the
 # /ai-stats ship rate counts salvage as if the agent had done it cleanly.

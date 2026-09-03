@@ -57,6 +57,7 @@ MODEL="${MODEL:-}"   # resolved model (steps.triage.outputs.model) — optional
 AGENT="${AGENT:-}"   # resolved agent (steps.classify_agent.outputs.agent) — optional
 MAX_TURNS="${MAX_TURNS:-}"   # configured turn budget (steps.triage_turns.outputs.turns) — optional
 SALVAGED="${SALVAGED:-}"     # "true" when the PR came from verify-or-recover-pr.sh salvage
+HAS_PLAN="${HAS_PLAN:-}"     # "true"/"false": did the issue body carry an "## Implementation Plan"
 
 [[ -r "$RESULT_FILE" ]] || {
   printf 'error: RESULT_FILE not readable: %s\n' "$RESULT_FILE" >&2
@@ -203,9 +204,15 @@ CACHE_DENOM=$(( CACHE_READ + INPUT_TOKENS + CACHE_CREATE ))
 TOTAL_TOKENS=$(( INPUT_TOKENS + OUTPUT_TOKENS + CACHE_READ + CACHE_CREATE ))
 
 # Optional "Model · Agent" line (#59). Empty when neither is provided.
+# Plan is appended when known, so /ai-stats can correlate enrichment with
+# shipping. Left off entirely when unset, keeping older reports parseable.
 MODEL_AGENT_LINE=''
 if [[ -n "$MODEL" || -n "$AGENT" ]]; then
   MODEL_AGENT_LINE="**Model:** ${MODEL:-n/a} · **Agent:** ${AGENT:-n/a}"
+  case "$HAS_PLAN" in
+    true)  MODEL_AGENT_LINE+=" · **Plan:** enriched" ;;
+    false) MODEL_AGENT_LINE+=" · **Plan:** none" ;;
+  esac
 fi
 CACHE_HIT_PCT="$(pct "$CACHE_READ" "$CACHE_DENOM")"
 

@@ -48,6 +48,13 @@ That means an issue closed by hand, or by a PR that was never linked, reads as *
 shipped* even if the work landed. Say so when the shipped count looks low rather than
 treating it as a pipeline failure.
 
+## Enrichment correlation
+
+The report groups issues by whether they carried an `## Implementation Plan` when
+dispatched, so you can see whether enrichment actually predicts shipping. Runs from
+before this was recorded show as **unknown** — that is most of the history, so give
+the split time to fill in before drawing conclusions from it.
+
 ## Per-issue grade
 
 | Grade | Meaning |

@@ -110,6 +110,25 @@ assert_contains "$REPORT" '$0.40'               "money renders trailing cents"
 # shellcheck disable=SC2016  # literal dollar amounts, not expansions
 assert_not_contains "$REPORT" '$0.4 '           "money never renders a single decimal"
 
+# --- enrichment correlation -------------------------------------------------
+
+section "enrichment correlation"
+
+assert_contains "$REPORT" "## By enrichment"  "report has an enrichment section"
+assert_contains "$REPORT" "| enriched |"      "enrichment table lists enriched issues"
+assert_contains "$REPORT" "| none |"          "enrichment table lists unenriched issues"
+assert_contains "$REPORT" "| unknown |"       "runs predating the Plan stamp are counted separately"
+
+assert_eq "$(bash "$SCRIPT" --from "$FIXTURE" --json \
+              | jq -r '.[] | select(.issue == 1) | .plan')" "enriched" \
+  "an issue whose run reported a plan is marked enriched"
+assert_eq "$(bash "$SCRIPT" --from "$FIXTURE" --json \
+              | jq -r '.[] | select(.issue == 6) | .plan')" "none" \
+  "an issue whose run reported no plan is marked none"
+assert_eq "$(bash "$SCRIPT" --from "$FIXTURE" --json \
+              | jq -r '.[] | select(.issue == 3) | .plan')" "unknown" \
+  "an issue with no Plan field is marked unknown"
+
 # --- repo exclusion ---------------------------------------------------------
 
 section "repo exclusion"

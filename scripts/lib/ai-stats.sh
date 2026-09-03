@@ -169,7 +169,8 @@ shape_program() {
                 agent: ((.body | capture("\\*\\*Agent:\\*\\* (?<a>[^\n ]+)").a) // "unknown"),
                 model: ((.body | capture("\\*\\*Model:\\*\\* (?<m>[^ \n]+)").m) // "unknown"),
                 turns: ((.body | capture("Turns:\\*\\* (?<t>[0-9]+)").t | tonumber) // 0),
-                cost:  ((.body | capture("Cost:\\*\\* \\$(?<c>[0-9.]+)").c | tonumber) // 0) } ] }
+                cost:  ((.body | capture("Cost:\\*\\* \\$(?<c>[0-9.]+)").c | tonumber) // 0),
+                plan:  ((.body | capture("\\*\\*Plan:\\*\\* (?<p>[^ \n]+)").p) // "unknown") } ] }
 | select(.dispatches | length > 0)
 EOF
 }
@@ -203,6 +204,7 @@ map(
       dispatches: $d, runs: $r, attempts: $attempts,
       cost: ($cost * 100 | round / 100),
       shipped: $shipped,
+      plan: ([$r[].plan // "unknown"] | (map(select(. != "unknown")) | first) // "unknown"),
       grade: (if   $shipped | not      then "F"
               elif $attempts > 3
                 or $cost >= costly     then "D"
@@ -288,6 +290,18 @@ render_report() {
     , "|---|---|---|---|---|---|"
     , ($runs | group_by(.model) | sort_by(-length)[]
        | "| \(.[0].model) | \(length) | \([.[] | select(.ok)] | length) | \(pct(([.[] | select(.ok)] | length); length)) | \(money([.[].cost] | add)) | \(([.[].turns] | add / length) | round) |")
+    , ""
+    , "## By enrichment"
+    , ""
+    , "Did the issue carry an `## Implementation Plan` when it was dispatched?"
+    , ""
+    , "| Plan | Issues | Shipped | Rate | Attempts/issue |"
+    , "|---|---|---|---|---|"
+    , (["enriched","none","unknown"][] as $k
+       | ($all | map(select(.plan == $k))) as $g
+       | if ($g | length) == 0 then empty else
+           "| \($k) | \($g | length) | \($g | map(select(.shipped)) | length) | \(pct(($g | map(select(.shipped)) | length); ($g | length))) | \((($g | map(.attempts) | add) / ($g | length) * 10 | round / 10)) |"
+         end)
     , ""
     , "## By repo"
     , ""
