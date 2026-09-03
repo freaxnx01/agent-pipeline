@@ -51,10 +51,13 @@ investigated and filed.
       the hourly systemd ticks (23:00–06:00) re-run the full dispatch path, guarded
       only by the "already dispatched" eligibility check. Self-contained and ready
       to enrich now. https://github.com/freaxnx01/bridge/issues/253
-- [ ] **Decide the daytime-dispatch schedule question** — the timer runs 22:00–06:00
-      only, so bridge#254 has nothing to guard until dispatch also runs during the
-      workday. Either extend the schedule into 07:00–18:00, or leave dispatch
-      night-only and close #254 as not-yet-needed. **Blocks #254's enrichment.**
+- [x] **Daytime-dispatch schedule decided (2026-09-03): extend the timer to
+      07:00–18:00.** Recorded on the issue, which pulls the schedule change into
+      #254's scope. Sequencing constraint: the timer extension must ship *with* the
+      budget rung, never ahead of it — a daytime timer without the guard is bounded
+      only by the existing caps, i.e. the exact failure mode #254 prevents.
+      `docs/systemd/bridge-dispatch.timer` is unchanged so far, deliberately.
+      https://github.com/freaxnx01/bridge/issues/254#issuecomment-5529972799
 - [ ] Enrich **bridge#254** — `feat(dispatch): reserve subscription headroom with a
       daytime usage-budget rung` (only after the decision above). Night 18:00–07:00:
       rung off. Day 07:00–18:00: refuse dispatch once combined trailing-5h usage
