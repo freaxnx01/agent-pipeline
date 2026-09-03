@@ -45,8 +45,6 @@ Judge the issue on:
   subsystems, recommend decomposing into separate issues first.)
 - **Locality needs** — does it need things only a local maintainer has: real secrets /
   a live DB, manual/visual verification, hardware, or back-and-forth design iteration?
-- **Stack fit** — anything Copilot tends to struggle with (obscure tooling, heavy
-  domain context).
 
 ### Step 4 — Map to a route
 
@@ -54,23 +52,23 @@ Judge the issue on:
 |---|---|---|
 | Not ready (no AC / scope / open unknowns) | **`/enrich`** then re-run | agents guess badly without AC |
 | Needs local secrets, live DB, manual/visual verify, or design iteration | **`/work <N>`** (local, in-session) | only you have the env; you drive it, subagent-driven |
-| Ready · small/mechanical · well-trodden | **`/gh:assign <N> copilot`** | fast, reliable trigger; cheap |
+| Ready · small/mechanical · well-trodden | **`/gh:assign <N> claude`** (or **`/gh:implement <N>`** + cheap OpenCode model, Step 4b) | Copilot disabled — Claude direct-assign or the OpenCode pipeline are the cheapest routes left |
 | Ready · complex reasoning / architecture / subtle correctness / security | **`/gh:assign <N> claude`** *or* **`/gh:implement <N>`** | stronger reasoning where it matters |
 | Want the label-pipeline (`agent.yml`) rather than a direct assignee | **`/gh:implement <N>`** | pipeline path; Claude opens a draft PR |
 
 **How the routes differ (say this when relevant):**
 
 - **`/gh:assign`** → hands the issue to a GitHub **coding agent** on its own branch/PR.
-  Prefer **copilot** (the reliable trigger here); **claude** only when confirmed
-  responsive in this repo.
+  **Copilot is disabled as of 2026-09-01** — always use **claude**.
 - **`/gh:implement`** → applies the `ai-implement` label, which fires the repo's
   **agent-workflow** (`agent.yml`) → Claude implements and opens a draft PR.
 - **`/work`** → **local, in this session**: brainstorm → plan → worktree →
   subagent-driven. Best when you want to stay in the loop or the work isn't
   cloud-friendly.
 
-A rough rule of thumb: **mechanical → Copilot**, **needs real judgement → Claude**,
-**needs your machine or your eyes → local `/work`**, **not ready → enrich first**.
+A rough rule of thumb: **mechanical → Claude direct-assign or OpenCode-cheap**,
+**needs real judgement → Claude**, **needs your machine or your eyes → local
+`/work`**, **not ready → enrich first**. (Copilot disabled as of 2026-09-01.)
 
 ### Step 4b — If the route is the agent-workflow, also pick the model
 
