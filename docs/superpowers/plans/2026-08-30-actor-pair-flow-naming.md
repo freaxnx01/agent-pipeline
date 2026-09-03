@@ -19,7 +19,9 @@
 - Never delete a label from a consumer repo, and never mutate labels on an issue. The pipeline tolerates old labels; the maintainer migrates them.
 - Files under `docs/superpowers/plans/`, `docs/superpowers/specs/`, and existing `CHANGELOG.md` entries are **immutable history** — do not rename anything inside them. The bodies of ADR-002 and ADR-004 in `docs/DECISIONS.md` are likewise immutable except for one appended supersession line each.
 - Do not pin GitHub Actions to floating tags. Do not loosen workflow `permissions:`. Do not add inline bash longer than 5 lines to a YAML step.
-- Commit messages follow Conventional Commits. Commit after every task.
+- Commit messages follow Conventional Commits. **Commit AND PUSH after every task** — every task's final step ends `git commit ... && git push -u origin HEAD`.
+- **Pushing per task is not optional and not a style preference.** This job runs under a wall-clock cap. Work that is committed but never pushed dies with the runner: three runs of this plan have already been lost that way. Pushing each task means a timeout costs one task instead of everything.
+- **If the branch already has commits when you start, you are resuming.** Read the branch log first (`git log --oneline origin/main..HEAD`), match the commit subjects against the task list below, skip every task already committed, and continue from the first one that is not. Do not redo completed tasks and do not start over.
 
 **The rename map** (memorize; it recurs in every task):
 
@@ -291,6 +293,7 @@ git commit -m "refactor(gate): rename pre-preview gate to check-human-merge-gate
 Renames the flow-3 gate to name its actor pair and teaches it to accept
 the deprecated 'pre-preview' input and 'ai-pre-preview' label, each with
 a ::warning:: naming the replacement. Removed in v3."
+git push -u origin HEAD
 ```
 
 ---
@@ -550,6 +553,7 @@ git commit -m "refactor(gate): rename auto-review gate to check-ai-merge-gate
 Renames the flow-2 gate to name its actor pair and teaches it to accept
 the deprecated 'auto-review' input and 'ai-auto-review' label, each with
 a ::warning:: naming the replacement. Removed in v3."
+git push -u origin HEAD
 ```
 
 ---
@@ -692,6 +696,7 @@ git commit -m "refactor(labels): create actor-pair labels, rename block MODE val
 ensure-issue-labels.sh creates ai-review-ai-merge and
 ai-review-human-merge; pre-existing old labels are left alone since the
 gates still honour them. MODE becomes ai-merge / human-merge."
+git push -u origin HEAD
 ```
 
 ---
@@ -875,6 +880,7 @@ git commit -m "refactor(workflow): rename review flows to actor-pair names
 auto_review -> ai_review_ai_merge, pre_preview -> ai_review_human_merge,
 with matching inputs and outputs. The auto-review / pre-preview inputs and
 the auto-review-enabled output are retained as deprecated aliases until v3."
+git push -u origin HEAD
 ```
 
 ---
@@ -940,6 +946,7 @@ If a job is unexpectedly *skipped* rather than failing, the cause is almost alwa
 ```bash
 git add .github/workflows/agent-implement.test.yml .github/workflows/agent.yml .github/workflows/claude-implement.yml
 git commit -m "test(workflow): move callers and act suite to actor-pair names"
+git push -u origin HEAD
 ```
 
 ---
@@ -984,6 +991,7 @@ Expected: no output, exit 0. Watch for SC2034 (unused variable) — it fires if 
 ```bash
 git add scripts/onboard-consumer.sh
 git commit -m "refactor(onboard): rename flow flags to actor-pair names"
+git push -u origin HEAD
 ```
 
 ---
@@ -1094,6 +1102,7 @@ git commit -m "docs(adr): record ADR-009 actor-pair flow naming
 
 Adds ADR-009, supersession pointers on ADR-002 and ADR-004, the consumer
 migration section, and the Unreleased changelog entries."
+git push -u origin HEAD
 ```
 
 ---
