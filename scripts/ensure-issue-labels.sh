@@ -16,6 +16,11 @@
 #   gates      ai-auto-review, ai-pre-preview, ai-chain, ai:chain-paused
 #              — read by auto-review (epic #3) and chain-dispatch
 #                (epic #4) workflows; user-applied opt-ins / kill switch
+#   budget     turns:50, turns:80, turns:120, turns:160
+#              — read by classify-turns.sh as an explicit stage-1 override of
+#                the task-count heuristic; `gh issue edit --add-label` fails
+#                outright on a label that does not exist, so the documented
+#                override is unusable until these are created
 #   outcome    ai:review-blocked
 #              — written by the auto-review job (ADR-002, epic #3) when
 #                the safety envelope or verdict leaves the PR draft
@@ -66,6 +71,11 @@ create ai-auto-review  0E8A16 'Run auto-review after PR opens; auto-merge on app
 create ai-pre-preview  1D76DB 'Run agent pre-review after PR opens; promote to ready for human merge (no auto-merge)'
 create ai-chain        0E8A16 'Eligible for chain-dispatch when blockers resolve'
 create ai:chain-paused D73A4A 'Repo-wide kill switch for chain-dispatch'
+
+create turns:50  5319E7 'Override the agent turn budget to 50 (classify-turns.sh stage 1)'
+create turns:80  5319E7 'Override the agent turn budget to 80 (classify-turns.sh stage 1)'
+create turns:120 5319E7 'Override the agent turn budget to 120 (classify-turns.sh stage 1)'
+create turns:160 5319E7 'Override the agent turn budget to 160 (classify-turns.sh stage 1)'
 
 create ai:review-blocked D73A4A 'Auto-review left the PR draft; human action required'
 
